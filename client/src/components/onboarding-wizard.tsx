@@ -30,10 +30,10 @@ export function OnboardingWizard() {
     queryKey: ['/api/users', user?.id, 'ratings'],
     queryFn: async () => {
       if (!user?.id) return [];
-      const res = await fetch(`/api/users/${user.id}/ratings`);
+      const res = await fetch(`/api/users/${user.id}/reviews`);
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
-      return data.ratings || data.reviews || (Array.isArray(data) ? data : []);
+      return data.reviews || data.ratings || (Array.isArray(data) ? data : []);
     },
     enabled: isAuthenticated && !!user?.id,
   });
