@@ -142,15 +142,8 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
     return { x: -1, y: -1 };
   });
   const fabRef = useRef<HTMLButtonElement>(null);
-  const dragState = useRef({
-    active: false,
-    moved: false,
-    pointerId: -1,
-    startX: 0,
-    startY: 0,
-    startPosX: 0,
-    startPosY: 0,
-  });
+  const wasDragged = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
 
   const clampPos = useCallback((x: number, y: number) => {
     const size = 56;
@@ -179,48 +172,43 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
     return () => window.removeEventListener('resize', onResize);
   }, [clampPos]);
 
-  const onPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+  const handleFabClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const el = e.currentTarget;
-    el.setPointerCapture(e.pointerId);
-    dragState.current = {
-      active: true,
-      moved: false,
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      startPosX: fabPos.x,
-      startPosY: fabPos.y,
-    };
+    if (wasDragged.current) {
+      wasDragged.current = false;
+      return;
+    }
+    toggleOpen();
+  }, [toggleOpen]);
+
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    wasDragged.current = false;
+    dragStart.current = { x: e.clientX, y: e.clientY, posX: fabPos.x, posY: fabPos.y };
   }, [fabPos]);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
-    const ds = dragState.current;
-    if (!ds.active) return;
-    const dx = e.clientX - ds.startX;
-    const dy = e.clientY - ds.startY;
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) ds.moved = true;
-    if (ds.moved) setFabPos(clampPos(ds.startPosX + dx, ds.startPosY + dy));
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+    const dx = e.clientX - dragStart.current.x;
+    const dy = e.clientY - dragStart.current.y;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) wasDragged.current = true;
+    if (wasDragged.current) setFabPos(clampPos(dragStart.current.posX + dx, dragStart.current.posY + dy));
   }, [clampPos]);
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
-    const ds = dragState.current;
-    if (!ds.active) return;
-    e.currentTarget.releasePointerCapture(ds.pointerId);
-    const wasDrag = ds.moved;
-    ds.active = false;
-    ds.moved = false;
-    if (!wasDrag) {
-      toggleOpen();
-    } else {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    if (wasDragged.current) {
       const size = 56;
       setFabPos(prev => {
         const snappedX = (prev.x + size / 2) < window.innerWidth / 2 ? 4 : window.innerWidth - size - 4;
         return clampPos(snappedX, prev.y);
       });
     }
-  }, [toggleOpen, clampPos]);
+  }, [clampPos]);
 
   useEffect(() => {
     const toSave = messages.map(m => ({
@@ -831,13 +819,13 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
       {!isOpen && fabPos.x >= 0 && fabPos.y >= 0 && (
         <button
           ref={fabRef}
+          onClick={handleFabClick}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-          className="fixed h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300 p-0 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center select-none touch-none cursor-grab active:cursor-grabbing z-[60]"
-          style={{ left: fabPos.x, top: fabPos.y }}
+          className="fixed h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300 p-0 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center select-none cursor-grab active:cursor-grabbing z-[60]"
+          style={{ left: fabPos.x, top: fabPos.y, touchAction: 'none' }}
           data-testid="button-toggle-chat"
         >
           <MessageSquare className="h-6 w-6 pointer-events-none" />
