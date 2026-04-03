@@ -61,7 +61,7 @@ def update_review_stats(sender, instance, created, **kwargs):
             from .models import TmdbTrainingData
             import threading
             
-            if pinecone_service.is_initialized():
+            if pinecone_service and pinecone_service.is_initialized():
                 movie = TmdbTrainingData.objects.filter(tmdb_id=instance.tmdb_id).first()
                 if movie:
                     movie_data = {

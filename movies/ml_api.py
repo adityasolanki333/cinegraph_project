@@ -644,7 +644,7 @@ def semantic_search(request):
         from .ml.pinecone_service import pinecone_service
         search_method = "pinecone_semantic"
 
-        if pinecone_service.is_initialized():
+        if pinecone_service and pinecone_service.is_initialized():
             pinecone_filters = None
             if filters:
                 pinecone_filters = {}
@@ -1647,6 +1647,8 @@ def get_similar_movies_semantic(request, tmdb_id):
         # 1. Try Pinecone vector search — only use if top result quality is high enough
         try:
             from .ml.pinecone_service import pinecone_service
+            if not pinecone_service:
+                raise ValueError("Pinecone service not available")
             results = pinecone_service.get_nearest_neighbors(int(tmdb_id), k=limit + 5)
             if results:
                 top_score = results[0].get('similarity', 0.0) if results else 0.0

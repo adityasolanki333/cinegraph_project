@@ -244,7 +244,7 @@ class ContentBasedRecommender:
         
         from .pinecone_service import pinecone_service
         self.pinecone_service = pinecone_service
-        self.use_pinecone = self.pinecone_service.is_initialized()
+        self.use_pinecone = bool(pinecone_service and self.pinecone_service.is_initialized())
         
     def build_content_features(self, content_data):
         if self.use_pinecone:

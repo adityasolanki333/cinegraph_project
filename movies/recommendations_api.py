@@ -22,16 +22,23 @@ GENRE_ID_TO_NAME = _GENRE_ID_TO_NAME_MAP
 
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
+_MGMT_COMMANDS = {'migrate', 'makemigrations', 'collectstatic', 'check',
+                  'showmigrations', 'sqlmigrate', 'inspectdb', 'shell',
+                  'dbshell', 'flush', 'loaddata', 'dumpdata'}
+import sys as _sys
+_is_mgmt = len(_sys.argv) > 1 and _sys.argv[1] in _MGMT_COMMANDS
+
 gemini_client = None
-try:
-    from google import genai
-    if GEMINI_API_KEY:
-        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-        logger.info("Gemini client initialized successfully")
-except ImportError:
-    logger.warning("google-genai not installed, using fallback")
-except Exception as e:
-    logger.warning(f"Failed to initialize Gemini client: {e}")
+if not _is_mgmt:
+    try:
+        from google import genai
+        if GEMINI_API_KEY:
+            gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+            logger.info("Gemini client initialized successfully")
+    except ImportError:
+        logger.warning("google-genai not installed, using fallback")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Gemini client: {e}")
 
 
 def get_user_context(user):

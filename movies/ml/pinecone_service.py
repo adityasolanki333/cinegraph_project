@@ -450,4 +450,10 @@ class PineconeService:
                 del self._nn_cache[k]
 
 
-pinecone_service = PineconeService()
+import sys
+_is_management_command = len(sys.argv) > 1 and sys.argv[1] in (
+    'migrate', 'makemigrations', 'collectstatic', 'check',
+    'showmigrations', 'sqlmigrate', 'inspectdb', 'shell',
+    'dbshell', 'flush', 'loaddata', 'dumpdata',
+)
+pinecone_service = None if _is_management_command else PineconeService()
