@@ -146,15 +146,70 @@ class ForgetPasswordView(APIView):
         if not serializer.is_valid():
             return Response({'error': serializer.errors, 'code': 'VALIDATION_ERROR'}, status=400)
 
-        logger.warning(
-            'Password reset requested for %s but email sending is not configured. '
-            'No reset token has been generated or sent.',
-            serializer.validated_data['email'],
-        )
-        return Response({
+        email = serializer.validated_data['email']
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({
+                'success': True,
+                'message': 'If an account with that email exists, a reset link has been sent.'
+            })
+
+        from django.core.signing import TimestampSigner
+        signer = TimestampSigner()
+        token = signer.sign(str(user.id))
+
+        host = request.META.get('HTTP_HOST', '')
+        scheme = 'https' if request.is_secure() or request.META.get('HTTP_X_FORWARDED_PROTO') == 'https' else 'http'
+        reset_link = f'{scheme}://{host}/forget-password?token={token}'
+
+        from django.conf import settings
+        sendgrid_key = getattr(settings, 'SENDGRID_API_KEY', '')
+        email_sent = False
+
+        if sendgrid_key:
+            try:
+                from sendgrid import SendGridAPIClient
+                from sendgrid.helpers.mail import Mail
+                message = Mail(
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to_emails=email,
+                    subject='CineGraph - Reset Your Password',
+                    html_content=(
+                        f'<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">'
+                        f'<h2 style="color:#6366f1">CineGraph Password Reset</h2>'
+                        f'<p>Hi {user.first_name or "there"},</p>'
+                        f'<p>We received a request to reset your password. Click the button below to set a new password:</p>'
+                        f'<p style="text-align:center;margin:30px 0">'
+                        f'<a href="{reset_link}" style="background:#6366f1;color:#fff;padding:12px 32px;'
+                        f'border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">'
+                        f'Reset Password</a></p>'
+                        f'<p style="color:#666;font-size:14px">This link expires in 1 hour. '
+                        f'If you did not request this, you can safely ignore this email.</p>'
+                        f'<hr style="border:none;border-top:1px solid #eee;margin:20px 0">'
+                        f'<p style="color:#999;font-size:12px">CineGraph - Your Movie & TV Companion</p>'
+                        f'</div>'
+                    ),
+                )
+                sg = SendGridAPIClient(sendgrid_key)
+                sg.send(message)
+                email_sent = True
+                logger.info('Password reset email sent to %s', email)
+            except Exception as e:
+                logger.error('Failed to send password reset email: %s', e)
+
+        response_data = {
             'success': True,
-            'message': 'Password reset is not yet available. Email delivery has not been configured.'
-        })
+            'message': 'If an account with that email exists, a reset link has been sent.'
+        }
+
+        is_debug = getattr(settings, 'DEBUG', False)
+        if is_debug and not email_sent:
+            response_data['demo_reset_token'] = token
+            response_data['demo_reset_link'] = f'/forget-password?token={token}'
+
+        return Response(response_data)
 
 
 class ResetPasswordView(APIView):
