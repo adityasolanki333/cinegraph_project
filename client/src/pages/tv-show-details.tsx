@@ -897,6 +897,46 @@ export default function TVShowDetailsPage() {
                     </Card>
                   )}
 
+                  {/* TMDB Reviews with Sentiment */}
+                  {(sentimentData as any)?.reviews?.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <MessageSquare className="h-5 w-5 text-primary" />
+                          TMDB Critic Reviews
+                          <Badge variant="secondary" className="ml-auto text-xs">
+                            {(sentimentData as any).reviews.length} reviews analyzed
+                          </Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {(sentimentData as any).reviews.map((rev: any) => (
+                          <div key={rev.id} className="border rounded-lg p-4 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm">{rev.author}</span>
+                                {rev.authorRating && (
+                                  <Badge variant="outline" className="text-xs gap-1">
+                                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                    {rev.authorRating}/10
+                                  </Badge>
+                                )}
+                              </div>
+                              <Badge
+                                variant={rev.sentiment === "positive" ? "default" : rev.sentiment === "negative" ? "destructive" : "secondary"}
+                                className="text-xs capitalize shrink-0"
+                                data-testid={`badge-sentiment-${rev.id}`}
+                              >
+                                {rev.sentiment === "positive" ? "😊" : rev.sentiment === "negative" ? "😞" : "😐"} {rev.sentiment}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground leading-relaxed">{rev.content}</p>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
+
                   {/* Review Form */}
                   {isAuthenticated && tvShow && (
                     <ReviewForm

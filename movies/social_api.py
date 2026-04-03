@@ -488,35 +488,124 @@ def lists_containing_content(request, tmdb_id, media_type):
 @require_GET
 def get_sentiment(request, tmdb_id, media_type):
     from .models import UserReview
+    from .api import tmdb_request
+    from .ml.sentiment_analyzer import sentiment_analyzer
+
+    # ── 1. TMDB reviews ──────────────────────────────────────────────────────
+    endpoint = f"/{'movie' if media_type == 'movie' else 'tv'}/{tmdb_id}/reviews"
+    tmdb_data = tmdb_request(endpoint, {"page": 1})
+    tmdb_results = tmdb_data.get("results", []) if tmdb_data else []
+
+    analyzed_reviews = []
+    tmdb_positive = tmdb_negative = tmdb_neutral = 0
+    tmdb_score_sum = 0.0
+
+    for r in tmdb_results:
+        content = r.get("content", "").strip()
+        if not content:
+            continue
+        result = sentiment_analyzer.analyze_text(content[:2000])
+        tmdb_score_sum += result.compound
+        label = result.classification
+        if label == "positive":
+            tmdb_positive += 1
+        elif label == "negative":
+            tmdb_negative += 1
+        else:
+            tmdb_neutral += 1
+        analyzed_reviews.append({
+            "id": r.get("id"),
+            "author": r.get("author", "Anonymous"),
+            "authorRating": r.get("author_details", {}).get("rating"),
+            "content": content[:500] + ("…" if len(content) > 500 else ""),
+            "createdAt": r.get("created_at", ""),
+            "sentiment": label,
+            "sentimentScore": round(result.compound, 3),
+        })
+
+    tmdb_count = len(analyzed_reviews)
+
+    # ── 2. In-app user reviews ────────────────────────────────────────────────
     from django.db.models import Avg, Count
-    
-    reviews = UserReview.objects.filter(
-        tmdb_id=tmdb_id,
-        media_type=media_type,
-        is_public=True
+    user_qs = UserReview.objects.filter(
+        tmdb_id=tmdb_id, media_type=media_type, is_public=True
     )
-    
-    stats = reviews.aggregate(
-        avg_rating=Avg('rating'),
-        total_reviews=Count('id')
-    )
-    
-    positive = reviews.filter(rating__gte=7).count()
-    negative = reviews.filter(rating__lte=4).count()
-    neutral = reviews.filter(rating__gt=4, rating__lt=7).count()
-    
-    avg_rating = stats['avg_rating'] or 0
-    sentiment_score = (avg_rating - 5) / 5 if avg_rating else 0
-    
+    user_stats = user_qs.aggregate(avg_rating=Avg("rating"), total=Count("id"))
+    user_count = user_stats["total"] or 0
+    user_avg = user_stats["avg_rating"] or 0
+
+    user_positive = user_qs.filter(rating__gte=7).count()
+    user_negative = user_qs.filter(rating__lte=4).count()
+    user_neutral  = user_qs.filter(rating__gt=4, rating__lt=7).count()
+    user_score = (user_avg - 5) / 5 if user_avg else 0.0
+
+    # ── 3. Combined stats ─────────────────────────────────────────────────────
+    total_pos  = tmdb_positive + user_positive
+    total_neg  = tmdb_negative + user_negative
+    total_neu  = tmdb_neutral  + user_neutral
+    total_all  = tmdb_count + user_count
+
+    if total_all > 0:
+        tmdb_weight = tmdb_score_sum
+        user_weight = user_score * user_count
+        avg_score = (tmdb_weight + user_weight) / total_all
+    else:
+        avg_score = 0.0
+
+    # ── 4. Insights ───────────────────────────────────────────────────────────
+    insights = []
+    if total_all > 0:
+        pct_pos = round(total_pos / total_all * 100)
+        pct_neg = round(total_neg / total_all * 100)
+        if pct_pos >= 70:
+            insights.append(f"{pct_pos}% of reviewers responded positively.")
+        elif pct_neg >= 50:
+            insights.append(f"{pct_neg}% of reviewers expressed disappointment.")
+        else:
+            insights.append("Audience reception is mixed across reviewers.")
+        if avg_score > 0.3:
+            insights.append("Strong overall positive sentiment from critics and viewers.")
+        elif avg_score < -0.2:
+            insights.append("Reviewers highlight notable weaknesses or frustrations.")
+        if tmdb_count >= 5:
+            insights.append(f"Analysis based on {tmdb_count} TMDB critic reviews.")
+
+    # ── 5. AI summary via Gemini (best-effort) ────────────────────────────────
+    ai_summary = None
+    if analyzed_reviews:
+        try:
+            from .recommendations_api import call_gemini_api
+            snippets = "\n".join(
+                f"- [{r['sentiment'].upper()}] {r['content'][:200]}"
+                for r in analyzed_reviews[:10]
+            )
+            prompt = (
+                f"Here are audience reviews for a {'movie' if media_type == 'movie' else 'TV show'}. "
+                f"Write a concise 2-sentence summary of overall audience sentiment.\n\n{snippets}"
+            )
+            ai_summary, _ = call_gemini_api(prompt)
+        except Exception:
+            pass
+
     return JsonResponse({
-        'tmdbId': tmdb_id,
-        'mediaType': media_type,
-        'avgSentimentScore': round(sentiment_score, 2),
-        'totalReviews': stats['total_reviews'],
-        'positiveCount': positive,
-        'negativeCount': negative,
-        'neutralCount': neutral,
-        'avgRating': round(avg_rating, 1) if avg_rating else None
+        "tmdbId": tmdb_id,
+        "mediaType": media_type,
+        "summary": {
+            "totalReviews": total_all,
+            "avgScore": round(avg_score, 3),
+            "distribution": {
+                "positive": total_pos,
+                "neutral":  total_neu,
+                "negative": total_neg,
+            },
+        },
+        "sources": {
+            "tmdb": tmdb_count,
+            "userReviews": user_count,
+        },
+        "reviews": analyzed_reviews,
+        "insights": insights,
+        "aiSummary": ai_summary,
     })
 
 
