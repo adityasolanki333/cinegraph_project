@@ -156,7 +156,7 @@ urlpatterns = [
     path('ratings/create', social_api.create_rating, name='api_create_rating'),
     path('community/top-reviews', social_api.get_top_reviews, name='api_top_reviews'),
     path('community/lists/public', social_api.get_public_lists, name='api_public_lists'),
-    path('community/lists', social_api.create_list, name='api_create_list'),
+    path('community/lists', social_api.create_community_list, name='api_create_list'),
     path('community/lists/<int:list_id>', social_api.manage_community_list, name='api_manage_community_list'),
     path('community/lists/<int:list_id>/items', social_api.add_list_item, name='api_add_list_item'),
     path('community/lists/<int:list_id>/items/<int:item_id>', social_api.remove_list_item, name='api_remove_list_item'),
@@ -189,13 +189,13 @@ urlpatterns = [
     
     # Review comments and awards endpoints
     path('reviews/<int:review_id>/comments', social_api.get_review_comments, name='api_get_review_comments'),
-    path('reviews/<int:review_id>/comments/add', social_api.get_review_comments, name='api_add_review_comment'),
+    path('reviews/<int:review_id>/comments/add', social_api.add_review_comment, name='api_add_review_comment'),
     path('reviews/<int:review_id>/awards', social_api.get_review_awards, name='api_get_review_awards'),
     path('reviews/<int:review_id>/awards/add', social_api.get_review_awards, name='api_give_review_award'),
     
     # Community aliases for review endpoints (frontend compatibility)
     path('community/reviews/<int:review_id>/comments', social_api.get_review_comments, name='api_community_review_comments'),
-    path('community/reviews/<int:review_id>/comments/add', social_api.get_review_comments, name='api_community_add_comment'),
+    path('community/reviews/<int:review_id>/comments/add', social_api.add_review_comment, name='api_community_add_comment'),
     path('community/reviews/<int:review_id>/comments/<int:comment_id>', social_api.delete_review_comment, name='api_community_delete_comment'),
     path('community/reviews/<int:review_id>/awards', social_api.get_review_awards, name='api_community_review_awards'),
     path('community/reviews/<int:review_id>/awards/add', social_api.get_review_awards, name='api_community_give_award'),

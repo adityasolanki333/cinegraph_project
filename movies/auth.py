@@ -137,19 +137,15 @@ def forgot_password_view(request):
         signer = TimestampSigner()
         token = signer.sign(str(user.id))
         
-        # In a real app, send email here.
-        # For this demo, we return the token/link in the response so the user can test user flow
         return JsonResponse({
             'success': True,
-            'message': 'Password reset link sent (check console/response for demo)',
-            'demo_reset_token': token,
-            'demo_reset_link': f'/reset-password?token={token}'
+            'message': 'If an account exists with this email, you will receive a password reset link.'
         })
         
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
 @require_POST
 def reset_password_view(request):
     try:
@@ -186,4 +182,4 @@ def reset_password_view(request):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'An unexpected error occurred'}, status=500)

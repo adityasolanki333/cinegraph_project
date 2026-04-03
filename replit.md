@@ -56,6 +56,7 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 - **APIs**: TMDB, Gemini AI, RapidAPI (YouTube)
 
 ## Environment Variables
+- `SESSION_SECRET` - Required for Django secret key (app will not start without it)
 - `TMDB_API_KEY` - Required for movie data
 - `GEMINI_API_KEY` - For AI recommendations
 - `RAPIDAPI_KEY` - For YouTube integration
@@ -74,6 +75,14 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 - `/api/external/*` - YouTube, ratings
 
 ## Recent Changes
+- April 3, 2026: Full App Audit (Security, Bugs, Dead Code, Tests)
+  - Fixed broken API routes: comments/add → add_review_comment, awards/add → get_review_awards (handles GET+POST), community/lists POST → create_community_list wrapper
+  - Security: Password reset token no longer returned in response; emails removed from followers/following endpoints; str(e) replaced with generic error messages; demo_user bypasses removed from manage_rating and delete_review
+  - Security: settings.py hardened (DEBUG=False default, SESSION_SECRET required, CORS restricted, DRF default permission=IsAuthenticated)
+  - Security: Removed unused csrf_exempt_for_session_auth decorator (dead code, potential CSRF bypass risk)
+  - Dead code removed: test_endpoints.py, test_feed.js, .gitignore_1, models_search.py, unused lru_cache/duplicate imports, ~10 unrouted demo_user_* view functions
+  - Tests fixed: Corrected URL references (auth/user→auth/me, trending paths, search paths, community-feed); login tests updated to use email field
+  - Frontend: Notification polling throttled from 30s to 60s in NotificationBell.tsx
 - December 18, 2025: PostgreSQL Migration Complete
   - Switched from SQLite to PostgreSQL (Neon-backed via DATABASE_URL)
   - All Django migrations applied successfully (25 migrations)

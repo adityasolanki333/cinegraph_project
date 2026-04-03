@@ -79,7 +79,7 @@ def get_user_engagement(request, user_id):
         return JsonResponse(engagement)
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -141,7 +141,7 @@ def get_content_stats(request, tmdb_id):
         return JsonResponse(stats)
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -186,7 +186,7 @@ def get_popular_content(request):
         })
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 def track_event(request):
     """Track a user analytics event"""
     if request.method != 'POST':
@@ -253,7 +253,7 @@ def track_event(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -313,7 +313,7 @@ def get_recommendation_metrics(request, user_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET 
@@ -373,4 +373,4 @@ def get_platform_stats(request):
         })
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)

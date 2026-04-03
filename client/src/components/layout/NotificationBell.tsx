@@ -30,10 +30,9 @@ export function NotificationBell() {
   const { data: unreadCount = 0 } = useQuery<number>({
     queryKey: ['/api/community/notifications/unread/count'],
     enabled: isAuthenticated,
-    refetchInterval: 30000, // Poll every 30 seconds
+    refetchInterval: 60000,
   });
 
-  // Get recent notifications
   const { data: notifications = [] } = useQuery<NotificationWithActor[]>({
     queryKey: ['/api/community/notifications'],
     queryFn: async () => {
@@ -58,7 +57,7 @@ export function NotificationBell() {
       return response.json();
     },
     enabled: isAuthenticated && isOpen,
-    refetchInterval: 30000, // Poll every 30 seconds
+    refetchInterval: 60000,
   });
 
   // Mark as read mutation

@@ -1,9 +1,10 @@
+import json
 import requests
 import os
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
+from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-from functools import lru_cache
 
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
@@ -23,7 +24,7 @@ def tmdb_request(endpoint, params=None):
         response = requests.get(url, headers=get_headers(), params=params, timeout=10)
         return response.json()
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": "Failed to fetch data from TMDB"}
 
 @require_GET
 def trending(request):
@@ -406,7 +407,7 @@ def tmdb_request_post(endpoint, body=None):
         )
         return response.json()
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": "Failed to post data to TMDB"}
 
 
 def tmdb_request_delete(endpoint):
@@ -419,12 +420,7 @@ def tmdb_request_delete(endpoint):
         response = requests.delete(url, headers=get_headers(), timeout=10)
         return response.json()
     except Exception as e:
-        return {"error": str(e)}
-
-
-from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
-import json
+        return {"error": "Failed to delete data from TMDB"}
 
 
 @csrf_exempt
@@ -492,17 +488,13 @@ def get_guest_session(request):
     return JsonResponse(data)
 
 
-import json as _json
-from django.views.decorators.csrf import csrf_exempt
-
-
 @csrf_exempt
 def record_interaction(request):
     """Record a search interaction / click feedback for ML training."""
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
     try:
-        body = _json.loads(request.body)
+        body = json.loads(request.body)
     except Exception:
         body = {}
     return JsonResponse({'status': 'ok', 'received': bool(body)})

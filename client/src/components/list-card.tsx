@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { List, Users, Lock, Globe, Heart, Loader2 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { userIdToUsername } from "@shared/helpers";
 import { useAuth } from "@/hooks/useAuth";
@@ -36,6 +36,7 @@ interface ListCardProps {
 }
 
 export function ListCard({ list, showAuthor = true }: ListCardProps) {
+  const [, setLocation] = useLocation();
   const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
@@ -121,8 +122,12 @@ export function ListCard({ list, showAuthor = true }: ListCardProps) {
   const previewPosters = list.items?.slice(0, 4) || [];
   const isOwnList = user?.id === list.user?.id;
 
+  const handleCardClick = () => {
+    setLocation(`/lists/${list.id}`);
+  };
+
   return (
-    <Link href={`/lists/${list.id}`}>
+    <div onClick={handleCardClick} role="link" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') handleCardClick(); }}>
       <Card className="group hover:shadow-2xl hover:border-primary/50 transition-all duration-300 cursor-pointer overflow-hidden h-full hover:-translate-y-1" data-testid={`list-card-${list.id}`}>
         <CardContent className="p-0 relative">
           {/* Gradient overlay on hover */}
@@ -230,6 +235,6 @@ export function ListCard({ list, showAuthor = true }: ListCardProps) {
           )}
         </CardFooter>
       </Card>
-    </Link>
+    </div>
   );
 }

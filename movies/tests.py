@@ -34,7 +34,6 @@ class AuthTests(TestCase):
         response = self.client.post(
             '/api/auth/register',
             data=json.dumps({
-                'username': 'newuser',
                 'email': 'newuser@cinema.com',
                 'password': 'StrongPass123!',
                 'firstName': 'New',
@@ -45,14 +44,13 @@ class AuthTests(TestCase):
         self.assertIn(response.status_code, [200, 201])
         data = response.json()
         self.assertIn('user', data)
-        self.assertEqual(data['user']['username'], 'newuser')
 
     def test_login_valid_credentials(self):
         """POST /api/auth/login with correct credentials returns user object."""
         user = create_user()
         response = self.client.post(
             '/api/auth/login',
-            data=json.dumps({'username': 'testuser', 'password': 'Secure123!'}),
+            data=json.dumps({'email': 'test@cinema.com', 'password': 'Secure123!'}),
             content_type='application/json'
         )
         self.assertEqual(response.status_code, 200)
@@ -64,23 +62,23 @@ class AuthTests(TestCase):
         create_user()
         response = self.client.post(
             '/api/auth/login',
-            data=json.dumps({'username': 'testuser', 'password': 'wrongpassword'}),
+            data=json.dumps({'email': 'test@cinema.com', 'password': 'wrongpassword'}),
             content_type='application/json'
         )
         self.assertEqual(response.status_code, 401)
 
     def test_get_current_user_authenticated(self):
-        """GET /api/auth/user returns user data when logged in."""
+        """GET /api/auth/me returns user data when logged in."""
         user = create_user()
         self.client.force_login(user)
-        response = self.client.get('/api/auth/user')
+        response = self.client.get('/api/auth/me')
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn('user', data)
 
     def test_get_current_user_unauthenticated(self):
-        """GET /api/auth/user returns 401 when not logged in."""
-        response = self.client.get('/api/auth/user')
+        """GET /api/auth/me returns 401 when not logged in."""
+        response = self.client.get('/api/auth/me')
         self.assertEqual(response.status_code, 401)
 
     def test_logout(self):
@@ -89,8 +87,7 @@ class AuthTests(TestCase):
         self.client.force_login(user)
         response = self.client.post('/api/auth/logout')
         self.assertIn(response.status_code, [200, 204])
-        # Verify session is cleared
-        me_response = self.client.get('/api/auth/user')
+        me_response = self.client.get('/api/auth/me')
         self.assertEqual(me_response.status_code, 401)
 
 
@@ -105,23 +102,23 @@ class TMDBProxyTests(TestCase):
         self.client = Client()
 
     def test_trending_movies_returns_results(self):
-        """GET /api/tmdb/trending/movie/week returns result list."""
-        response = self.client.get('/api/tmdb/trending/movie/week')
+        """GET /api/tmdb/trending returns result list."""
+        response = self.client.get('/api/tmdb/trending')
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn('results', data)
         self.assertIsInstance(data['results'], list)
 
     def test_popular_movies_returns_results(self):
-        """GET /api/tmdb/movie/popular returns result list."""
-        response = self.client.get('/api/tmdb/movie/popular')
+        """GET /api/tmdb/movies/popular returns result list."""
+        response = self.client.get('/api/tmdb/movies/popular')
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn('results', data)
 
     def test_movie_search_returns_results(self):
-        """GET /api/search?query=inception returns matches."""
-        response = self.client.get('/api/search?query=inception')
+        """GET /api/tmdb/search/multi?query=inception returns matches."""
+        response = self.client.get('/api/tmdb/search/multi?query=inception')
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn('results', data)
@@ -375,8 +372,8 @@ class CommunityTests(TestCase):
         self.client.force_login(self.user)
 
     def test_community_feed_returns_list(self):
-        """GET /api/community/feed returns a list."""
-        response = self.client.get(f'/api/community/feed?userId={self.user.id}')
+        """GET /api/community/community-feed returns a list."""
+        response = self.client.get(f'/api/community/community-feed?userId={self.user.id}')
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn('feed', data)

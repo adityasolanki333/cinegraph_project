@@ -1,6 +1,5 @@
 from functools import wraps
 from django.http import JsonResponse
-from django.middleware.csrf import get_token
 
 
 def api_auth_required(view_func):
@@ -28,14 +27,6 @@ def owner_required(user_id_param='user_id'):
     return decorator
 
 
-def csrf_exempt_for_session_auth(view_func):
-    @wraps(view_func)
-    def wrapper(request, *args, **kwargs):
-        if hasattr(request, '_dont_enforce_csrf_checks'):
-            request._dont_enforce_csrf_checks = True
-        return view_func(request, *args, **kwargs)
-    return wrapper
-    
 def mock_demo_user_auth(view_func):
     """
     Decorator that injects the demo_user into the request if the target URL 

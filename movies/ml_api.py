@@ -339,7 +339,7 @@ def get_hybrid_recommendations(request, user_id):
     except Exception as e:
         import traceback
         print(f'get_hybrid_recommendations error: {traceback.format_exc()}')
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -381,7 +381,7 @@ def get_collaborative_recommendations(request, user_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -433,7 +433,7 @@ def get_similar_items(request, tmdb_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -484,7 +484,7 @@ def get_user_similarity(request, user_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @csrf_exempt
@@ -664,7 +664,7 @@ def semantic_search(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -719,7 +719,7 @@ def get_recommendation_explanation(request, user_id, tmdb_id):
         return JsonResponse(explainability_engine.to_dict(explanation))
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -740,7 +740,7 @@ def get_bandit_statistics(request, user_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @csrf_exempt
@@ -789,7 +789,7 @@ def select_recommendation_arm(request, user_id):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @csrf_exempt
@@ -828,7 +828,7 @@ def update_bandit_reward(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @csrf_exempt
@@ -905,7 +905,7 @@ def apply_diversity(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -956,7 +956,7 @@ def get_diversity_metrics(request, user_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -994,7 +994,7 @@ def get_sentiment_analytics(request, tmdb_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @csrf_exempt
@@ -1029,7 +1029,7 @@ def analyze_text_sentiment(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @csrf_exempt
@@ -1055,7 +1055,7 @@ def update_sentiment_for_content(request, tmdb_id):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -1121,7 +1121,7 @@ def get_recommendation_history(request, user_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @csrf_exempt
@@ -1282,7 +1282,7 @@ def log_recommendation_interaction(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -1298,7 +1298,7 @@ def get_global_feature_importance(request):
         return JsonResponse(result)
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -1332,7 +1332,7 @@ def get_counterfactual_explanation(request, user_id, tmdb_id):
         return JsonResponse(result)
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -1358,7 +1358,7 @@ def get_local_explanation(request, user_id, tmdb_id):
         return JsonResponse(result)
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @csrf_exempt
@@ -1384,7 +1384,7 @@ def calibrate_confidence(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -1403,7 +1403,7 @@ def get_viewing_patterns(request, user_id):
         return JsonResponse(result)
         
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
 
 @require_GET
@@ -1543,4 +1543,4 @@ def get_similar_movies_semantic(request, tmdb_id):
         })
 
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)

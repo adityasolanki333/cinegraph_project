@@ -29,7 +29,6 @@ def get_followers(request, user_id):
     return JsonResponse({
         'followers': [{
             'id': str(f.follower.id),
-            'email': f.follower.email,
             'firstName': f.follower.first_name,
             'lastName': f.follower.last_name,
             'followedAt': f.created_at.isoformat(),
@@ -47,7 +46,6 @@ def get_following(request, user_id):
     return JsonResponse({
         'following': [{
             'id': str(f.following.id),
-            'email': f.following.email,
             'firstName': f.following.first_name,
             'lastName': f.following.last_name,
             'followedAt': f.created_at.isoformat(),
@@ -279,6 +277,14 @@ def create_list(request, user_id):
         })
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+
+@csrf_exempt
+@require_POST
+def create_community_list(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+    return create_list(request, request.user.id)
 
 
 @csrf_exempt
@@ -705,7 +711,7 @@ def create_rating(request):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
 
 
 @csrf_exempt
@@ -735,16 +741,10 @@ def manage_rating(request, review_id):
             }
         })
 
-    # Mutations require ownership
     if not request.user.is_authenticated:
-        try:
-            acting_user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'Not authenticated'}, status=401)
-    else:
-        acting_user = request.user
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
 
-    if review.user != acting_user:
+    if review.user != request.user:
         return JsonResponse({'error': 'Not authorized'}, status=403)
 
     if request.method == "DELETE":

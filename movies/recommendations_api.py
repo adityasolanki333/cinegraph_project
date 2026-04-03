@@ -273,7 +273,7 @@ Keep recommendations relevant to the user's taste based on their profile. Be con
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
 @require_POST
 def save_preferences(request):
     if not request.user.is_authenticated:

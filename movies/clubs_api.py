@@ -79,7 +79,7 @@ def clubs_list(request):
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
 
 
 @require_http_methods(["GET"])
@@ -153,7 +153,7 @@ def join_club(request, club_id):
             return JsonResponse({'message': 'Joined club successfully', 'joined': True})
 
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
 
 
 @require_http_methods(["GET", "POST"])
