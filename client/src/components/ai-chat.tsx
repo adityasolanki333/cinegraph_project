@@ -621,8 +621,9 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   }, [handleSendMessage]);
 
   return (
-    <div className={cn("fixed z-[60]", isOpen ? "inset-0 md:inset-auto md:bottom-4 md:right-4 md:flex md:flex-col md:items-end" : "pointer-events-none", className)} data-testid="ai-chat-widget">
+    <>
       {isOpen && (
+        <div className={cn("fixed z-[60] inset-0 md:inset-auto md:bottom-4 md:right-4 md:flex md:flex-col md:items-end", className)} data-testid="ai-chat-widget">
         <div className="w-full h-full md:mb-3 md:w-[480px] md:h-[600px] bg-background md:border md:border-border md:rounded-2xl md:shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 md:slide-in-from-bottom-5 fade-in duration-300">
           <div className="flex items-center justify-between px-4 py-3 md:py-2.5 border-b border-border bg-card shrink-0 safe-area-top">
             <div className="flex items-center gap-2.5">
@@ -857,6 +858,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
             </div>
           </div>
         </div>
+        </div>
       )}
 
       {!isOpen && fabPos.x >= 0 && fabPos.y >= 0 && (
@@ -865,13 +867,13 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
           onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDragStart(e.clientX, e.clientY); }}
           onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); handleDragStart(e.touches[0].clientX, e.touches[0].clientY); }}
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-          className="fixed h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300 p-0 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center select-none touch-none cursor-grab active:cursor-grabbing z-[60] pointer-events-auto"
+          className="fixed h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300 p-0 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center select-none touch-none cursor-grab active:cursor-grabbing z-[60]"
           style={{ left: fabPos.x, top: fabPos.y }}
           data-testid="button-toggle-chat"
         >
           <MessageSquare className="h-6 w-6 pointer-events-none" />
         </button>
       )}
-    </div>
+    </>
   );
 }
