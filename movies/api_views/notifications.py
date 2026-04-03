@@ -5,7 +5,6 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from movies.models import Notification, NotificationSettings
 from movies.serializers.notifications import NotificationSerializer
-from movies.pagination import StandardPagePagination
 
 logger = logging.getLogger(__name__)
 
@@ -41,25 +40,21 @@ class MarkNotificationsReadView(APIView):
         return Response({'success': True})
 
 
-class CommunityNotificationsView(ListAPIView):
+class CommunityNotificationsView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = NotificationSerializer
-    pagination_class = StandardPagePagination
 
-    def get_queryset(self):
-        qs = Notification.objects.filter(user=self.request.user)
-        unread_only = self.request.query_params.get('unreadOnly', '').lower() == 'true'
+    def get(self, request):
+        qs = Notification.objects.filter(user=request.user).order_by('-created_at')
+        unread_only = request.query_params.get('unreadOnly', '').lower() == 'true'
         if unread_only:
             qs = qs.filter(is_read=False)
-        return qs
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(queryset, many=True)
+        try:
+            limit = int(request.query_params.get('limit', 50))
+            limit = min(max(limit, 1), 100)
+        except (ValueError, TypeError):
+            limit = 50
+        qs = qs[:limit]
+        serializer = NotificationSerializer(qs, many=True)
         return Response(serializer.data)
 
 
