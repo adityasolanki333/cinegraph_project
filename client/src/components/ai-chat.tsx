@@ -103,7 +103,8 @@ function TypingIndicator() {
 export default function AIChat({ className, isOpen: controlledOpen, onToggle }: AIChatProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
-  const toggleOpen = onToggle || (() => setInternalOpen(prev => !prev));
+  const stableToggle = useCallback(() => setInternalOpen(prev => !prev), []);
+  const toggleOpen = onToggle || stableToggle;
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const saved = sessionStorage.getItem('aiChat_messages');
@@ -862,7 +863,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
           ref={fabRef}
           onMouseDown={(e) => { e.preventDefault(); handleDragStart(e.clientX, e.clientY); }}
           onTouchStart={(e) => { handleDragStart(e.touches[0].clientX, e.touches[0].clientY); }}
-          className="fixed h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300 p-0 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center select-none touch-none cursor-grab active:cursor-grabbing z-[60]"
+          className="fixed h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300 p-0 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center select-none touch-none cursor-grab active:cursor-grabbing z-[60] pointer-events-auto"
           style={{ left: fabPos.x, top: fabPos.y }}
           data-testid="button-toggle-chat"
         >
