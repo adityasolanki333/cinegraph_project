@@ -39,6 +39,11 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 │   └── decorators.py         # Auth/ownership decorators
 ├── client/                   # React frontend
 │   ├── src/
+│   │   ├── i18n/                              # Internationalization (react-i18next)
+│   │   │   ├── index.ts                       # i18n config (6 languages, localStorage sync)
+│   │   │   └── locales/                       # Translation JSON files
+│   │   │       ├── en.json, hi.json, es.json  # English, Hindi, Spanish
+│   │   │       ├── fr.json, de.json, ja.json  # French, German, Japanese
 │   │   ├── components/
 │   │   │   ├── media-details.tsx              # Shared MediaDetails component (hero, cast, reviews, recommendations, similar tabs)
 │   │   │   ├── recommendation-comments.tsx    # Extracted shared recommendation comments

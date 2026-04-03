@@ -15,10 +15,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import type { Movie } from "@shared/schema";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { useTranslation } from "react-i18next";
 
 export default function Movies() {
+  const { t } = useTranslation();
+
   usePageMeta({
-    title: "Movies",
+    title: t("nav.movies"),
     description: "Browse trending, top-rated, and upcoming movies. Discover your next favorite film on CineGraph.",
   });
 
@@ -299,7 +302,7 @@ export default function Movies() {
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-4">Movies & Content Discovery</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-4">{t("movies.title")}</h1>
 
         {/* Enhanced Tabs Interface */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -307,23 +310,23 @@ export default function Movies() {
             <TabsList className="inline-flex w-max sm:grid sm:grid-cols-5 sm:w-full gap-0.5 sm:gap-1">
               <TabsTrigger value="discover" data-testid="tab-discover" className="text-xs sm:text-sm px-3 gap-1.5">
                 <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                Discover
+                {t("movies.discover")}
               </TabsTrigger>
               <TabsTrigger value="trending" data-testid="tab-trending" className="text-xs sm:text-sm px-3 gap-1.5">
                 <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                Trending
+                {t("movies.trending")}
               </TabsTrigger>
               <TabsTrigger value="now-playing" data-testid="tab-now-playing" className="text-xs sm:text-sm px-3 gap-1.5">
                 <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                Now Playing
+                {t("movies.nowPlaying")}
               </TabsTrigger>
               <TabsTrigger value="upcoming" data-testid="tab-upcoming" className="text-xs sm:text-sm px-3 gap-1.5">
                 <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                Upcoming
+                {t("movies.upcoming")}
               </TabsTrigger>
               <TabsTrigger value="indian" data-testid="tab-indian" className="text-xs sm:text-sm px-3 gap-1.5">
                 <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                Indian
+                {t("movies.indian")}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -334,7 +337,7 @@ export default function Movies() {
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search movies..."
+                  placeholder={t("movies.searchMovies")}
                   className="pl-10"
                   value={searchQuery}
                   onChange={(e) => {
@@ -384,12 +387,12 @@ export default function Movies() {
               </div>
             ) : error ? (
               <div className="text-center py-8 sm:py-12">
-                <p className="text-sm sm:text-base text-muted-foreground">Failed to load movies. Please try again.</p>
+                <p className="text-sm sm:text-base text-muted-foreground">{t("movies.failedToLoad")}</p>
               </div>
             ) : movies.length === 0 ? (
               <div className="text-center py-8 sm:py-12">
                 <p className="text-sm sm:text-base text-muted-foreground">
-                  {searchQuery ? `No movies found for "${searchQuery}"` : "No movies found"}
+                  {searchQuery ? t("movies.noMoviesSearch", { query: searchQuery }) : t("movies.noMoviesFound")}
                 </p>
               </div>
             ) : (

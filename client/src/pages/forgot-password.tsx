@@ -8,10 +8,13 @@ import { Loader2, Mail, Lock, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { useTranslation } from "react-i18next";
 
 export default function ForgotPassword() {
+    const { t } = useTranslation();
+
     usePageMeta({
-      title: "Reset Password",
+      title: t("forgotPassword.title"),
       description: "Reset your CineGraph account password.",
     });
 
@@ -25,7 +28,6 @@ export default function ForgotPassword() {
     const [, setLocation] = useLocation();
 
     useEffect(() => {
-        // Check for token in URL
         const params = new URLSearchParams(window.location.search);
         const token = params.get('token');
         if (token) {
@@ -43,7 +45,6 @@ export default function ForgotPassword() {
 
             if (response.ok) {
                 setIsSuccess(true);
-                // For demo purposes, we automatically redirect if a token was returned
                 if (data.demo_reset_token) {
                     toast({
                         title: "Demo Mode",
@@ -53,12 +54,12 @@ export default function ForgotPassword() {
                     setTimeout(() => {
                         setLocation(data.demo_reset_link);
                         setResetToken(data.demo_reset_token);
-                        setIsSuccess(false); // Reset success to show the password form
+                        setIsSuccess(false);
                     }, 2000);
                 } else {
                     toast({
-                        title: "Check your email",
-                        description: "We've sent you a password reset link.",
+                        title: t("forgotPassword.checkEmail"),
+                        description: t("forgotPassword.checkEmailDesc"),
                     });
                 }
             } else {
@@ -66,7 +67,7 @@ export default function ForgotPassword() {
             }
         } catch (error) {
             toast({
-                title: "Error",
+                title: t("common.error"),
                 description: error instanceof Error ? error.message : "Something went wrong",
                 variant: "destructive",
             });
@@ -80,7 +81,7 @@ export default function ForgotPassword() {
 
         if (password !== confirmPassword) {
             toast({
-                title: "Error",
+                title: t("common.error"),
                 description: "Passwords do not match",
                 variant: "destructive",
             });
@@ -109,7 +110,7 @@ export default function ForgotPassword() {
             }
         } catch (error) {
             toast({
-                title: "Error",
+                title: t("common.error"),
                 description: error instanceof Error ? error.message : "Something went wrong",
                 variant: "destructive",
             });
@@ -123,21 +124,21 @@ export default function ForgotPassword() {
             <div className="min-h-screen flex items-center justify-center bg-background px-4">
                 <Card className="w-full max-w-md">
                     <CardHeader className="text-center">
-                        <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
+                        <CardTitle className="text-2xl font-bold">{t("forgotPassword.resetTitle")}</CardTitle>
                         <CardDescription>
-                            Enter your new password below.
+                            {t("forgotPassword.resetDesc")}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleResetPassword} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="password">New Password</Label>
+                                <Label htmlFor="password">{t("forgotPassword.newPassword")}</Label>
                                 <div className="relative">
                                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                     <Input
                                         id="password"
                                         type="password"
-                                        placeholder="Enter new password"
+                                        placeholder={t("forgotPassword.newPasswordPlaceholder")}
                                         className="pl-10"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
@@ -147,13 +148,13 @@ export default function ForgotPassword() {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                                <Label htmlFor="confirmPassword">{t("forgotPassword.confirmPassword")}</Label>
                                 <div className="relative">
                                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                     <Input
                                         id="confirmPassword"
                                         type="password"
-                                        placeholder="Confirm new password"
+                                        placeholder={t("forgotPassword.confirmPasswordPlaceholder")}
                                         className="pl-10"
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}
@@ -166,10 +167,10 @@ export default function ForgotPassword() {
                                 {isLoading ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Resetting...
+                                        {t("forgotPassword.resetting")}
                                     </>
                                 ) : (
-                                    "Reset Password"
+                                    t("forgotPassword.resetPassword")
                                 )}
                             </Button>
                         </form>
@@ -183,9 +184,9 @@ export default function ForgotPassword() {
         <div className="min-h-screen flex items-center justify-center bg-background px-4">
             <Card className="w-full max-w-md">
                 <CardHeader className="text-center">
-                    <CardTitle className="text-2xl font-bold">Forgot Password?</CardTitle>
+                    <CardTitle className="text-2xl font-bold">{t("forgotPassword.forgotTitle")}</CardTitle>
                     <CardDescription>
-                        Enter your email address and we'll send you a link to reset your password.
+                        {t("forgotPassword.forgotDesc")}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -196,24 +197,24 @@ export default function ForgotPassword() {
                                     <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
                                 </div>
                             </div>
-                            <h3 className="text-lg font-medium">Check your email</h3>
+                            <h3 className="text-lg font-medium">{t("forgotPassword.checkEmail")}</h3>
                             <p className="text-muted-foreground text-sm max-w-xs mx-auto">
-                                We've sent a password reset link to <strong>{email}</strong>
+                                {t("forgotPassword.checkEmailDesc")}
                             </p>
                             <Button variant="outline" onClick={() => setLocation("/login")}>
-                                Return to Login
+                                {t("forgotPassword.backToLogin")}
                             </Button>
                         </div>
                     ) : (
                         <form onSubmit={handleRequestReset} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="email">Email</Label>
+                                <Label htmlFor="email">{t("forgotPassword.email")}</Label>
                                 <div className="relative">
                                     <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                     <Input
                                         id="email"
                                         type="email"
-                                        placeholder="Enter your email"
+                                        placeholder={t("forgotPassword.emailPlaceholder")}
                                         className="pl-10"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
@@ -225,16 +226,16 @@ export default function ForgotPassword() {
                                 {isLoading ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Sending link...
+                                        {t("forgotPassword.sending")}
                                     </>
                                 ) : (
-                                    "Send Reset Link"
+                                    t("forgotPassword.sendResetLink")
                                 )}
                             </Button>
                             <div className="text-center">
                                 <Link href="/login" className="text-sm text-muted-foreground hover:text-primary flex items-center justify-center gap-1">
                                     <ArrowLeft className="h-3 w-3" />
-                                    Back to Login
+                                    {t("forgotPassword.backToLogin")}
                                 </Link>
                             </div>
                         </form>

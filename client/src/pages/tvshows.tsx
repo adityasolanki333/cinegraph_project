@@ -35,6 +35,7 @@ interface TMDBResponse<T> {
 import { MediaCard } from "@/components/media-card";
 import MediaCardSkeleton from "@/components/media-card-skeleton";
 import { useWatchlist } from "@/hooks/useWatchlist";
+import { useTranslation } from "react-i18next";
 
 // Genre emoji mapping
 const genreEmojiMap: Record<string, string> = {
@@ -57,8 +58,10 @@ const genreEmojiMap: Record<string, string> = {
 };
 
 export default function TVShowsPage() {
+  const { t } = useTranslation();
+
   usePageMeta({
-    title: "TV Shows",
+    title: t("nav.tvShows"),
     description: "Browse trending, top-rated, and airing TV shows. Find your next binge-worthy series on CineGraph.",
   });
 
@@ -363,30 +366,30 @@ export default function TVShowsPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-4">TV Shows & Series Discovery</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-4">{t("tvshows.title")}</h1>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 mb-1">
             <TabsList className="inline-flex w-max sm:grid sm:grid-cols-5 sm:w-full gap-0.5 sm:gap-1">
               <TabsTrigger value="discover" data-testid="tab-discover" className="text-xs sm:text-sm px-3 gap-1.5">
                 <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                Discover
+                {t("tvshows.discover")}
               </TabsTrigger>
               <TabsTrigger value="trending" data-testid="tab-trending" className="text-xs sm:text-sm px-3 gap-1.5">
                 <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                Trending
+                {t("tvshows.trending")}
               </TabsTrigger>
               <TabsTrigger value="top-rated" data-testid="tab-top-rated" className="text-xs sm:text-sm px-3 gap-1.5">
                 <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                Top Rated
+                {t("tvshows.topRated")}
               </TabsTrigger>
               <TabsTrigger value="airing-today" data-testid="tab-airing-today" className="text-xs sm:text-sm px-3 gap-1.5">
                 <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                Airing Today
+                {t("tvshows.airingToday")}
               </TabsTrigger>
               <TabsTrigger value="on-the-air" data-testid="tab-on-the-air" className="text-xs sm:text-sm px-3 gap-1.5">
                 <Tv className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                On The Air
+                {t("tvshows.onTheAir")}
               </TabsTrigger>
             </TabsList>
           </div>

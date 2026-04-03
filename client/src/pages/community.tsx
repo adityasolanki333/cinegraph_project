@@ -33,6 +33,7 @@ import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { getLevelBadge, AWARD_TYPES, userIdToUsername } from "@shared/helpers";
+import { useTranslation } from "react-i18next";
 import type {
   FeedItem,
   TopReview,
@@ -48,8 +49,10 @@ type TimeFilter = 'daily' | 'weekly' | 'monthly';
 type SortBy = 'awards' | 'comments' | 'helpful';
 
 export default function Community() {
+  const { t } = useTranslation();
+
   usePageMeta({
-    title: "Community",
+    title: t("community.title"),
     description: "Join the CineGraph community. Discover reviews, trending content, and connect with fellow movie fans.",
   });
 
@@ -173,10 +176,10 @@ export default function Community() {
       {/* Header */}
       <div className="mb-6 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 text-foreground dark:text-foreground" data-testid="heading-community">
-          Community
+          {t("community.title")}
         </h1>
         <p className="text-sm sm:text-base text-muted-foreground dark:text-muted-foreground">
-          Discover what the CineGraph community is watching, reviewing, and recommending
+          {t("community.subtitle")}
         </p>
       </div>
 

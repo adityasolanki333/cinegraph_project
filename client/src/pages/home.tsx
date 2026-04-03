@@ -18,70 +18,30 @@ import { ContinueWatching } from "@/components/continue-watching";
 import { useAuth } from "@/hooks/useAuth";
 import { WithTMDBFallback } from "@/components/tmdb-error-boundary";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { useTranslation } from "react-i18next";
 
-
-const moodOptions = [
-  {
-    id: "happy",
-    label: "Happy",
-    icon: Smile,
-    color: "text-yellow-500",
-    description: "Comedy, Feel-good, Uplifting",
-  },
-  {
-    id: "romantic",
-    label: "Romantic",
-    icon: Heart,
-    color: "text-pink-500",
-    description: "Love stories, Romance, Date night",
-  },
-  {
-    id: "energetic",
-    label: "Energetic",
-    icon: Zap,
-    color: "text-red-500",
-    description: "Action, Adventure, Thrillers",
-  },
-  {
-    id: "thoughtful",
-    label: "Thoughtful",
-    icon: Brain,
-    color: "text-blue-500",
-    description: "Drama, Deep stories, Award-winning",
-  },
-  {
-    id: "scary",
-    label: "Scary",
-    icon: Brain,
-    color: "text-purple-500",
-    description: "Horror, Suspense, Supernatural",
-  },
-  {
-    id: "nostalgic",
-    label: "Classic",
-    icon: Sparkles,
-    color: "text-amber-500",
-    description: "Timeless, Vintage, Golden age",
-  },
-  {
-    id: "animated",
-    label: "Animated",
-    icon: Heart,
-    color: "text-green-500",
-    description: "Family-friendly, Animation, Fun",
-  },
-  {
-    id: "indie",
-    label: "Indie",
-    icon: Sparkles,
-    color: "text-indigo-500",
-    description: "Independent, Artistic, Unique",
-  },
+const moodOptionsDef = [
+  { id: "happy", labelKey: "moods.happy", descKey: "moods.happyDesc", icon: Smile, color: "text-yellow-500" },
+  { id: "romantic", labelKey: "moods.romantic", descKey: "moods.romanticDesc", icon: Heart, color: "text-pink-500" },
+  { id: "energetic", labelKey: "moods.energetic", descKey: "moods.energeticDesc", icon: Zap, color: "text-red-500" },
+  { id: "thoughtful", labelKey: "moods.thoughtful", descKey: "moods.thoughtfulDesc", icon: Brain, color: "text-blue-500" },
+  { id: "scary", labelKey: "moods.scary", descKey: "moods.scaryDesc", icon: Brain, color: "text-purple-500" },
+  { id: "nostalgic", labelKey: "moods.classic", descKey: "moods.classicDesc", icon: Sparkles, color: "text-amber-500" },
+  { id: "animated", labelKey: "moods.animated", descKey: "moods.animatedDesc", icon: Heart, color: "text-green-500" },
+  { id: "indie", labelKey: "moods.indie", descKey: "moods.indieDesc", icon: Sparkles, color: "text-indigo-500" },
 ];
 
 export default function Home() {
+  const { t } = useTranslation();
+
+  const moodOptions = moodOptionsDef.map(m => ({
+    ...m,
+    label: t(m.labelKey),
+    description: t(m.descKey),
+  }));
+
   usePageMeta({
-    title: "Home",
+    title: t("nav.home"),
     description: "Discover trending movies, TV shows, and personalized recommendations on CineGraph.",
   });
 
@@ -334,8 +294,8 @@ export default function Home() {
         setIsTrailerOpen(true);
       } else {
         toast({
-          title: "No trailer available",
-          description: `Sorry, no trailer is available for this ${trailerInfo?.type === 'tv' ? 'TV show' : 'movie'}.`,
+          title: t("home.noTrailer"),
+          description: t("home.noTrailerDesc", { type: trailerInfo?.type === 'tv' ? t("nav.tvShow") : t("nav.movie") }),
           variant: "default",
         });
       }
@@ -407,8 +367,8 @@ export default function Home() {
           {showMore && (
             <Link href={showMoreLink}>
               <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80 text-sm" data-testid={`button-see-more-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-                <span className="hidden sm:inline">See More</span>
-                <span className="sm:hidden">More</span>
+                <span className="hidden sm:inline">{t("home.seeMore")}</span>
+                <span className="sm:hidden">{t("home.more")}</span>
                 <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </Link>
@@ -447,7 +407,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Loading CineGraph...</h2>
+          <h2 className="text-2xl font-bold mb-4">{t("home.loading")}</h2>
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
         </div>
       </div>
@@ -460,12 +420,12 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
-          <h2 className="text-2xl font-bold mb-4 text-red-500">TMDB API Key Required</h2>
+          <h2 className="text-2xl font-bold mb-4 text-red-500">{t("home.apiKeyRequired")}</h2>
           <p className="text-muted-foreground mb-4">
-            To display real movie data, please provide a valid TMDB API key. You can get one for free at themoviedb.org.
+            {t("home.apiKeyDescription")}
           </p>
           <p className="text-sm text-muted-foreground">
-            The API key appears to be invalid or missing. Please update your secrets with a valid TMDB_API_KEY.
+            {t("home.apiKeyInvalid")}
           </p>
         </div>
       </div>
@@ -560,12 +520,12 @@ export default function Home() {
                           }}
                         >
                           <Play className="h-4 w-4 sm:h-5 sm:w-5 mr-2 fill-current" />
-                          Play Trailer
+                          {t("home.watchTrailer")}
                         </Button>
                         <Link href={movie.type === "tv" ? `/tv/${movie.id}` : `/movie/${movie.id}`}>
                           <Button size="lg" variant="secondary" className="bg-gray-500/50 text-white hover:bg-gray-500/70 w-full sm:w-auto" data-testid="button-more-info">
                             <Info className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                            More Info
+                            {t("home.moreInfo")}
                           </Button>
                         </Link>
                       </div>
@@ -642,7 +602,7 @@ export default function Home() {
         {/* Recommended for You - Hybrid Engine */}
         {user && hybridData && hybridData.length > 0 && (
           <MovieRow
-            title="Recommended for You"
+            title={t("home.personalizedForYou")}
             movies={hybridData}
             showMore={false}
             isLoading={hybridLoading}
@@ -656,7 +616,7 @@ export default function Home() {
             <CardTitle className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
               <div className="flex items-center space-x-2">
                 <Heart className="h-5 w-5 text-accent" />
-                <span className="text-lg sm:text-xl">What's Your Mood?</span>
+                <span className="text-lg sm:text-xl">{t("home.whatToWatch")}</span>
               </div>
               <div className="flex items-center gap-2 bg-muted rounded-lg p-1 w-full sm:w-auto">
                 <Button
@@ -667,7 +627,7 @@ export default function Home() {
                   data-testid="button-mood-movies"
                 >
                   <Film className="h-4 w-4 sm:mr-1" />
-                  <span className="hidden sm:inline">Movies</span>
+                  <span className="hidden sm:inline">{t("home.movieType")}</span>
                 </Button>
                 <Button
                   variant={mediaType === 'tv' ? 'default' : 'ghost'}
@@ -677,7 +637,7 @@ export default function Home() {
                   data-testid="button-mood-tv"
                 >
                   <Tv className="h-4 w-4 sm:mr-1" />
-                  <span className="hidden sm:inline">TV Shows</span>
+                  <span className="hidden sm:inline">{t("home.tvType")}</span>
                 </Button>
               </div>
             </CardTitle>
@@ -712,7 +672,7 @@ export default function Home() {
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h3 className="text-base sm:text-lg font-semibold">
-                    Latest {mediaType === 'movie' ? 'movies' : 'TV shows'} for your {moodOptions.find(m => m.id === selectedMood)?.label.toLowerCase()} mood:
+                    {t("home.moodRecommendations")}
                   </h3>
                   <Button
                     variant="outline"
@@ -723,7 +683,7 @@ export default function Home() {
                     data-testid="refresh-mood-recommendations"
                   >
                     <RefreshCw className={cn("h-4 w-4", moodLoading && "animate-spin")} />
-                    Refresh
+                    {t("home.refreshPicks")}
                   </Button>
                 </div>
                 {moodLoading ? (
@@ -752,23 +712,23 @@ export default function Home() {
 
         {/* Popular Movies */}
         <WithTMDBFallback section="Popular Movies">
-          <MovieRow title="Popular Movies" movies={popularMovies} showMore={true} isLoading={popularLoading} />
+          <MovieRow title={t("home.popularMovies")} movies={popularMovies} showMore={true} isLoading={popularLoading} />
         </WithTMDBFallback>
 
         {/* Top Rated */}
         <WithTMDBFallback section="Top Rated">
-          <MovieRow title="Top Rated" movies={topRatedContent} showMore={true} isLoading={topRatedLoading} />
+          <MovieRow title={t("home.topRated")} movies={topRatedContent} showMore={true} isLoading={topRatedLoading} />
         </WithTMDBFallback>
 
         {/* Trending TV Shows */}
         <WithTMDBFallback section="Trending TV Shows">
-          <MovieRow title="Trending TV Shows" movies={trendingTVShows} showMore={true} showMoreLink="/tv-shows" isLoading={tvLoading} />
+          <MovieRow title={t("home.popularTVShows")} movies={trendingTVShows} showMore={true} showMoreLink="/tv-shows" isLoading={tvLoading} />
         </WithTMDBFallback>
 
         {/* Browse by Genre */}
         <div className="mb-6 sm:mb-8" data-testid="section-genres">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h2 className="text-xl sm:text-2xl font-bold text-foreground" data-testid="title-browse-genres">Browse by Genre</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-foreground" data-testid="title-browse-genres">{t("home.exploreByGenre")}</h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
             {genres.map(({ genre, count, emoji }) => (

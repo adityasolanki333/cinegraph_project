@@ -24,10 +24,13 @@ import { UserImpactDashboard } from "@/components/user-impact-dashboard";
 import { PatternInsights } from "@/components/pattern-insights";
 import { getLevelBadge, getLevelProgress } from "@shared/helpers";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { useTranslation } from "react-i18next";
 
 export default function Profile() {
+  const { t } = useTranslation();
+
   usePageMeta({
-    title: "Profile",
+    title: t("profile.title"),
     description: "View your CineGraph profile, reviews, favorites, and viewing stats.",
   });
 

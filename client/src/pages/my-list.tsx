@@ -13,6 +13,7 @@ import { useWatchlist } from "@/hooks/useWatchlist";
 import { apiRequest } from "@/lib/queryClient";
 import type { Movie } from "@shared/schema";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { useTranslation } from "react-i18next";
 
 function EnrichedMovieCard({ item, isOwnList, onRemove }: { item: any; isOwnList: boolean; onRemove: () => void }) {
   const mediaType = item.mediaType === 'tv' ? 'tv' : item.type === 'tv' ? 'tv' : 'movie';
@@ -80,8 +81,10 @@ const LIST_TABS = [
 ] as const;
 
 export default function MyList() {
+  const { t } = useTranslation();
+
   usePageMeta({
-    title: "My List",
+    title: t("myList.title"),
     description: "Manage your watchlist, favorites, and watched movies and TV shows on CineGraph.",
   });
 
@@ -158,13 +161,13 @@ export default function MyList() {
         <Card className="text-center py-12 w-full max-w-md">
           <CardContent className="pt-6">
             <LogIn className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Please Log In</h3>
+            <h3 className="text-xl font-semibold mb-2">{t("myList.pleaseLogIn")}</h3>
             <p className="text-muted-foreground mb-6">
-              You need to be logged in to view your list.
+              {t("myList.loginRequired")}
             </p>
             <Button onClick={() => setLocation("/login")}>
               <LogIn className="h-4 w-4 mr-2" />
-              Sign In
+              {t("auth.signIn")}
             </Button>
           </CardContent>
         </Card>
@@ -243,7 +246,7 @@ export default function MyList() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div className="flex items-center gap-3">
           <activeTab.icon className="h-7 w-7 sm:h-8 sm:w-8 text-accent shrink-0" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">My List</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t("myList.title")}</h1>
         </div>
 
         {/* Filters — wrap on mobile */}
@@ -253,9 +256,9 @@ export default function MyList() {
               <SelectValue placeholder="Filter" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Items</SelectItem>
-              <SelectItem value="movies">Movies</SelectItem>
-              <SelectItem value="tv">TV Shows</SelectItem>
+              <SelectItem value="all">{t("myList.allItems")}</SelectItem>
+              <SelectItem value="movies">{t("nav.movies")}</SelectItem>
+              <SelectItem value="tv">{t("nav.tvShows")}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -264,10 +267,10 @@ export default function MyList() {
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="dateAdded">Date Added</SelectItem>
-              <SelectItem value="title">Title</SelectItem>
-              <SelectItem value="rating">Rating</SelectItem>
-              <SelectItem value="year">Year</SelectItem>
+              <SelectItem value="dateAdded">{t("myList.dateAdded")}</SelectItem>
+              <SelectItem value="title">{t("myList.sortTitle")}</SelectItem>
+              <SelectItem value="rating">{t("myList.sortRating")}</SelectItem>
+              <SelectItem value="year">{t("myList.sortYear")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -336,19 +339,19 @@ export default function MyList() {
             </h3>
             <p className="text-muted-foreground mb-6 text-sm sm:text-base max-w-sm mx-auto">
               {filterType === "movies"
-                ? "No movies here yet. Start adding some!"
+                ? t("myList.noMoviesYet")
                 : filterType === "tv"
-                  ? "No TV shows here yet. Start adding some!"
-                  : "Nothing here yet. Browse movies and shows to get started!"}
+                  ? t("myList.noTVShowsYet")
+                  : t("myList.nothingYet")}
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button onClick={() => setLocation("/movies")} data-testid="button-browse-movies">
                 <Plus className="h-4 w-4 mr-2" />
-                Browse Movies
+                {t("myList.browseMovies")}
               </Button>
               <Button variant="outline" onClick={() => setLocation("/tv-shows")} data-testid="button-browse-tv">
                 <Plus className="h-4 w-4 mr-2" />
-                Browse TV Shows
+                {t("myList.browseTVShows")}
               </Button>
             </div>
           </CardContent>
@@ -359,12 +362,12 @@ export default function MyList() {
       {allListItems.length > 0 && sortedList.length === 0 && (
         <Card className="text-center py-10">
           <CardContent className="pt-6">
-            <h3 className="text-lg sm:text-xl font-semibold mb-2">No items match your filter</h3>
+            <h3 className="text-lg sm:text-xl font-semibold mb-2">{t("myList.noFilterMatch")}</h3>
             <p className="text-muted-foreground mb-6 text-sm sm:text-base">
-              Try changing the filter to see more items.
+              {t("myList.tryChangingFilter")}
             </p>
             <Button onClick={() => setFilterType("all")} data-testid="button-show-all">
-              Show All Items
+              {t("myList.showAllItems")}
             </Button>
           </CardContent>
         </Card>
@@ -375,9 +378,9 @@ export default function MyList() {
         <Card className="p-4 sm:p-6 mt-6 sm:mt-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h3 className="font-semibold mb-1">Ready to discover more?</h3>
+              <h3 className="font-semibold mb-1">{t("myList.readyToDiscover")}</h3>
               <p className="text-sm text-muted-foreground">
-                Get personalised recommendations based on your list.
+                {t("myList.getPersonalizedRecs")}
               </p>
             </div>
             <Button
@@ -386,7 +389,7 @@ export default function MyList() {
               data-testid="button-get-recommendations"
             >
               <Sparkles className="h-4 w-4 mr-2" />
-              Get AI Recommendations
+              {t("myList.getAIRecommendations")}
             </Button>
           </div>
         </Card>

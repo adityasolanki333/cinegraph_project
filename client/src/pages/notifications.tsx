@@ -13,10 +13,13 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Notification } from "@shared/schema";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { useTranslation } from "react-i18next";
 
 export default function NotificationsPage() {
+  const { t } = useTranslation();
+
   usePageMeta({
-    title: "Notifications",
+    title: t("notifications.title"),
     description: "Stay updated with activity from the CineGraph community.",
   });
 
@@ -60,7 +63,7 @@ export default function NotificationsPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/community/notifications'] });
       queryClient.invalidateQueries({ queryKey: ['/api/community/notifications/unread/count'] });
       toast({
-        title: "All notifications marked as read",
+        title: t("notifications.allMarkedRead"),
       });
     },
   });
@@ -73,7 +76,7 @@ export default function NotificationsPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/community/notifications'] });
       queryClient.invalidateQueries({ queryKey: ['/api/community/notifications/unread/count'] });
       toast({
-        title: "Notification deleted",
+        title: t("notifications.deleted"),
       });
     },
   });
@@ -121,7 +124,7 @@ export default function NotificationsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">{t("common.loading")}</p>
         </div>
       </div>
     );
@@ -136,8 +139,8 @@ export default function NotificationsPage() {
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold" data-testid="text-notifications-heading">Notifications</h1>
-            <p className="text-muted-foreground mt-1">Stay updated with your activity</p>
+            <h1 className="text-3xl font-bold" data-testid="text-notifications-heading">{t("notifications.title")}</h1>
+            <p className="text-muted-foreground mt-1">{t("notifications.subtitle")}</p>
           </div>
           {notifications.some(n => !n.isRead) && (
             <Button
@@ -146,19 +149,19 @@ export default function NotificationsPage() {
               data-testid="button-mark-all-read"
             >
               <CheckCheck className="h-4 w-4 mr-2" />
-              Mark All Read
+              {t("notifications.markAllRead")}
             </Button>
           )}
         </div>
 
         <Tabs value={filterType} onValueChange={setFilterType} className="mb-6">
           <TabsList>
-            <TabsTrigger value="all" data-testid="tab-all">All</TabsTrigger>
-            <TabsTrigger value="unread" data-testid="tab-unread">Unread</TabsTrigger>
-            <TabsTrigger value="follow" data-testid="tab-follow">Follows</TabsTrigger>
-            <TabsTrigger value="comment" data-testid="tab-comment">Comments</TabsTrigger>
-            <TabsTrigger value="like" data-testid="tab-like">Likes</TabsTrigger>
-            <TabsTrigger value="list_follow" data-testid="tab-list-follow">List Follows</TabsTrigger>
+            <TabsTrigger value="all" data-testid="tab-all">{t("notifications.all")}</TabsTrigger>
+            <TabsTrigger value="unread" data-testid="tab-unread">{t("notifications.unread")}</TabsTrigger>
+            <TabsTrigger value="follow" data-testid="tab-follow">{t("notifications.follows")}</TabsTrigger>
+            <TabsTrigger value="comment" data-testid="tab-comment">{t("notifications.comments")}</TabsTrigger>
+            <TabsTrigger value="like" data-testid="tab-like">{t("notifications.likes")}</TabsTrigger>
+            <TabsTrigger value="list_follow" data-testid="tab-list-follow">{t("notifications.listFollows")}</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -180,11 +183,11 @@ export default function NotificationsPage() {
           <Card className="p-12">
             <div className="text-center" data-testid="text-no-notifications-found">
               <Bell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No notifications</h3>
+              <h3 className="text-lg font-semibold mb-2">{t("notifications.noNotifications")}</h3>
               <p className="text-muted-foreground">
                 {filterType === 'all' 
-                  ? "You don't have any notifications yet"
-                  : `No ${filterType} notifications`}
+                  ? t("notifications.noNotificationsYet")
+                  : t("notifications.noTypeNotifications", { type: filterType })}
               </p>
             </div>
           </Card>

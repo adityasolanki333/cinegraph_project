@@ -1,17 +1,19 @@
 import { Link, useLocation } from "wouter";
 import { Home, Film, Tv, Sparkles, Users, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const navItems = [
-  { href: "/", label: "Home", icon: Home, exact: true },
-  { href: "/movies", label: "Movies", icon: Film },
-  { href: "/tv-shows", label: "TV", icon: Tv },
-  { href: "/recommendations", label: "AI", icon: Sparkles, isSpecial: true },
-  { href: "/community", label: "Community", icon: Users },
-];
+import { useTranslation } from "react-i18next";
 
 export default function MobileBottomNav() {
   const [location] = useLocation();
+  const { t } = useTranslation();
+
+  const navItems = [
+    { href: "/", label: t("nav.home"), icon: Home, exact: true },
+    { href: "/movies", label: t("nav.movies"), icon: Film },
+    { href: "/tv-shows", label: t("nav.tv"), icon: Tv },
+    { href: "/recommendations", label: t("nav.ai"), icon: Sparkles, isSpecial: true },
+    { href: "/community", label: t("nav.community"), icon: Users },
+  ];
 
   return (
     <nav

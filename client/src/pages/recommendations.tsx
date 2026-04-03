@@ -20,64 +20,17 @@ import { Link } from "wouter";
 import type { Movie } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { useTranslation } from "react-i18next";
 
-const moodOptions = [
-  {
-    id: "happy",
-    label: "Happy",
-    icon: Smile,
-    color: "text-yellow-500",
-    description: "Comedy, Feel-good, Uplifting",
-  },
-  {
-    id: "romantic",
-    label: "Romantic",
-    icon: Heart,
-    color: "text-pink-500",
-    description: "Love stories, Romance, Date night",
-  },
-  {
-    id: "energetic",
-    label: "Energetic",
-    icon: Zap,
-    color: "text-red-500",
-    description: "Action, Adventure, Thrillers",
-  },
-  {
-    id: "thoughtful",
-    label: "Thoughtful",
-    icon: Brain,
-    color: "text-blue-500",
-    description: "Drama, Deep stories, Award-winning",
-  },
-  {
-    id: "scary",
-    label: "Scary",
-    icon: Brain,
-    color: "text-purple-500",
-    description: "Horror, Suspense, Supernatural",
-  },
-  {
-    id: "nostalgic",
-    label: "Classic",
-    icon: Sparkles,
-    color: "text-amber-500",
-    description: "Timeless, Vintage, Golden age",
-  },
-  {
-    id: "animated",
-    label: "Animated",
-    icon: Heart,
-    color: "text-green-500",
-    description: "Family-friendly, Animation, Fun",
-  },
-  {
-    id: "indie",
-    label: "Indie",
-    icon: Sparkles,
-    color: "text-indigo-500",
-    description: "Independent, Artistic, Unique",
-  },
+const moodOptionsDef = [
+  { id: "happy", labelKey: "moods.happy", descKey: "moods.happyDesc", icon: Smile, color: "text-yellow-500" },
+  { id: "romantic", labelKey: "moods.romantic", descKey: "moods.romanticDesc", icon: Heart, color: "text-pink-500" },
+  { id: "energetic", labelKey: "moods.energetic", descKey: "moods.energeticDesc", icon: Zap, color: "text-red-500" },
+  { id: "thoughtful", labelKey: "moods.thoughtful", descKey: "moods.thoughtfulDesc", icon: Brain, color: "text-blue-500" },
+  { id: "scary", labelKey: "moods.scary", descKey: "moods.scaryDesc", icon: Brain, color: "text-purple-500" },
+  { id: "nostalgic", labelKey: "moods.classic", descKey: "moods.classicDesc", icon: Sparkles, color: "text-amber-500" },
+  { id: "animated", labelKey: "moods.animated", descKey: "moods.animatedDesc", icon: Heart, color: "text-green-500" },
+  { id: "indie", labelKey: "moods.indie", descKey: "moods.indieDesc", icon: Sparkles, color: "text-indigo-500" },
 ];
 
 // Pipeline Recommendations Component with Pagination
@@ -242,8 +195,16 @@ function PipelineRecommendations({ loading, recommendations }: { loading: boolea
 }
 
 export default function Recommendations() {
+  const { t } = useTranslation();
+
+  const moodOptions = moodOptionsDef.map(m => ({
+    ...m,
+    label: t(m.labelKey),
+    description: t(m.descKey),
+  }));
+
   usePageMeta({
-    title: "AI Recommendations",
+    title: t("recommendations.title"),
     description: "Get personalized movie and TV show recommendations powered by AI on CineGraph.",
   });
 

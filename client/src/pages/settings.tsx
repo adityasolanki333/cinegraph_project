@@ -21,6 +21,7 @@ import { Settings as SettingsIcon, Bell, Globe, Shield, Palette, Trash2 } from "
 import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { deleteAccount } from "@/hooks/useAuth";
+import { useTranslation } from "react-i18next";
 
 interface UserSettings {
   notifications: boolean;
@@ -39,8 +40,10 @@ const defaultSettings: UserSettings = {
 };
 
 export default function Settings() {
+  const { t, i18n } = useTranslation();
+
   usePageMeta({
-    title: "Settings",
+    title: t("settings.title"),
     description: "Manage your CineGraph account settings, preferences, and notifications.",
   });
 
@@ -72,9 +75,7 @@ export default function Settings() {
 
   useEffect(() => {
     const root = document.documentElement;
-    
     root.classList.remove("dark", "system");
-    
     if (theme === "dark") {
       root.classList.add("dark");
     } else if (theme === "system") {
@@ -94,6 +95,11 @@ export default function Settings() {
     localStorage.setItem("userSettings", JSON.stringify(settings));
   }, [notifications, autoplay, language, theme, dataSharing]);
 
+  const handleLanguageChange = (lang: string) => {
+    setLanguage(lang);
+    i18n.changeLanguage(lang);
+  };
+
   const handleSaveSettings = () => {
     const settings: UserSettings = {
       notifications,
@@ -106,8 +112,8 @@ export default function Settings() {
     localStorage.setItem("userSettings", JSON.stringify(settings));
 
     toast({
-      title: "Settings saved",
-      description: "Your preferences have been saved successfully.",
+      title: t("settings.settingsSaved"),
+      description: t("settings.settingsSavedDesc"),
     });
   };
 
@@ -140,7 +146,7 @@ export default function Settings() {
     <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center space-x-3 mb-8">
         <SettingsIcon className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-bold text-foreground" data-testid="title-settings">Settings</h1>
+        <h1 className="text-3xl font-bold text-foreground" data-testid="title-settings">{t("settings.title")}</h1>
       </div>
 
       <div className="space-y-6">
@@ -148,15 +154,15 @@ export default function Settings() {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Bell className="h-5 w-5" />
-              <span>Notifications</span>
+              <span>{t("settings.notifications")}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="email-notifications" data-testid="label-email-notifications">Email Notifications</Label>
+                <Label htmlFor="email-notifications" data-testid="label-email-notifications">{t("settings.emailNotifications")}</Label>
                 <p className="text-sm text-muted-foreground">
-                  Receive email updates about new movies and recommendations
+                  {t("settings.emailNotificationsDesc")}
                 </p>
               </div>
               <Switch
@@ -171,9 +177,9 @@ export default function Settings() {
             
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="autoplay" data-testid="label-autoplay">Autoplay Trailers</Label>
+                <Label htmlFor="autoplay" data-testid="label-autoplay">{t("settings.autoplayTrailers")}</Label>
                 <p className="text-sm text-muted-foreground">
-                  Automatically play movie trailers when browsing
+                  {t("settings.autoplayDesc")}
                 </p>
               </div>
               <Switch
@@ -190,36 +196,37 @@ export default function Settings() {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Palette className="h-5 w-5" />
-              <span>Display & Language</span>
+              <span>{t("settings.displayLanguage")}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="theme" data-testid="label-theme">Theme</Label>
+              <Label htmlFor="theme" data-testid="label-theme">{t("settings.theme")}</Label>
               <Select value={theme} onValueChange={setTheme}>
                 <SelectTrigger id="theme" data-testid="select-theme">
-                  <SelectValue placeholder="Select theme" />
+                  <SelectValue placeholder={t("settings.theme")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="light">Light</SelectItem>
-                  <SelectItem value="dark">Dark</SelectItem>
-                  <SelectItem value="system">System</SelectItem>
+                  <SelectItem value="light">{t("settings.light")}</SelectItem>
+                  <SelectItem value="dark">{t("settings.dark")}</SelectItem>
+                  <SelectItem value="system">{t("settings.system")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="language" data-testid="label-language">Language</Label>
-              <Select value={language} onValueChange={setLanguage}>
+              <Label htmlFor="language" data-testid="label-language">{t("settings.language")}</Label>
+              <Select value={language} onValueChange={handleLanguageChange}>
                 <SelectTrigger id="language" data-testid="select-language">
-                  <SelectValue placeholder="Select language" />
+                  <SelectValue placeholder={t("settings.language")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="es">Español</SelectItem>
-                  <SelectItem value="fr">Français</SelectItem>
-                  <SelectItem value="de">Deutsch</SelectItem>
-                  <SelectItem value="ja">日本語</SelectItem>
+                  <SelectItem value="en">{t("language.en")}</SelectItem>
+                  <SelectItem value="hi">{t("language.hi")}</SelectItem>
+                  <SelectItem value="es">{t("language.es")}</SelectItem>
+                  <SelectItem value="fr">{t("language.fr")}</SelectItem>
+                  <SelectItem value="de">{t("language.de")}</SelectItem>
+                  <SelectItem value="ja">{t("language.ja")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -230,15 +237,15 @@ export default function Settings() {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Shield className="h-5 w-5" />
-              <span>Privacy & Data</span>
+              <span>{t("settings.privacyData")}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="data-sharing" data-testid="label-data-sharing">Data Sharing</Label>
+                <Label htmlFor="data-sharing" data-testid="label-data-sharing">{t("settings.dataSharing")}</Label>
                 <p className="text-sm text-muted-foreground">
-                  Share viewing data to improve recommendations
+                  {t("settings.dataSharingDesc")}
                 </p>
               </div>
               <Switch
@@ -254,7 +261,7 @@ export default function Settings() {
             <div className="space-y-2">
               <Button variant="outline" className="w-full" data-testid="button-download-data">
                 <Globe className="h-4 w-4 mr-2" />
-                Download My Data
+                {t("settings.downloadData")}
               </Button>
               <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
                 setDeleteDialogOpen(open);
@@ -263,12 +270,12 @@ export default function Settings() {
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" className="w-full" data-testid="button-delete-account">
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Account
+                    {t("settings.deleteAccount")}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle data-testid="title-delete-dialog">Delete Account</AlertDialogTitle>
+                    <AlertDialogTitle data-testid="title-delete-dialog">{t("settings.deleteAccount")}</AlertDialogTitle>
                     <AlertDialogDescription className="space-y-3" asChild>
                       <div>
                         <p data-testid="text-delete-warning">
@@ -306,7 +313,7 @@ export default function Settings() {
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       data-testid="button-confirm-delete"
                     >
-                      {isDeleting ? "Deleting..." : "Delete Account"}
+                      {isDeleting ? "Deleting..." : t("settings.deleteAccount")}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -317,7 +324,7 @@ export default function Settings() {
 
         <div className="flex justify-end">
           <Button className="min-w-32" data-testid="button-save-settings" onClick={handleSaveSettings}>
-            Save Changes
+            {t("settings.saveChanges")}
           </Button>
         </div>
       </div>

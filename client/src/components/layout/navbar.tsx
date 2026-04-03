@@ -10,22 +10,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, Film, Tv, Sparkles, Heart, Menu, X, User, Settings, LogIn, LogOut, Loader2, Users, Bookmark } from "lucide-react";
+import { Search, Film, Tv, Sparkles, Heart, Menu, X, User, Settings, LogIn, LogOut, Loader2, Users, Bookmark, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, logout } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { tmdbService } from "@/lib/tmdb";
 import { NotificationBell } from "./NotificationBell";
+import { useTranslation } from "react-i18next";
 
-const navItems = [
-  { href: "/movies", label: "Movies", icon: Film },
-  { href: "/tv-shows", label: "TV Shows", icon: Tv },
-  { href: "/recommendations", label: "AI Recommendations", icon: Sparkles, isSpecial: true },
-  { href: "/community", label: "Community", icon: Users },
-  { href: "/my-list", label: "My List", icon: Heart },
+const LANGUAGES = [
+  { code: "en", label: "English" },
+  { code: "hi", label: "हिन्दी" },
+  { code: "es", label: "Español" },
+  { code: "fr", label: "Français" },
+  { code: "de", label: "Deutsch" },
+  { code: "ja", label: "日本語" },
 ];
 
 export default function Navbar() {
+  const { t, i18n } = useTranslation();
   const [location, setLocation] = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
@@ -36,6 +39,25 @@ export default function Navbar() {
   const mobileSearchRef = useRef<HTMLDivElement>(null);
   const mobileSearchButtonRef = useRef<HTMLButtonElement>(null);
   const { user, isAuthenticated, isLoading } = useAuth();
+
+  const navItems = [
+    { href: "/movies", label: t("nav.movies"), icon: Film },
+    { href: "/tv-shows", label: t("nav.tvShows"), icon: Tv },
+    { href: "/recommendations", label: t("nav.aiRecommendations"), icon: Sparkles, isSpecial: true },
+    { href: "/community", label: t("nav.community"), icon: Users },
+    { href: "/my-list", label: t("nav.myList"), icon: Heart },
+  ];
+
+  const handleLanguageChange = (langCode: string) => {
+    i18n.changeLanguage(langCode);
+    const savedSettings = localStorage.getItem("userSettings");
+    let settings: any = {};
+    if (savedSettings) {
+      try { settings = JSON.parse(savedSettings); } catch {}
+    }
+    settings.language = langCode;
+    localStorage.setItem("userSettings", JSON.stringify(settings));
+  };
 
   // Debounce search query
   useEffect(() => {
@@ -166,7 +188,7 @@ export default function Navbar() {
                   type="text"
                   id="navbar-search"
                   name="search"
-                  placeholder="Search movies, TV shows..."
+                  placeholder={t("nav.search")}
                   className="w-48 lg:w-64 pl-10 pr-8"
                   value={searchQuery}
                   onChange={(e) => {
@@ -197,7 +219,7 @@ export default function Navbar() {
                   {suggestionsLoading ? (
                     <div className="p-4 flex items-center justify-center text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Searching...
+                      {t("nav.searching")}
                     </div>
                   ) : searchResults.length > 0 ? (
                     <div className="py-2">
@@ -239,7 +261,7 @@ export default function Navbar() {
                               </div>
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded">
-                                  {type === 'movie' ? 'Movie' : 'TV Show'}
+                                  {type === 'movie' ? t("nav.movie") : t("nav.tvShow")}
                                 </span>
                                 {result.vote_average > 0 && (
                                   <span className="text-xs text-muted-foreground">
@@ -254,7 +276,7 @@ export default function Navbar() {
                     </div>
                   ) : (
                     <div className="p-4 text-center text-muted-foreground">
-                      No results found for "{searchQuery}"
+                      {t("nav.noResults", { query: searchQuery })}
                     </div>
                   )}
                 </div>
@@ -274,6 +296,27 @@ export default function Navbar() {
               <Search className="h-5 w-5" />
             </Button>
 
+            {/* Language Switcher */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" data-testid="button-language-switcher" aria-label="Change language">
+                  <Globe className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40" data-testid="dropdown-language-menu">
+                {LANGUAGES.map((lang) => (
+                  <DropdownMenuItem
+                    key={lang.code}
+                    onClick={() => handleLanguageChange(lang.code)}
+                    className={cn(i18n.language === lang.code && "bg-accent")}
+                    data-testid={`lang-option-${lang.code}`}
+                  >
+                    {lang.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {/* Notification Bell */}
             <NotificationBell />
 
@@ -292,19 +335,19 @@ export default function Navbar() {
                     <DropdownMenuItem asChild>
                       <Link href="/profile" className="flex items-center" data-testid="link-profile">
                         <User className="mr-2 h-4 w-4" />
-                        <span>Profile</span>
+                        <span>{t("nav.profile")}</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/settings" className="flex items-center" data-testid="link-settings">
                         <Settings className="mr-2 h-4 w-4" />
-                        <span>Settings</span>
+                        <span>{t("nav.settings")}</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/my-list" className="flex items-center" data-testid="link-my-list">
                         <Bookmark className="mr-2 h-4 w-4" />
-                        <span>My List</span>
+                        <span>{t("nav.myList")}</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -314,7 +357,7 @@ export default function Navbar() {
                       data-testid="button-logout"
                     >
                       <LogOut className="mr-2 h-4 w-4" />
-                      <span>Logout</span>
+                      <span>{t("nav.logout")}</span>
                     </DropdownMenuItem>
                   </>
                 ) : (
@@ -324,7 +367,7 @@ export default function Navbar() {
                     data-testid="button-login"
                   >
                     <LogIn className="mr-2 h-4 w-4" />
-                    <span>Login</span>
+                    <span>{t("nav.login")}</span>
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
@@ -380,7 +423,7 @@ export default function Navbar() {
                   type="text"
                   id="mobile-navbar-search"
                   name="search"
-                  placeholder="Search movies, TV shows..."
+                  placeholder={t("nav.search")}
                   className="w-full pl-10 pr-8"
                   value={searchQuery}
                   onChange={(e) => {
@@ -412,7 +455,7 @@ export default function Navbar() {
                   {suggestionsLoading ? (
                     <div className="p-4 flex items-center justify-center text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Searching...
+                      {t("nav.searching")}
                     </div>
                   ) : searchResults.length > 0 ? (
                     <div className="py-2">
@@ -455,7 +498,7 @@ export default function Navbar() {
                               </div>
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded">
-                                  {type === 'movie' ? 'Movie' : 'TV Show'}
+                                  {type === 'movie' ? t("nav.movie") : t("nav.tvShow")}
                                 </span>
                                 {result.vote_average > 0 && (
                                   <span className="text-xs text-muted-foreground">
@@ -470,7 +513,7 @@ export default function Navbar() {
                     </div>
                   ) : (
                     <div className="p-4 text-center text-muted-foreground">
-                      No results found for "{searchQuery}"
+                      {t("nav.noResults", { query: searchQuery })}
                     </div>
                   )}
                 </div>

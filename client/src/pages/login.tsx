@@ -10,10 +10,13 @@ import { Separator } from "@/components/ui/separator";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, Link } from "wouter";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { useTranslation } from "react-i18next";
 
 export default function Login() {
+  const { t } = useTranslation();
+
   usePageMeta({
-    title: "Sign In",
+    title: t("login.signIn"),
     description: "Sign in or create a CineGraph account to track movies, write reviews, and get personalized recommendations.",
   });
 
@@ -41,8 +44,8 @@ export default function Login() {
           setShowSuccess(true);
 
           toast({
-            title: "Account created!",
-            description: "Welcome to the movie recommendation platform!",
+            title: t("login.accountCreated"),
+            description: t("login.welcomePlatform"),
           });
 
           setTimeout(() => {
@@ -58,8 +61,8 @@ export default function Login() {
           setShowSuccess(true);
 
           toast({
-            title: "Welcome back!",
-            description: "You've successfully logged in.",
+            title: t("login.welcomeBackMsg"),
+            description: t("login.loginSuccessMsg"),
           });
 
           setTimeout(() => {
@@ -71,8 +74,8 @@ export default function Login() {
       }
     } catch (error) {
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Something went wrong. Please try again.",
+        title: t("login.error"),
+        description: error instanceof Error ? error.message : t("login.somethingWrong"),
         variant: "destructive",
       });
     } finally {
@@ -118,7 +121,7 @@ export default function Login() {
                 className="text-center space-y-2"
               >
                 <p className="text-2xl font-bold text-foreground" data-testid="text-success-message">
-                  Login Successful!
+                  {t("login.loginSuccess")}
                 </p>
                 <motion.p
                   initial={{ opacity: 0 }}
@@ -133,7 +136,7 @@ export default function Login() {
                   >
                     ⚡
                   </motion.span>
-                  Redirecting you now...
+                  {t("login.redirecting")}
                 </motion.p>
               </motion.div>
             </motion.div>
@@ -144,12 +147,12 @@ export default function Login() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">
-            {isSignUp ? "Create Account" : "Welcome Back"}
+            {isSignUp ? t("login.createAccount") : t("login.welcomeBack")}
           </CardTitle>
           <CardDescription>
             {isSignUp
-              ? "Sign up to start building your personal movie watchlist"
-              : "Sign in to access your movie recommendations and watchlist"
+              ? t("login.signUpDesc")
+              : t("login.signInDesc")
             }
           </CardDescription>
         </CardHeader>
@@ -157,11 +160,11 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("login.email")}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter your email"
+                placeholder={t("login.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -170,11 +173,11 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t("login.password")}</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder={t("login.passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -185,7 +188,7 @@ export default function Login() {
                 <div className="text-right">
                   <Link href="/forgot-password">
                     <span className="text-xs text-muted-foreground hover:text-primary cursor-pointer font-medium">
-                      Forgot password?
+                      {t("login.forgotPassword")}
                     </span>
                   </Link>
                 </div>
@@ -195,11 +198,11 @@ export default function Login() {
             {isSignUp && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
+                  <Label htmlFor="firstName">{t("login.firstName")}</Label>
                   <Input
                     id="firstName"
                     type="text"
-                    placeholder="Enter your first name"
+                    placeholder={t("login.firstNamePlaceholder")}
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     required
@@ -208,11 +211,11 @@ export default function Login() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
+                  <Label htmlFor="lastName">{t("login.lastName")}</Label>
                   <Input
                     id="lastName"
                     type="text"
-                    placeholder="Enter your last name"
+                    placeholder={t("login.lastNamePlaceholder")}
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                     required
@@ -224,16 +227,16 @@ export default function Login() {
 
             <Button type="submit" className="w-full" disabled={isLoading} data-testid={isSignUp ? "button-signup" : "button-signin"}>
               {isLoading ? (
-                "Please wait..."
+                t("login.pleaseWait")
               ) : isSignUp ? (
                 <>
                   <UserPlus className="h-4 w-4 mr-2" />
-                  Create Account
+                  {t("login.signUp")}
                 </>
               ) : (
                 <>
                   <LogIn className="h-4 w-4 mr-2" />
-                  Sign In
+                  {t("login.signIn")}
                 </>
               )}
             </Button>
@@ -249,8 +252,8 @@ export default function Login() {
               data-testid="button-toggle-signup"
             >
               {isSignUp
-                ? "Already have an account? Sign in"
-                : "Don't have an account? Sign up"
+                ? t("login.alreadyHaveAccount")
+                : t("login.dontHaveAccount")
               }
             </Button>
           </div>
