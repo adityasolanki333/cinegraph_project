@@ -245,7 +245,10 @@ export default function Movies() {
       }
 
       if (selectedGenre !== "all") {
-        params.with_genres = genresData?.find((g: any) => g.name === selectedGenre)?.id;
+        const genreId = genresData?.find((g: any) => g.name === selectedGenre)?.id;
+        if (genreId !== undefined) {
+          params.with_genres = genreId;
+        }
       }
       if (selectedYear !== "all") {
         params.primary_release_year = selectedYear;

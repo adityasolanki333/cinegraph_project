@@ -1,42 +1,30 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
 import type { Movie } from "@shared/schema";
+import { normalizeToMovie } from "@shared/schema";
 import { queryClient, apiRequest, getAuthHeaders } from "@/lib/queryClient";
 
 export function useWatchlist() {
   const { user } = useAuth();
 
-  // Fetch watchlist using TanStack Query for caching
-  const { data: watchlist = [] } = useQuery({
+  const { data: watchlist = [], isError: watchlistError, error: watchlistErrorDetails } = useQuery({
     queryKey: ['/api/users', user?.id, 'watchlist'],
     queryFn: async () => {
       if (!user?.id) return [];
 
-      try {
-        const response = await fetch(`/api/users/${user.id}/watchlist`, {
-          headers: { ...getAuthHeaders() },
-        });
-        if (!response.ok) return [];
-
-        const data = await response.json();
-        const serverWatchlist = data.items || data || [];
-        // Convert server format to Movie format
-        return Array.isArray(serverWatchlist) ? serverWatchlist.map((item: any) => ({
-          id: item.tmdbId?.toString() || item.id?.toString(),
-          title: item.title,
-          posterUrl: item.posterPath,
-          type: item.mediaType,
-          year: 0,
-          genre: '',
-          rating: 0,
-        })) : [];
-      } catch (error) {
-        console.error("Failed to load watchlist from server:", error);
-        return [];
+      const response = await fetch(`/api/users/${user.id}/watchlist`, {
+        headers: { ...getAuthHeaders() },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to load watchlist: ${response.status}`);
       }
+
+      const data = await response.json();
+      const serverWatchlist = data.items || data || [];
+      return Array.isArray(serverWatchlist) ? serverWatchlist.map((item: any) => normalizeToMovie(item)) : [];
     },
     enabled: !!user?.id,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 
   // Add to watchlist mutation
@@ -161,5 +149,7 @@ export function useWatchlist() {
     addToWatchlist,
     removeFromWatchlist,
     isInWatchlist,
+    watchlistError,
+    watchlistErrorDetails,
   };
 }

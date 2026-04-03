@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
 import type { Movie } from "@shared/schema";
+import { normalizeToMovie } from "@shared/schema";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { useTranslation } from "react-i18next";
 
@@ -38,18 +39,9 @@ function EnrichedMovieCard({ item, isOwnList, onRemove }: { item: any; isOwnList
 
   if (!tmdbData) {
     const fallbackMovie: Movie = {
+      ...normalizeToMovie(item),
       id: tmdbId.toString(),
-      title: item.title || 'Unknown',
-      year: 0,
-      genre: '',
-      rating: 0,
-      synopsis: '',
-      posterUrl: item.posterUrl || (item.posterPath ? `https://image.tmdb.org/t/p/w500${item.posterPath}` : undefined),
-      director: '',
-      cast: [],
-      duration: 0,
       type: mediaType,
-      seasons: undefined,
     };
 
     return (
@@ -184,29 +176,19 @@ export default function MyList() {
   const getCurrentListItems = () => {
     if (listType === "favorite") {
       return (Array.isArray(favoritesData) ? favoritesData : []).map((fav: any, index: number) => ({
+        ...normalizeToMovie(fav),
         tmdbId: fav.tmdbId,
-        id: fav.tmdbId?.toString() || '',
-        title: fav.title || 'Unknown',
         mediaType: fav.mediaType,
-        type: fav.mediaType,
         posterPath: fav.posterPath,
-        posterUrl: fav.posterPath ? `https://image.tmdb.org/t/p/w500${fav.posterPath}` : '',
-        rating: fav.voteAverage || fav.rating || 0,
-        year: fav.releaseDate ? new Date(fav.releaseDate).getFullYear() : (fav.year || 0),
         dateAdded: fav.createdAt || fav.addedAt || new Date(Date.now() - index * 1000).toISOString(),
       }));
     }
     if (listType === "watched") {
       return (Array.isArray(watchedData) ? watchedData : []).map((item: any, index: number) => ({
+        ...normalizeToMovie(item),
         tmdbId: item.tmdbId,
-        id: item.tmdbId?.toString() || '',
-        title: item.title || 'Unknown',
         mediaType: item.mediaType || 'movie',
-        type: item.mediaType || 'movie',
         posterPath: item.posterPath,
-        posterUrl: item.posterPath ? `https://image.tmdb.org/t/p/w500${item.posterPath}` : '',
-        rating: item.voteAverage || item.rating || 0,
-        year: item.releaseDate ? new Date(item.releaseDate).getFullYear() : (item.year || 0),
         dateAdded: item.watchedAt || item.createdAt || new Date(Date.now() - index * 1000).toISOString(),
       }));
     }

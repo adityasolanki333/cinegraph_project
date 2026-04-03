@@ -2,7 +2,7 @@ import logging
 from django.http import HttpResponseBase
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class GetPreferencesView(APIView):
 
 
 class PatternAnalyzeView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request, user_id):
         from movies.recommendations_api import pattern_analyze

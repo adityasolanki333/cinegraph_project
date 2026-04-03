@@ -697,9 +697,9 @@ export default function Home() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
-                    {getMoodBasedRecommendations().map((movie: any) => (
+                    {getMoodBasedRecommendations().map((movie: any, index: number) => (
                       <MediaCard
-                        key={movie.id}
+                        key={`mood-${movie.id}-${index}`}
                         movie={movie}
                         recommendationReason={movie.recommendationReason}
                         recommendationScore={movie.recommendationScore}

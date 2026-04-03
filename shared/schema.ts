@@ -155,3 +155,36 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertRating = z.infer<typeof insertRatingSchema>;
 export type InsertWatchlist = z.infer<typeof insertWatchlistSchema>;
 export type InsertListCollaborator = z.infer<typeof insertListCollaboratorSchema>;
+
+function resolvePosterUrl(posterUrl?: string, posterPath?: string): string | undefined {
+  if (posterUrl) return posterUrl;
+  if (!posterPath) return undefined;
+  if (posterPath.startsWith('http')) return posterPath;
+  return `https://image.tmdb.org/t/p/w500${posterPath}`;
+}
+
+function resolveBackdropUrl(backdropUrl?: string, backdropPath?: string): string | undefined {
+  if (backdropUrl) return backdropUrl;
+  if (!backdropPath) return undefined;
+  if (backdropPath.startsWith('http')) return backdropPath;
+  return `https://image.tmdb.org/t/p/w1280${backdropPath}`;
+}
+
+export function normalizeToMovie(item: any): Movie {
+  return {
+    id: (item.tmdbId ?? item.id)?.toString() ?? '',
+    title: item.title || item.name || 'Unknown',
+    year: item.releaseDate ? new Date(item.releaseDate).getFullYear() : (item.year || 0),
+    genre: item.genre || '',
+    rating: item.voteAverage || item.rating || 0,
+    synopsis: item.overview || item.synopsis || '',
+    posterUrl: resolvePosterUrl(item.posterUrl, item.posterPath),
+    backdropUrl: resolveBackdropUrl(item.backdropUrl, item.backdropPath),
+    director: item.director || '',
+    cast: item.cast || [],
+    duration: item.duration || item.runtime || 0,
+    type: (item.type || item.mediaType || 'movie') as 'movie' | 'tv',
+    seasons: item.seasons || item.number_of_seasons,
+    number_of_seasons: item.number_of_seasons,
+  };
+}
