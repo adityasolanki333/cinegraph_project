@@ -345,7 +345,7 @@ export default function Recommendations() {
   const [pipelineRefreshKey, setPipelineRefreshKey] = useState(0);
   const [diversityLevel, setDiversityLevel] = useState(0.5); // 0 = focused, 0.5 = balanced, 1 = diverse
   const { data: pipelineRecommendations, isLoading: pipelineLoading } = useQuery({
-    queryKey: ['/api/recommendations/pipeline', user?.id, pipelineRefreshKey, diversityLevel],
+    queryKey: ['/api/recommendations/pipeline', user?.id, pipelineRefreshKey],
     enabled: !!user?.id,
     queryFn: async () => {
       // Step 1: Select recommendation strategy via Contextual Bandit
@@ -578,10 +578,11 @@ export default function Recommendations() {
                   <Slider
                     value={[diversityLevel]}
                     onValueChange={([value]) => setDiversityLevel(value)}
+                    onValueCommit={() => setPipelineRefreshKey(prev => prev + 1)}
                     min={0}
                     max={1}
                     step={0.1}
-                    className="w-full"
+                    className="w-full cursor-pointer"
                     data-testid="slider-diversity"
                   />
                   <div className="flex justify-between text-xs sm:text-sm text-muted-foreground">
