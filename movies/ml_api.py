@@ -1014,13 +1014,46 @@ def log_recommendation_interaction(request):
         user = User.objects.filter(id=user_id).first()
         if not user:
             return JsonResponse({"error": "User not found"}, status=404)
-        
-        recommendation = Recommendation.objects.filter(id=recommendation_id).first()
+
+        # recommendation_id may be a DB integer ID or "tmdb_id-media_type" composite
+        recommendation = None
+        tmdb_id_from_rec = None
+        media_type_from_rec = 'movie'
+
+        if recommendation_id and '-' in str(recommendation_id):
+            # Composite key format: "<tmdb_id>-<media_type>"
+            parts = str(recommendation_id).rsplit('-', 1)
+            try:
+                tmdb_id_from_rec = int(parts[0])
+                media_type_from_rec = parts[1] if len(parts) > 1 else 'movie'
+            except (ValueError, IndexError):
+                pass
+
+        if tmdb_id_from_rec:
+            # Find existing or create a lightweight Recommendation record
+            recommendation = Recommendation.objects.filter(
+                user=user, tmdb_id=tmdb_id_from_rec
+            ).first()
+            if not recommendation:
+                recommendation = Recommendation.objects.create(
+                    user=user,
+                    tmdb_id=tmdb_id_from_rec,
+                    media_type=media_type_from_rec,
+                    recommendation_type='hybrid',
+                    title='',
+                    reason='User feedback',
+                    confidence=0.5,
+                    relevance_score=0.5,
+                )
+        else:
+            # Fallback: treat as an integer DB primary key
+            try:
+                recommendation = Recommendation.objects.filter(id=int(recommendation_id), user=user).first()
+            except (ValueError, TypeError):
+                pass
+
         if not recommendation:
             return JsonResponse({"error": "Recommendation not found"}, status=404)
-        
-        if recommendation.user_id != user.id:
-            return JsonResponse({"error": "Recommendation does not belong to this user"}, status=403)
         
         recommendation.user_interacted = True
         
