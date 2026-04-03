@@ -115,6 +115,7 @@ export default function MovieDetailsPage() {
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlist();
   const { toast } = useToast();
   const [isTrailerOpen, setIsTrailerOpen] = useState(false);
+  const [posterError, setPosterError] = useState(false);
 
   const { data: movie, isLoading, error } = useQuery({
     queryKey: ['/api/tmdb/movie', movieId],
@@ -390,21 +391,13 @@ export default function MovieDetailsPage() {
             {/* Poster */}
             <div className="flex-shrink-0">
               <div className="w-24 h-36 sm:w-40 sm:h-60 md:w-48 md:h-72 bg-muted rounded-lg overflow-hidden">
-                {movie.poster_path ? (
+                {movie.poster_path && !posterError ? (
                   <img
                     src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
                     alt={movie.title}
                     className="w-full h-full object-cover"
                     loading="lazy"
-                    onError={(e) => {
-                      // Fallback if image fails to load
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.parentElement!.innerHTML = `
-                        <div class="w-full h-full flex items-center justify-center">
-                          <span class="text-sm text-center p-4">${movie.title}</span>
-                        </div>
-                      `;
-                    }}
+                    onError={() => setPosterError(true)}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
