@@ -900,10 +900,6 @@ export default function TVShowDetailsPage() {
                         {(sentimentData as any)?.reviews?.length > 0 && (
                           <div className="space-y-3 pt-2">
                             <Separator />
-                            <p className="text-sm font-medium flex items-center gap-2">
-                              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                              TMDB Critic Reviews
-                            </p>
                             {(sentimentData as any).reviews.map((rev: any) => (
                               <div key={rev.id} className="border rounded-lg p-3 space-y-2">
                                 <div className="flex items-center justify-between gap-2">
