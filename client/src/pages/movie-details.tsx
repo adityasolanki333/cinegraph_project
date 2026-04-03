@@ -756,76 +756,52 @@ export default function MovieDetailsPage() {
                           </div>
                         )}
 
-                        {(sentimentData as any)?.reviews?.length > 0 && (
-                          <div className="space-y-3 pt-2">
-                            <Separator />
-                            {(sentimentData as any).reviews.map((rev: any) => (
-                              <div key={rev.id} className="border rounded-lg p-3 space-y-2">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-sm">{rev.author}</span>
-                                    {rev.authorRating && (
-                                      <Badge variant="outline" className="text-xs gap-1">
-                                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                        {rev.authorRating}/10
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <Badge
-                                    variant={rev.sentiment === "positive" ? "default" : rev.sentiment === "negative" ? "destructive" : "secondary"}
-                                    className="text-xs capitalize shrink-0"
-                                    data-testid={`badge-sentiment-${rev.id}`}
-                                  >
-                                    {rev.sentiment === "positive" ? "😊" : rev.sentiment === "negative" ? "😞" : "😐"} {rev.sentiment}
-                                  </Badge>
-                                </div>
-                                <p className="text-sm text-muted-foreground leading-relaxed">{rev.content}</p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </CardContent>
                     </Card>
                   )}
 
-                  {/* Review Form */}
-                  {isAuthenticated && movie && (
-                    <ReviewForm
-                      tmdbId={parseInt(movieId || '0')}
-                      mediaType="movie"
-                      title={movie.title}
-                      posterPath={movie.poster_path}
-                      existingRating={userExistingRating ? {
-                        id: userExistingRating.id,
-                        rating: userExistingRating.rating,
-                        review: userExistingRating.review
-                      } : undefined}
-                      onSuccess={() => {
-                        refetchReviews();
-                        toast({ title: "Review submitted!", description: "Thank you for your feedback." });
-                      }}
-                    />
-                  )}
-
-                  {!isAuthenticated && (
-                    <Card>
-                      <CardContent className="py-8 text-center">
-                        <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium mb-2">Share Your Thoughts</h3>
-                        <p className="text-muted-foreground mb-4">Sign in to rate and review this movie</p>
-                        <Link href="/login">
-                          <Button>Sign In</Button>
-                        </Link>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Review List */}
-                  <ReviewList
-                    tmdbId={parseInt(movieId || '0')}
-                    mediaType="movie"
-                    currentUserId={user?.id}
-                  />
+                  {/* User Reviews Section */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <MessageSquare className="h-5 w-5" />
+                        User Reviews
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {isAuthenticated && movie ? (
+                        <ReviewForm
+                          tmdbId={parseInt(movieId || '0')}
+                          mediaType="movie"
+                          title={movie.title}
+                          posterPath={movie.poster_path}
+                          existingRating={userExistingRating ? {
+                            id: userExistingRating.id,
+                            rating: userExistingRating.rating,
+                            review: userExistingRating.review
+                          } : undefined}
+                          onSuccess={() => {
+                            refetchReviews();
+                            toast({ title: "Review submitted!", description: "Thank you for your feedback." });
+                          }}
+                        />
+                      ) : !isAuthenticated ? (
+                        <div className="py-4 text-center space-y-3">
+                          <MessageSquare className="h-10 w-10 mx-auto text-muted-foreground" />
+                          <p className="text-muted-foreground">Sign in to rate and review this movie</p>
+                          <Link href="/login">
+                            <Button size="sm">Sign In</Button>
+                          </Link>
+                        </div>
+                      ) : null}
+                      <Separator />
+                      <ReviewList
+                        tmdbId={parseInt(movieId || '0')}
+                        mediaType="movie"
+                        currentUserId={user?.id}
+                      />
+                    </CardContent>
+                  </Card>
                 </div>
               </TabsContent>
 
