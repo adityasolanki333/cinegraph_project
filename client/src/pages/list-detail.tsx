@@ -150,87 +150,72 @@ export default function ListDetail() {
     }>;
   }>({
     queryKey: ['/api/community/lists', listId],
+    queryFn: async () => {
+      const res = await fetch(`/api/community/lists/${listId}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      // Backend returns { list: {...} } — unwrap it
+      return data.list ?? data;
+    },
     enabled: !!listId,
   });
 
-  const { data: isFollowing, isLoading: isFollowingLoading } = useQuery({
+  const { data: followData, isLoading: isFollowingLoading } = useQuery<{ isFollowing: boolean }>({
     queryKey: ['/api/community/lists', listId, 'is-following'],
+    queryFn: async () => {
+      const res = await fetch(`/api/community/lists/${listId}/is-following`, { credentials: 'include' });
+      if (!res.ok) return { isFollowing: false };
+      return res.json();
+    },
     enabled: !!user?.id && !!listId && list?.user?.id !== user?.id,
   });
+  const isFollowing = followData?.isFollowing ?? false;
 
   const isOwnList = user?.id === list?.user?.id;
 
   const followMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('POST', `/api/community/lists/${listId}/follow`, {});
+      return apiRequest('POST', `/api/lists/${listId}/follow`, {});
     },
     onMutate: async () => {
-      // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['/api/community/lists', listId, 'is-following'] });
-
-      // Snapshot the previous value
       const previousValue = queryClient.getQueryData(['/api/community/lists', listId, 'is-following']);
-
-      // Optimistically update to the new value
-      queryClient.setQueryData(['/api/community/lists', listId, 'is-following'], true);
-
-      // Return a context object with the snapshotted value
+      queryClient.setQueryData(['/api/community/lists', listId, 'is-following'], { isFollowing: true });
       return { previousValue };
     },
     onError: (err, variables, context) => {
-      // Rollback to the previous value
       if (context?.previousValue !== undefined) {
         queryClient.setQueryData(['/api/community/lists', listId, 'is-following'], context.previousValue);
       }
-      toast({
-        title: "Error",
-        description: "Failed to follow list. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to follow list. Please try again.", variant: "destructive" });
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/community/lists', listId, 'is-following'] });
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', listId] });
-      toast({
-        title: "Following list",
-        description: `You are now following "${list?.title}".`,
-      });
+      toast({ title: "Following list", description: `You are now following "${list?.title}".` });
     },
   });
 
   const unfollowMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('DELETE', `/api/community/lists/${listId}/follow`);
+      return apiRequest('DELETE', `/api/lists/${listId}/unfollow`);
     },
     onMutate: async () => {
-      // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['/api/community/lists', listId, 'is-following'] });
-
-      // Snapshot the previous value
       const previousValue = queryClient.getQueryData(['/api/community/lists', listId, 'is-following']);
-
-      // Optimistically update to the new value
-      queryClient.setQueryData(['/api/community/lists', listId, 'is-following'], false);
-
-      // Return a context object with the snapshotted value
+      queryClient.setQueryData(['/api/community/lists', listId, 'is-following'], { isFollowing: false });
       return { previousValue };
     },
     onError: (err, variables, context) => {
-      // Rollback to the previous value
       if (context?.previousValue !== undefined) {
         queryClient.setQueryData(['/api/community/lists', listId, 'is-following'], context.previousValue);
       }
-      toast({
-        title: "Error",
-        description: "Failed to unfollow list. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to unfollow list. Please try again.", variant: "destructive" });
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/community/lists', listId, 'is-following'] });
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', listId] });
-      toast({
-        title: "Unfollowed list",
-        description: `You have unfollowed "${list?.title}".`,
-      });
+      toast({ title: "Unfollowed list", description: `You have unfollowed "${list?.title}".` });
     },
   });
 

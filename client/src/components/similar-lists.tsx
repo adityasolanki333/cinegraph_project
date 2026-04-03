@@ -47,6 +47,11 @@ interface SimilarList {
 export function SimilarLists({ listId }: SimilarListsProps) {
   const { data: similarLists, isLoading, isError, error } = useQuery<SimilarList[]>({
     queryKey: ['/api/community/lists', listId, 'similar'],
+    queryFn: async () => {
+      const res = await fetch(`/api/community/lists/${listId}/similar`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: !!listId,
   });
 

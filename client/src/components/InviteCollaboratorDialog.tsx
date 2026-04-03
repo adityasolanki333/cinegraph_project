@@ -79,7 +79,7 @@ export function InviteCollaboratorDialog({
 
   const inviteMutation = useMutation({
     mutationFn: async (data: InviteCollaboratorFormData) => {
-      return apiRequest('POST', `/api/community/lists/${listId}/collaborators`, data);
+      return apiRequest('POST', `/api/lists/${listId}/collaborators`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', listId, 'collaborators'] });

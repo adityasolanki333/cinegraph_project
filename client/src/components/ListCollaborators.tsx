@@ -55,6 +55,12 @@ export function ListCollaborators({ listId, isOwner }: ListCollaboratorsProps) {
 
   const { data: collaborators = [], isLoading } = useQuery<CollaboratorWithUser[]>({
     queryKey: ['/api/community/lists', listId, 'collaborators'],
+    queryFn: async () => {
+      const res = await fetch(`/api/lists/${listId}/collaborators`, { credentials: 'include' });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.collaborators ?? data;
+    },
     enabled: !!listId,
   });
 
@@ -71,7 +77,7 @@ export function ListCollaborators({ listId, isOwner }: ListCollaboratorsProps) {
 
   const addCollaboratorMutation = useMutation({
     mutationFn: async (data: { userId: string; permission: string }) => {
-      return apiRequest('POST', `/api/community/lists/${listId}/collaborators`, data);
+      return apiRequest('POST', `/api/lists/${listId}/collaborators`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', listId, 'collaborators'] });
@@ -95,7 +101,7 @@ export function ListCollaborators({ listId, isOwner }: ListCollaboratorsProps) {
 
   const updatePermissionMutation = useMutation({
     mutationFn: async ({ collaboratorId, permission }: { collaboratorId: string; permission: string }) => {
-      return apiRequest('PUT', `/api/community/lists/${listId}/collaborators/${collaboratorId}`, { permission });
+      return apiRequest('PUT', `/api/lists/${listId}/collaborators/${collaboratorId}`, { permission });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', listId, 'collaborators'] });
@@ -115,7 +121,7 @@ export function ListCollaborators({ listId, isOwner }: ListCollaboratorsProps) {
 
   const removeCollaboratorMutation = useMutation({
     mutationFn: async (collaboratorId: string) => {
-      return apiRequest('DELETE', `/api/community/lists/${listId}/collaborators/${collaboratorId}`);
+      return apiRequest('DELETE', `/api/lists/${listId}/collaborators/${collaboratorId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', listId, 'collaborators'] });
