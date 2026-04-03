@@ -248,6 +248,13 @@ export function MediaCard({
   const [isVisible, setIsVisible] = useState(true);
 
   const handleFeedback = (positive: boolean) => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to like or dislike recommendations.",
+      });
+      return;
+    }
     const outcomeType = positive ? "preference_positive" : "preference_negative";
     feedbackMutation.mutate(outcomeType);
 
@@ -357,19 +364,6 @@ export function MediaCard({
               {movie.type === "tv" ? (movie.seasons ? `${movie.seasons} Season${movie.seasons !== 1 ? 's' : ''}` : "TV Series") : "Movie"}
             </Badge>
 
-            {/* Recommendation Strategy Badge */}
-            {recommendationStrategy && (
-              <Badge
-                variant="outline"
-                className="absolute top-1 right-1 sm:top-2 sm:right-2 text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 bg-primary/90 text-primary-foreground border-primary"
-                data-testid="badge-strategy"
-              >
-
-                <div className="truncate max-w-[80px] sm:max-w-[100px]">
-                  {recommendationStrategy}
-                </div>
-              </Badge>
-            )}
 
             {/* Remove button for watchlist */}
             {showRemoveButton && (
@@ -479,7 +473,7 @@ export function MediaCard({
             )}
 
             {/* Like/Dislike Feedback */}
-            {showFeedback && isAuthenticated && (
+            {showFeedback && (
               <div className="mt-2">
                 {feedbackGiven ? (
                   <p className="text-[10px] sm:text-xs text-green-600 dark:text-green-400 text-center py-1" data-testid="text-feedback-thanks">
