@@ -516,7 +516,7 @@ export default function Home() {
                 {/* Slide content */}
                 <div className="absolute inset-0 z-10 flex items-end sm:items-center pb-16 sm:pb-0">
                   <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="max-w-2xl" onTouchStart={(e) => e.stopPropagation()}>
+                    <div className="max-w-2xl">
                       <Badge variant="secondary" className="mb-2 sm:mb-4" data-testid={`badge-featured-type-${index}`}>
                         {movie.type === "tv" ? (movie.seasons ? `${movie.seasons} Season${movie.seasons !== 1 ? 's' : ''}` : "TV Series") : "Movie"}
                       </Badge>
@@ -576,7 +576,6 @@ export default function Home() {
               <button
                 className="absolute left-0 top-0 bottom-0 w-[15%] sm:w-[8%] z-[40] cursor-pointer group"
                 onClick={prevSlide}
-                onTouchStart={(e) => e.stopPropagation()}
                 data-testid="area-prev-slide"
                 aria-label="Previous slide"
               >
@@ -591,7 +590,6 @@ export default function Home() {
               <button
                 className="absolute right-0 top-0 bottom-0 w-[15%] sm:w-[8%] z-[40] cursor-pointer group"
                 onClick={nextSlide}
-                onTouchStart={(e) => e.stopPropagation()}
                 data-testid="area-next-slide"
                 aria-label="Next slide"
               >
@@ -608,7 +606,6 @@ export default function Home() {
                   <button
                     key={index}
                     onClick={() => goToSlide(index)}
-                    onTouchStart={(e) => e.stopPropagation()}
                     className={cn(
                       "rounded-full transition-all duration-300 touch-manipulation",
                       currentSlide === index
