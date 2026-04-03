@@ -191,6 +191,7 @@ export interface AwardWithUser {
 
 // User Impact Dashboard data type
 export interface UserImpactData {
+  experiencePoints: number;
   reviewStats: {
     totalReviews: number;
     averageRatingGiven: number;
@@ -204,18 +205,10 @@ export interface UserImpactData {
   socialStats: {
     followerCount: number;
     followingCount: number;
-    profileViews: number;
   };
   engagementReceived: {
     totalAwardsReceived: number;
     totalCommentsReceived: number;
     totalReviewLikes: number;
-  };
-  communityRank: {
-    level: number;
-    rank: string;
-    engagementScore: number;
-    nextRankScore: number;
-    progressToNextRank: number;
   };
 }

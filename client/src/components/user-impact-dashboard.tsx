@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Star, 
@@ -16,6 +15,7 @@ import {
   Target
 } from "lucide-react";
 import type { UserImpactData } from "@shared/api-types";
+import { getLevelBadge, getLevelProgress, calculateXPToNextLevel, LEVELS } from "@shared/helpers";
 
 interface UserImpactDashboardProps {
   userId: string;
@@ -30,7 +30,7 @@ export function UserImpactDashboard({ userId }: UserImpactDashboardProps) {
       const data = await response.json();
       return data.impact || data;
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
   });
 
   if (isLoading) {
@@ -61,72 +61,43 @@ export function UserImpactDashboard({ userId }: UserImpactDashboardProps) {
     );
   }
 
-  const { reviewStats, listStats, socialStats, engagementReceived, communityRank } = impactData;
+  const { reviewStats, listStats, socialStats, engagementReceived, experiencePoints } = impactData;
 
-  // Get rank color and gradient
-  const getRankColor = (rank: string) => {
-    switch (rank) {
-      case "Legend":
-        return "from-purple-500 to-pink-500";
-      case "Expert":
-        return "from-blue-500 to-cyan-500";
-      case "Active Member":
-        return "from-green-500 to-emerald-500";
-      case "Contributor":
-        return "from-yellow-500 to-orange-500";
-      default:
-        return "from-gray-500 to-slate-500";
-    }
-  };
+  const levelInfo = getLevelBadge(experiencePoints);
+  const progress = getLevelProgress(experiencePoints);
+  const xpToNext = calculateXPToNextLevel(experiencePoints);
 
-  const getRankBadgeVariant = (rank: string): "default" | "secondary" | "destructive" | "outline" => {
-    switch (rank) {
-      case "Legend":
-        return "default";
-      case "Expert":
-        return "default";
-      case "Active Member":
-        return "secondary";
-      default:
-        return "outline";
-    }
-  };
-
-  const getMotivationalMessage = (rank: string) => {
-    switch (rank) {
-      case "Legend":
-        return "You're a legend! Keep inspiring the community! 🌟";
-      case "Expert":
-        return "Amazing work! You're making a huge impact! 🚀";
-      case "Active Member":
-        return "You're doing great! Keep up the momentum! 💪";
-      case "Contributor":
-        return "Nice progress! Keep contributing to grow! 📈";
-      default:
-        return "Welcome! Start reviewing and listing to level up! 🎬";
-    }
-  };
+  const currentIdx = LEVELS.findIndex(l => l.name === levelInfo.name);
+  const nextLevel = currentIdx < LEVELS.length - 1 ? LEVELS[currentIdx + 1] : null;
 
   return (
     <div className="space-y-6" data-testid="impact-dashboard">
-      {/* Header Section with Rank */}
-      <Card className={`border-0 bg-gradient-to-r ${getRankColor(communityRank.rank)} text-white`} data-testid="rank-card">
+      {/* Level / XP Header — matches profile header system */}
+      <Card className={`border-0 ${levelInfo.color} text-white`} data-testid="rank-card">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="space-y-2">
-              <CardTitle className="text-3xl font-bold flex items-center gap-2" data-testid="rank-title">
-                <Trophy className="h-8 w-8" />
-                {communityRank.rank}
+              <CardTitle className="text-2xl sm:text-3xl font-bold flex items-center gap-2" data-testid="rank-title">
+                <Trophy className="h-7 w-7 sm:h-8 sm:w-8" />
+                {levelInfo.name}
               </CardTitle>
-              <CardDescription className="text-white/90 text-lg" data-testid="motivational-message">
-                {getMotivationalMessage(communityRank.rank)}
+              <CardDescription className="text-white/90 text-base sm:text-lg" data-testid="motivational-message">
+                {levelInfo.name === "Legend"
+                  ? "You're a legend! Keep inspiring the community!"
+                  : levelInfo.name === "Expert"
+                    ? "Amazing work! You're making a huge impact!"
+                    : levelInfo.name === "Contributor"
+                      ? "Great progress! Keep contributing to grow!"
+                      : levelInfo.name === "Enthusiast"
+                        ? "Nice momentum! Keep reviewing and engaging!"
+                        : "Welcome! Start reviewing and listing to level up!"}
               </CardDescription>
             </div>
             <div className="text-right">
-              <div className="text-4xl font-bold" data-testid="engagement-score">
-                {communityRank.engagementScore}
+              <div className="text-3xl sm:text-4xl font-bold" data-testid="engagement-score">
+                {experiencePoints}
               </div>
-              <div className="text-sm text-white/80">Engagement Score</div>
+              <div className="text-sm text-white/80">XP</div>
             </div>
           </div>
         </CardHeader>
@@ -134,23 +105,23 @@ export function UserImpactDashboard({ userId }: UserImpactDashboardProps) {
           <div className="space-y-2">
             <div className="flex justify-between items-center text-sm">
               <span data-testid="progress-label">
-                {communityRank.rank === "Legend" 
-                  ? "Max Rank Achieved!" 
-                  : `Progress to ${communityRank.rank === "Newcomer" ? "Contributor" : communityRank.rank === "Contributor" ? "Active Member" : communityRank.rank === "Active Member" ? "Expert" : "Legend"}`
-                }
+                {levelInfo.max === Infinity
+                  ? "Max Level Achieved!"
+                  : `Progress to ${nextLevel?.name || "next level"}`}
               </span>
               <span className="font-semibold" data-testid="progress-percentage">
-                {communityRank.progressToNextRank}%
+                {Math.round(progress)}%
               </span>
             </div>
-            <Progress 
-              value={communityRank.progressToNextRank} 
-              className="h-3 bg-white/30" 
-              data-testid="progress-bar"
-            />
-            {communityRank.rank !== "Legend" && (
+            <div className="h-3 bg-white/30 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-white/80 rounded-full transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            {levelInfo.max !== Infinity && (
               <p className="text-xs text-white/70" data-testid="next-rank-score">
-                {communityRank.nextRankScore - communityRank.engagementScore} points to next rank
+                {xpToNext} XP to {nextLevel?.name}
               </p>
             )}
           </div>
@@ -158,8 +129,7 @@ export function UserImpactDashboard({ userId }: UserImpactDashboardProps) {
       </Card>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {/* Review Stats Card */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <Card data-testid="card-review-stats">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Review Activity</CardTitle>
@@ -191,7 +161,6 @@ export function UserImpactDashboard({ userId }: UserImpactDashboardProps) {
           </CardContent>
         </Card>
 
-        {/* List Stats Card */}
         <Card data-testid="card-list-stats">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">List Creation</CardTitle>
@@ -223,7 +192,6 @@ export function UserImpactDashboard({ userId }: UserImpactDashboardProps) {
           </CardContent>
         </Card>
 
-        {/* Social Stats Card */}
         <Card data-testid="card-social-stats">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Social Network</CardTitle>
@@ -237,25 +205,16 @@ export function UserImpactDashboard({ userId }: UserImpactDashboardProps) {
                 </div>
                 <p className="text-xs text-muted-foreground">Followers</p>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <div className="font-semibold" data-testid="following-count">
-                    {socialStats.followingCount}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Following</p>
+              <div className="text-sm">
+                <div className="font-semibold" data-testid="following-count">
+                  {socialStats.followingCount}
                 </div>
-                <div>
-                  <div className="font-semibold" data-testid="profile-views">
-                    {socialStats.profileViews}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Profile Views</p>
-                </div>
+                <p className="text-xs text-muted-foreground">Following</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Awards Received Card */}
         <Card data-testid="card-awards-received">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Awards Earned</CardTitle>
@@ -271,7 +230,6 @@ export function UserImpactDashboard({ userId }: UserImpactDashboardProps) {
           </CardContent>
         </Card>
 
-        {/* Comments Received Card */}
         <Card data-testid="card-comments-received">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Comments Received</CardTitle>
@@ -287,7 +245,6 @@ export function UserImpactDashboard({ userId }: UserImpactDashboardProps) {
           </CardContent>
         </Card>
 
-        {/* Review Likes Card */}
         <Card data-testid="card-review-likes">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Helpful Reviews</CardTitle>
@@ -304,63 +261,38 @@ export function UserImpactDashboard({ userId }: UserImpactDashboardProps) {
         </Card>
       </div>
 
-      {/* Impact Summary */}
-      <Card className="border-primary/50" data-testid="impact-summary">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Your Impact Summary
-          </CardTitle>
-          <CardDescription>Keep contributing to grow your influence in the community!</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
+      {/* How to Level Up */}
+      {levelInfo.max !== Infinity && (
+        <Card className="border-primary/50" data-testid="impact-summary">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              How to Level Up
+            </CardTitle>
+            <CardDescription>
+              Earn XP by reviewing, creating lists, following users, and engaging with the community.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="flex items-start gap-4">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Target className="h-6 w-6 text-primary" />
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <TrendingUp className="h-6 w-6 text-green-500" />
               </div>
               <div className="flex-1">
-                <h4 className="font-semibold mb-1">Engagement Score Breakdown</h4>
-                <div className="text-sm text-muted-foreground space-y-1">
-                  <div className="flex justify-between" data-testid="score-reviews">
-                    <span>Reviews ({reviewStats.totalReviews} × 2)</span>
-                    <span className="font-medium">{reviewStats.totalReviews * 2} points</span>
-                  </div>
-                  <div className="flex justify-between" data-testid="score-lists">
-                    <span>Lists ({listStats.totalLists} × 5)</span>
-                    <span className="font-medium">{listStats.totalLists * 5} points</span>
-                  </div>
-                  <div className="flex justify-between" data-testid="score-awards">
-                    <span>Awards ({engagementReceived.totalAwardsReceived} × 1)</span>
-                    <span className="font-medium">{engagementReceived.totalAwardsReceived} points</span>
-                  </div>
-                  <div className="flex justify-between" data-testid="score-followers">
-                    <span>Followers ({socialStats.followerCount} × 3)</span>
-                    <span className="font-medium">{socialStats.followerCount * 3} points</span>
-                  </div>
-                </div>
+                <h4 className="font-semibold mb-1">
+                  {xpToNext} XP to reach {nextLevel?.name}
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  {levelInfo.name === "Newbie" && "Write reviews (+10 XP), create lists (+15 XP), and follow other cinephiles (+5 XP) to level up!"}
+                  {levelInfo.name === "Enthusiast" && "Keep reviewing and building lists to reach Contributor!"}
+                  {levelInfo.name === "Contributor" && "Your contributions matter! Keep growing to reach Expert!"}
+                  {levelInfo.name === "Expert" && "You're almost a Legend! Keep pushing to reach the top!"}
+                </p>
               </div>
             </div>
-            
-            {communityRank.rank !== "Legend" && (
-              <div className="flex items-start gap-4 pt-4 border-t">
-                <div className="p-2 rounded-lg bg-green-500/10">
-                  <TrendingUp className="h-6 w-6 text-green-500" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-semibold mb-1">How to Level Up</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {communityRank.rank === "Newcomer" && "Write reviews, create lists, and engage with others to reach Contributor status!"}
-                    {communityRank.rank === "Contributor" && "Keep reviewing and building your follower base to become an Active Member!"}
-                    {communityRank.rank === "Active Member" && "Continue your great work to achieve Expert status!"}
-                    {communityRank.rank === "Expert" && "You're almost there! Keep going to become a Legend!"}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

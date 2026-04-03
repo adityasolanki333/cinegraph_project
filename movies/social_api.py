@@ -2420,24 +2420,11 @@ def get_user_impact(request, user_id):
     followers_count = UserFollow.objects.filter(following=user).count()
     following_count = UserFollow.objects.filter(follower=user).count()
 
-    engagement_score = reviews_count * 2 + lists_created * 5 + awards_received + followers_count * 3
-
-    if engagement_score >= 100:
-        rank, next_rank_score, progress = "Legend", 100, 100
-    elif engagement_score >= 50:
-        rank, next_rank_score = "Expert", 100
-        progress = int((engagement_score - 50) / 50 * 100)
-    elif engagement_score >= 20:
-        rank, next_rank_score = "Active Member", 50
-        progress = int((engagement_score - 20) / 30 * 100)
-    elif engagement_score >= 5:
-        rank, next_rank_score = "Contributor", 20
-        progress = int((engagement_score - 5) / 15 * 100)
-    else:
-        rank, next_rank_score = "Newcomer", 5
-        progress = int(engagement_score / 5 * 100) if engagement_score > 0 else 0
+    stats, _ = UserActivityStats.objects.get_or_create(user=user)
+    xp = stats.experience_points
 
     return JsonResponse({
+        'experiencePoints': xp,
         'reviewStats': {
             'totalReviews': reviews_count,
             'averageRatingGiven': round(avg_rating, 1),
@@ -2451,17 +2438,10 @@ def get_user_impact(request, user_id):
         'socialStats': {
             'followerCount': followers_count,
             'followingCount': following_count,
-            'profileViews': 0,
         },
         'engagementReceived': {
             'totalAwardsReceived': awards_received,
             'totalCommentsReceived': comments_received,
             'totalReviewLikes': total_helpful,
         },
-        'communityRank': {
-            'rank': rank,
-            'engagementScore': engagement_score,
-            'progressToNextRank': min(progress, 100),
-            'nextRankScore': next_rank_score,
-        }
     })
