@@ -1,11 +1,12 @@
-import { useEffect, lazy, Suspense } from "react";
-import { Switch, Route, useLocation } from "wouter";
+import { useEffect, lazy, Suspense, ComponentType } from "react";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient, prefetchCommonData } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { Loader2 } from "lucide-react";
 import Navbar from "@/components/layout/navbar";
@@ -33,6 +34,21 @@ const DiscussionThread = lazy(() => import("@/pages/community/discussion-thread"
 const CommunityLists = lazy(() => import("@/pages/community/community-lists"));
 const ListDetail = lazy(() => import("@/pages/list-detail"));
 const Notifications = lazy(() => import("@/pages/notifications"));
+
+function ProtectedRoute({ component: Component, ...rest }: { component: ComponentType<any>; [key: string]: any }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+  if (!isAuthenticated) {
+    return <Redirect to="/login" />;
+  }
+  return <Component {...rest} />;
+}
 
 function ScrollToTop() {
   const [location] = useLocation();
@@ -73,18 +89,18 @@ function Router() {
             <Route path="/" component={Home} />
             <Route path="/movies" component={Movies} />
             <Route path="/tv-shows" component={TVShows} />
-            <Route path="/recommendations" component={Recommendations} />
-            <Route path="/my-list" component={MyList} />
-            <Route path="/community" component={Community} />
-            <Route path="/community/clubs" component={ClubsList} />
-            <Route path="/community/clubs/:id" component={ClubDetails} />
-            <Route path="/community/clubs/threads/:id" component={DiscussionThread} />
-            <Route path="/community/lists" component={CommunityLists} />
+            <Route path="/recommendations">{() => <ProtectedRoute component={Recommendations} />}</Route>
+            <Route path="/my-list">{() => <ProtectedRoute component={MyList} />}</Route>
+            <Route path="/community">{() => <ProtectedRoute component={Community} />}</Route>
+            <Route path="/community/clubs">{() => <ProtectedRoute component={ClubsList} />}</Route>
+            <Route path="/community/clubs/:id">{(params) => <ProtectedRoute component={ClubDetails} {...params} />}</Route>
+            <Route path="/community/clubs/threads/:id">{(params) => <ProtectedRoute component={DiscussionThread} {...params} />}</Route>
+            <Route path="/community/lists">{() => <ProtectedRoute component={CommunityLists} />}</Route>
             <Route path="/lists/:id" component={ListDetail} />
-            <Route path="/notifications" component={Notifications} />
+            <Route path="/notifications">{() => <ProtectedRoute component={Notifications} />}</Route>
             <Route path="/profile/:userId" component={Profile} />
-            <Route path="/profile" component={Profile} />
-            <Route path="/settings" component={Settings} />
+            <Route path="/profile">{() => <ProtectedRoute component={Profile} />}</Route>
+            <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
             <Route path="/movie/:id" component={MovieDetails} />
             <Route path="/tv/:id" component={TVShowDetails} />
             <Route path="/login" component={Login} />
