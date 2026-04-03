@@ -248,6 +248,8 @@ export default function Home() {
     : stripIndex >= total + 1 ? 0
     : stripIndex - 1;
 
+  const heroRef = useRef<HTMLDivElement>(null);
+
   const animate = useCallback((direction: 'next' | 'prev') => {
     if (isAnimating.current || total < 2) return;
     isAnimating.current = true;
@@ -255,7 +257,6 @@ export default function Home() {
     setDragX(0);
     setStripIndex(prev => direction === 'next' ? prev + 1 : prev - 1);
     setTimeout(() => {
-      // Snap back to the real slide (no transition) to enable infinite loop
       setIsTransitioning(false);
       setStripIndex(prev => {
         if (prev >= total + 1) return 1;
@@ -266,51 +267,72 @@ export default function Home() {
     }, 360);
   }, [total]);
 
-  const goToSlide = useCallback((index: number) => {
-    if (isAnimating.current || index === currentSlide || total < 2) return;
-    const fwd = (index - currentSlide + total) % total;
-    const bwd = (currentSlide - index + total) % total;
-    if (fwd <= bwd) animate('next');
-    else animate('prev');
-    // Override target after animation
-    setTimeout(() => {
-      setStripIndex(index + 1);
-    }, 365);
-  }, [animate, currentSlide, total]);
+  // Keep a ref to animate so the DOM event listener closure never goes stale
+  const animateRef = useRef(animate);
+  useEffect(() => { animateRef.current = animate; }, [animate]);
 
-  const nextSlide = useCallback(() => animate('next'), [animate]);
-  const prevSlide = useCallback(() => animate('prev'), [animate]);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (isAnimating.current) return;
-    touchStartX.current = e.targetTouches[0].clientX;
-    touchStartY.current = e.targetTouches[0].clientY;
+  // Dot-indicator jump: instant, no animation
+  const goToSlide = (index: number) => {
+    if (index === currentSlide) return;
+    isAnimating.current = true;
+    setIsTransitioning(false);
+    setDragX(0);
+    setStripIndex(index + 1);
+    setTimeout(() => { isAnimating.current = false; }, 50);
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStartX.current || !touchStartY.current || isAnimating.current) return;
-    const dx = e.targetTouches[0].clientX - touchStartX.current;
-    const dy = Math.abs(e.targetTouches[0].clientY - touchStartY.current);
-    if (Math.abs(dx) > dy) setDragX(dx);
-  };
+  const nextSlide = () => animate('next');
+  const prevSlide = () => animate('prev');
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    const sx = touchStartX.current;
-    const sy = touchStartY.current;
-    touchStartX.current = null;
-    touchStartY.current = null;
-    if (!sx || !sy || isAnimating.current) { setDragX(0); return; }
-    const dx = e.changedTouches[0].clientX - sx;
-    const dy = Math.abs(e.changedTouches[0].clientY - sy);
-    if (Math.abs(dx) >= 50 && Math.abs(dx) > dy && total > 1) {
-      if (dx < 0) animate('next');
-      else animate('prev');
-    } else {
-      setIsTransitioning(true);
-      setDragX(0);
-      setTimeout(() => setIsTransitioning(false), 360);
-    }
-  };
+  // Attach non-passive touch listeners so e.preventDefault() works
+  // (React's synthetic events are passive by default — browser scrolls instead of carousel)
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el) return;
+
+    const onStart = (e: TouchEvent) => {
+      if (isAnimating.current) return;
+      touchStartX.current = e.targetTouches[0].clientX;
+      touchStartY.current = e.targetTouches[0].clientY;
+    };
+
+    const onMove = (e: TouchEvent) => {
+      if (touchStartX.current === null || touchStartY.current === null || isAnimating.current) return;
+      const dx = e.targetTouches[0].clientX - touchStartX.current;
+      const dy = Math.abs(e.targetTouches[0].clientY - touchStartY.current);
+      if (Math.abs(dx) > dy) {
+        e.preventDefault(); // stop page scroll while swiping horizontally
+        setDragX(dx);
+      }
+    };
+
+    const onEnd = (e: TouchEvent) => {
+      const sx = touchStartX.current;
+      const sy = touchStartY.current;
+      touchStartX.current = null;
+      touchStartY.current = null;
+      if (sx === null || sy === null || isAnimating.current) { setDragX(0); return; }
+      const dx = e.changedTouches[0].clientX - sx;
+      const dy = Math.abs(e.changedTouches[0].clientY - sy);
+      if (Math.abs(dx) >= 40 && Math.abs(dx) > dy) {
+        animateRef.current(dx < 0 ? 'next' : 'prev');
+      } else {
+        setIsTransitioning(true);
+        setDragX(0);
+        setTimeout(() => setIsTransitioning(false), 360);
+      }
+    };
+
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove,  { passive: false }); // must be non-passive
+    el.addEventListener('touchend',   onEnd,   { passive: true });
+
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove',  onMove);
+      el.removeEventListener('touchend',   onEnd);
+    };
+  }, [total]); // re-runs when hero slides load so heroRef.current is ready
 
   const currentMovie = featuredMovies[currentSlide] || featuredMovies[0];
   const [trailerInfo, setTrailerInfo] = useState<{ id: string; type: 'movie' | 'tv'; title: string } | null>(null);
@@ -479,11 +501,9 @@ export default function Home() {
           : featuredMovies;
         return (
         <div
+          ref={heroRef}
           className="relative h-[150vw] max-h-[100vh] sm:h-[70vh] lg:h-[80vh] overflow-hidden bg-black select-none"
           data-testid="hero-section"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
         >
           {/* ── Sliding strip ── */}
           <div
