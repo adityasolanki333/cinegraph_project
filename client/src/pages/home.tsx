@@ -391,47 +391,57 @@ export default function Home() {
 
   // Remove these functions as MovieCard will handle watchlist internally
 
-  const MovieRow = ({ title, movies, showMore = false, showMoreLink = "/movies", isLoading = false, showFeedback = false }: { title: string; movies: Movie[]; showMore?: boolean; showMoreLink?: string; isLoading?: boolean; showFeedback?: boolean }) => (
-    <div className="mb-6 sm:mb-8" data-testid={`section-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-      <div className="flex items-center justify-between mb-3 sm:mb-4">
-        <h2 className="text-xl sm:text-2xl font-bold text-foreground" data-testid={`title-${title.toLowerCase().replace(/\s+/g, '-')}`}>{title}</h2>
-        {showMore && (
-          <Link href={showMoreLink}>
-            <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80 text-sm" data-testid={`button-see-more-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-              <span className="hidden sm:inline">See More</span>
-              <span className="sm:hidden">More</span>
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
-          </Link>
-        )}
-      </div>
-      <ScrollArea className="w-full whitespace-nowrap">
-        <div className="flex space-x-3 sm:space-x-4 pb-4">
-          {isLoading ? (
-            Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className="flex-none w-40 sm:w-44 md:w-48">
-                <MediaCardSkeleton />
-              </div>
-            ))
-          ) : (
-            movies.map((movie: any) => (
-              <div key={movie.id} className="flex-none w-40 sm:w-44 md:w-48" data-testid={`movie-card-${movie.id}`}>
-                <MediaCard
-                  movie={movie}
-                  recommendationScore={movie.recommendationScore}
-                  recommendationStrategy={movie.recommendationStrategy}
-                  recommendationReason={movie.recommendationReason}
-                  showExplanation={true}
-                  showFeedback={showFeedback}
-                />
-              </div>
-            ))
+  const MovieRow = useCallback(({ title, movies, showMore = false, showMoreLink = "/movies", isLoading = false, showFeedback = false }: { title: string; movies: Movie[]; showMore?: boolean; showMoreLink?: string; isLoading?: boolean; showFeedback?: boolean }) => {
+    const seen = new Set<string>();
+    const uniqueMovies = movies.filter((movie: any) => {
+      const key = String(movie.id);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    return (
+      <div className="mb-6 sm:mb-8" data-testid={`section-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground" data-testid={`title-${title.toLowerCase().replace(/\s+/g, '-')}`}>{title}</h2>
+          {showMore && (
+            <Link href={showMoreLink}>
+              <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80 text-sm" data-testid={`button-see-more-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+                <span className="hidden sm:inline">See More</span>
+                <span className="sm:hidden">More</span>
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </Link>
           )}
         </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-    </div>
-  );
+        <ScrollArea className="w-full whitespace-nowrap">
+          <div className="flex space-x-3 sm:space-x-4 pb-4">
+            {isLoading ? (
+              Array.from({ length: 6 }, (_, i) => (
+                <div key={i} className="flex-none w-40 sm:w-44 md:w-48">
+                  <MediaCardSkeleton />
+                </div>
+              ))
+            ) : (
+              uniqueMovies.map((movie: any) => (
+                <div key={movie.id} className="flex-none w-40 sm:w-44 md:w-48" data-testid={`movie-card-${movie.id}`}>
+                  <MediaCard
+                    movie={movie}
+                    recommendationScore={movie.recommendationScore}
+                    recommendationStrategy={movie.recommendationStrategy}
+                    recommendationReason={movie.recommendationReason}
+                    showExplanation={true}
+                    showFeedback={showFeedback}
+                  />
+                </div>
+              ))
+            )}
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      </div>
+    );
+  }, []);
 
   if (trendingLoading) {
     return (

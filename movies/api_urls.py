@@ -50,8 +50,7 @@ urlpatterns = [
     path('tmdb/tv/<int:tv_id>/season/<int:season_number>', tmdb_views.TVSeasonView.as_view(), name='api_tv_season'),
 
     path('tmdb/search/multi', tmdb_views.SearchMultiView.as_view(), name='api_search_multi'),
-    path('tmdb/search/movie', tmdb_views.SearchMoviesView.as_view(), name='api_search_movies'),
-    path('tmdb/search/movies', tmdb_views.SearchMoviesView.as_view(), name='api_search_movies_alt'),
+    path('tmdb/search/movies', tmdb_views.SearchMoviesView.as_view(), name='api_search_movies'),
     path('tmdb/search/tv', tmdb_views.SearchTVView.as_view(), name='api_search_tv'),
     path('tmdb/search/person', tmdb_views.SearchPeopleView.as_view(), name='api_search_people'),
     path('tmdb/search/people', tmdb_views.SearchPeopleView.as_view(), name='api_search_people_alt'),
@@ -60,11 +59,9 @@ urlpatterns = [
 
     path('search/interaction', tmdb_views.RecordInteractionView.as_view(), name='api_search_interaction'),
 
-    path('tmdb/genres/movie', tmdb_views.GenresMovieView.as_view(), name='api_genres_movie'),
     path('tmdb/genres/movies', tmdb_views.GenresMovieView.as_view(), name='api_genres_movies'),
     path('tmdb/genres/tv', tmdb_views.GenresTVView.as_view(), name='api_genres_tv'),
 
-    path('tmdb/discover/movie', tmdb_views.DiscoverMoviesView.as_view(), name='api_discover_movie'),
     path('tmdb/discover/movies', tmdb_views.DiscoverMoviesView.as_view(), name='api_discover_movies'),
     path('tmdb/discover/tv', tmdb_views.DiscoverTVView.as_view(), name='api_discover_tv'),
 
@@ -169,11 +166,6 @@ urlpatterns = [
     path('external/ratings/<str:imdb_id>', ext_views.MovieRatingsView.as_view(), name='api_movie_ratings'),
     path('external/youtube/streaming-data/<str:video_id>', ext_views.YouTubeStreamingDataView.as_view(), name='api_youtube_streaming'),
 
-    path('reviews/<int:review_id>/comments', reviews_views.ReviewCommentsView.as_view(), name='api_get_review_comments'),
-    path('reviews/<int:review_id>/comments/add', reviews_views.AddReviewCommentView.as_view(), name='api_add_review_comment'),
-    path('reviews/<int:review_id>/awards', reviews_views.ReviewAwardsView.as_view(), name='api_get_review_awards'),
-    path('reviews/<int:review_id>/awards/add', reviews_views.ReviewAwardsView.as_view(), name='api_give_review_award'),
-
     path('community/reviews/<int:review_id>/comments', reviews_views.ReviewCommentsView.as_view(), name='api_community_review_comments'),
     path('community/reviews/<int:review_id>/comments/add', reviews_views.AddReviewCommentView.as_view(), name='api_community_add_comment'),
     path('community/reviews/<int:review_id>/comments/<int:comment_id>', reviews_views.DeleteReviewCommentView.as_view(), name='api_community_delete_comment'),
@@ -191,20 +183,12 @@ urlpatterns = [
     path('community/user-impact/<str:user_id>', community_views.UserImpactView.as_view(), name='api_user_impact'),
 
     path('users/<str:user_id>/stats', community_views.ActivityStatsView.as_view(), name='api_activity_stats'),
-    path('community/<str:user_id>/stats', community_views.ActivityStatsView.as_view(), name='api_community_activity_stats'),
-
-    path('recommendations/submit', reviews_views.SubmitRecommendationView.as_view(), name='api_submit_recommendation'),
-    path('recommendations/for/<int:tmdb_id>/<str:media_type>', reviews_views.UserRecommendationsForContentView.as_view(), name='api_get_user_recommendations'),
-    path('recommendations/<int:recommendation_id>/vote', reviews_views.VoteOnRecommendationView.as_view(), name='api_vote_recommendation'),
 
     path('users/<str:user_id>/recommendations', reviews_views.SubmitRecommendationView.as_view(), name='api_user_submit_recommendation'),
     path('users/<str:user_id>/recommendations/<int:recommendation_id>', reviews_views.DeleteUserRecommendationView.as_view(), name='api_user_delete_recommendation'),
     path('users/<str:user_id>/recommendations/<int:recommendation_id>/comments', reviews_views.UserRecommendationCommentsView.as_view(), name='api_user_rec_comments'),
     path('users/<str:user_id>/recommendations/<int:recommendation_id>/vote', reviews_views.UserRecommendationVoteView.as_view(), name='api_user_rec_vote'),
     path('users/recommendations/<int:recommendation_id>/comments', reviews_views.RecommendationCommentsView.as_view(), name='api_user_rec_comments_alt'),
-
-    path('recommendations/<int:recommendation_id>/comments', reviews_views.RecommendationCommentsView.as_view(), name='api_get_rec_comments'),
-    path('recommendations/<int:recommendation_id>/comments/add', reviews_views.AddRecommendationCommentView.as_view(), name='api_add_rec_comment'),
 
     path('users/<int:user_id>/notification-settings', notif_views.NotificationSettingsView.as_view(), name='api_get_notification_settings'),
     path('users/<int:user_id>/notification-settings/update', notif_views.UpdateNotificationSettingsView.as_view(), name='api_update_notification_settings'),

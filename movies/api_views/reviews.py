@@ -550,26 +550,6 @@ class UserRecommendationsForContentView(APIView):
         return Response({'recommendations': result})
 
 
-class VoteOnRecommendationView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, recommendation_id):
-        try:
-            rec = UserRecommendation.objects.get(id=recommendation_id)
-        except UserRecommendation.DoesNotExist:
-            return Response({'error': 'Recommendation not found', 'code': 'NOT_FOUND'}, status=404)
-
-        vote_type = request.data.get('voteType', '').lower()
-        if vote_type not in ['like', 'dislike']:
-            return Response({'error': 'voteType must be "like" or "dislike"', 'code': 'VALIDATION_ERROR'}, status=400)
-
-        vote, created = RecommendationVote.objects.update_or_create(
-            user=request.user, recommendation=rec,
-            defaults={'vote_type': vote_type}
-        )
-        return Response({'success': True, 'created': created, 'voteType': vote.vote_type})
-
-
 class DeleteUserRecommendationView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -665,27 +645,3 @@ class RecommendationCommentsView(APIView):
         })
 
 
-class AddRecommendationCommentView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, recommendation_id):
-        try:
-            rec = UserRecommendation.objects.get(id=recommendation_id)
-        except UserRecommendation.DoesNotExist:
-            return Response({'error': 'Recommendation not found', 'code': 'NOT_FOUND'}, status=404)
-
-        comment_text = (request.data.get('comment') or request.data.get('content') or '').strip()
-        if not comment_text:
-            return Response({'error': 'Comment is required', 'code': 'VALIDATION_ERROR'}, status=400)
-
-        comment = RecommendationComment.objects.create(
-            user=request.user, recommendation=rec, comment=comment_text
-        )
-        return Response({
-            'success': True,
-            'comment': {
-                'id': comment.id, 'userId': str(comment.user.id),
-                'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.email,
-                'comment': comment.comment, 'createdAt': comment.created_at.isoformat(),
-            }
-        })

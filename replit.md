@@ -24,7 +24,6 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 │   │   ├── recommendation_engine.py  # Collaborative/content-based filtering (temporal decay, mean-centering, sparse matrix)
 │   │   ├── signal_aggregator.py      # Unified implicit+explicit signal aggregator
 │   │   ├── feedback_service.py       # Feedback loop: per-user feature weight learning
-│   │   ├── embedding_manager.py      # User/item embedding population and similarity
 │   │   ├── diversity_engine.py       # MMR, DPP, serendipity (wired into pipeline)
 │   │   ├── contextual_bandits.py     # Thompson Sampling (DB-persisted arm states)
 │   │   ├── explainability_engine.py  # Recommendation explanations
@@ -34,8 +33,7 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 │   ├── management/commands/
 │   │   └── refresh_pinecone.py      # TMDB→Pinecone refresh pipeline
 │   ├── pagination.py         # DRF PageNumberPagination (page_size=20) + paginate_queryset helper
-│   ├── validation.py         # Input validation & standardized error responses
-│   └── decorators.py         # Auth/ownership decorators
+│   └── validation.py         # Standardized error_response() helper
 ├── client/                   # React frontend
 │   ├── src/
 │   │   ├── components/
@@ -71,7 +69,7 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 - External movie ratings integration
 - Input validation on all mutation endpoints (rating 1-10, string lengths, TMDB ID format)
 - Standardized error responses: `{ "error": "...", "code": "..." }`
-- DRF throttling configured (100 req/min auth, 20 req/min anon) + custom `@rate_limit()` decorator enforced on all write endpoints
+- DRF throttling configured (100 req/min auth, 20 req/min anon)
 - CSRF protection enforced on all endpoints (no `@csrf_exempt` bypasses); frontend sends CSRF token via `X-CSRFToken` header
 - Production security headers (HSTS, secure cookies, SSL redirect) gated on `DEBUG=False`
 - Django password validators applied on registration
