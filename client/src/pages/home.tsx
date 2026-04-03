@@ -462,81 +462,152 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Section with Slider */}
-      {currentMovie && (
+      {/* Hero Section — sliding strip carousel */}
+      {featuredMovies.length > 0 && (
         <div
-          className="relative h-[150vw] max-h-[100vh] sm:h-[70vh] lg:h-[80vh] overflow-hidden bg-black"
+          className="relative h-[150vw] max-h-[100vh] sm:h-[70vh] lg:h-[80vh] overflow-hidden bg-black select-none"
           data-testid="hero-section"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          <div className="absolute inset-0">
-            {/* Mobile: Blurred background + centered poster */}
-            <div className="sm:hidden absolute inset-0">
-              {/* Blurred background */}
-              <img
-                src={currentMovie.posterUrl || "https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?ixlib=rb-4.0.3&w=1920&h=1080&fit=crop"}
-                alt=""
-                className="w-full h-full object-cover blur-2xl scale-110 opacity-50"
-              />
-              {/* Full poster on top */}
-              <img
-                src={currentMovie.posterUrl || "https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?ixlib=rb-4.0.3&w=1920&h=1080&fit=crop"}
-                alt={currentMovie.title || "Featured Movie"}
-                className="absolute inset-0 w-full h-full object-contain transition-all duration-1000"
-              />
-            </div>
-            {/* Desktop: Show backdrop/cover image */}
-            <img
-              src={currentMovie.backdropUrl || currentMovie.posterUrl || "https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?ixlib=rb-4.0.3&w=1920&h=1080&fit=crop"}
-              alt={currentMovie.title || "Featured Movie"}
-              fetchpriority="high"
-              className="hidden sm:block w-full h-full object-cover transition-all duration-1000"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent pointer-events-none" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+          {/* ── Sliding strip: all slides side-by-side ── */}
+          <div
+            className="flex h-full w-full"
+            style={{
+              transform: `translateX(calc(-${currentSlide * 100}% + ${dragX}px))`,
+              transition: isTransitioning ? 'transform 0.38s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
+              willChange: 'transform',
+            }}
+          >
+            {featuredMovies.map((movie: any, index: number) => (
+              <div key={movie.id} className="flex-shrink-0 w-full h-full relative">
+                {/* Mobile: blurred bg + centred poster */}
+                <div className="sm:hidden absolute inset-0">
+                  <img
+                    src={movie.posterUrl || "https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?w=800&fit=crop"}
+                    alt=""
+                    className="w-full h-full object-cover blur-2xl scale-110 opacity-50"
+                    draggable={false}
+                  />
+                  <img
+                    src={movie.posterUrl || "https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?w=800&fit=crop"}
+                    alt={movie.title}
+                    className="absolute inset-0 w-full h-full object-contain"
+                    draggable={false}
+                    loading={index === 0 ? "eager" : "lazy"}
+                  />
+                </div>
+
+                {/* Desktop: backdrop */}
+                <img
+                  src={movie.backdropUrl || movie.posterUrl || "https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?w=1920&fit=crop"}
+                  alt={movie.title}
+                  className="hidden sm:block w-full h-full object-cover"
+                  draggable={false}
+                  fetchpriority={index === 0 ? "high" : "auto"}
+                  loading={index === 0 ? "eager" : "lazy"}
+                />
+
+                {/* Gradients */}
+                <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
+
+                {/* Slide content */}
+                <div className="absolute inset-0 z-10 flex items-end sm:items-center pb-16 sm:pb-0">
+                  <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="max-w-2xl" onTouchStart={(e) => e.stopPropagation()}>
+                      <Badge variant="secondary" className="mb-2 sm:mb-4" data-testid={`badge-featured-type-${index}`}>
+                        {movie.type === "tv" ? (movie.seasons ? `${movie.seasons} Season${movie.seasons !== 1 ? 's' : ''}` : "TV Series") : "Movie"}
+                      </Badge>
+                      <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-2 sm:mb-4 line-clamp-2" data-testid={`text-featured-title-${index}`}>
+                        {movie.title}
+                      </h1>
+                      <p className="text-xs sm:text-base lg:text-lg text-gray-200 mb-3 sm:mb-6 max-w-xl line-clamp-2 sm:line-clamp-4" data-testid={`text-featured-synopsis-${index}`}>
+                        {movie.synopsis}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-3 sm:mb-6 text-sm sm:text-base">
+                        <div className="flex items-center space-x-1 text-white">
+                          <span className="text-yellow-400">★</span>
+                          <span className="font-semibold">{movie.rating}</span>
+                        </div>
+                        <span className="text-gray-300">•</span>
+                        <span className="text-gray-300">{movie.year}</span>
+                        <span className="text-gray-300 hidden sm:inline">•</span>
+                        <span className="text-gray-300 hidden sm:inline">{movie.genre}</span>
+                        {movie.duration && (
+                          <>
+                            <span className="text-gray-300 hidden sm:inline">•</span>
+                            <span className="text-gray-300 hidden sm:inline">{movie.duration}min</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex flex-row sm:flex-col md:flex-row gap-2 sm:gap-4">
+                        <Button
+                          size="lg"
+                          className="bg-white text-black hover:bg-gray-200 flex-1 sm:flex-none"
+                          data-testid="button-play"
+                          onClick={() => {
+                            setTrailerInfo({ id: movie.id, type: movie.type || 'movie', title: movie.title || '' });
+                            setShouldFetchTrailer(true);
+                          }}
+                        >
+                          <Play className="h-4 w-4 sm:h-5 sm:w-5 mr-2 fill-current" />
+                          Play Trailer
+                        </Button>
+                        <Link href={movie.type === "tv" ? `/tv/${movie.id}` : `/movie/${movie.id}`}>
+                          <Button size="lg" variant="secondary" className="bg-gray-500/50 text-white hover:bg-gray-500/70 w-full sm:w-auto" data-testid="button-more-info">
+                            <Info className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                            More Info
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* Navigation - Clickable Areas */}
+          {/* ── Fixed overlays: arrows + dots ── */}
           {featuredMovies.length > 1 && (
             <>
-              {/* Left clickable area for previous slide */}
+              {/* Prev area */}
               <button
-                className="absolute left-0 top-0 bottom-0 w-[30%] sm:w-[40%] z-[40] cursor-pointer group"
+                className="absolute left-0 top-0 bottom-0 w-[15%] sm:w-[8%] z-[40] cursor-pointer group"
                 onClick={prevSlide}
                 onTouchStart={(e) => e.stopPropagation()}
                 data-testid="area-prev-slide"
                 aria-label="Previous slide"
               >
-                <div className="absolute inset-y-0 left-2 sm:left-4 flex items-center opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <div className="bg-black/40 sm:bg-transparent rounded-full p-1.5 sm:p-0">
-                    <ChevronLeft className="h-7 w-7 sm:h-12 sm:w-12 text-white drop-shadow-2xl" />
+                <div className="absolute inset-y-0 left-2 sm:left-4 flex items-center opacity-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                  <div className="bg-black/50 rounded-full p-2">
+                    <ChevronLeft className="h-6 w-6 sm:h-8 sm:w-8 text-white drop-shadow-2xl" />
                   </div>
                 </div>
               </button>
 
-              {/* Right clickable area for next slide */}
+              {/* Next area */}
               <button
-                className="absolute right-0 top-0 bottom-0 w-[30%] sm:w-[40%] z-[40] cursor-pointer group"
+                className="absolute right-0 top-0 bottom-0 w-[15%] sm:w-[8%] z-[40] cursor-pointer group"
                 onClick={nextSlide}
                 onTouchStart={(e) => e.stopPropagation()}
                 data-testid="area-next-slide"
                 aria-label="Next slide"
               >
-                <div className="absolute inset-y-0 right-2 sm:right-4 flex items-center opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <div className="bg-black/40 sm:bg-transparent rounded-full p-1.5 sm:p-0">
-                    <ChevronRight className="h-7 w-7 sm:h-12 sm:w-12 text-white drop-shadow-2xl" />
+                <div className="absolute inset-y-0 right-2 sm:right-4 flex items-center opacity-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                  <div className="bg-black/50 rounded-full p-2">
+                    <ChevronRight className="h-6 w-6 sm:h-8 sm:w-8 text-white drop-shadow-2xl" />
                   </div>
                 </div>
               </button>
 
-              {/* Slide indicators */}
+              {/* Dot indicators */}
               <div className="absolute bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 z-[50] flex items-center gap-2">
-                {featuredMovies.map((_movie: any, index: number) => (
+                {featuredMovies.map((_: any, index: number) => (
                   <button
                     key={index}
-                    onClick={() => setCurrentSlide(index)}
+                    onClick={() => goToSlide(index)}
                     onTouchStart={(e) => e.stopPropagation()}
                     className={cn(
                       "rounded-full transition-all duration-300 touch-manipulation",
@@ -549,56 +620,8 @@ export default function Home() {
                   />
                 ))}
               </div>
-
             </>
           )}
-
-          <div className="relative z-[50] flex items-end sm:items-center h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pointer-events-none pb-16 sm:pb-0">
-            <div className="max-w-2xl pointer-events-auto" onTouchStart={(e) => e.stopPropagation()}>
-              <Badge variant="secondary" className="mb-2 sm:mb-4" data-testid="badge-featured-type">
-                {currentMovie.type === "tv" ? (currentMovie.seasons ? `${currentMovie.seasons} Season${currentMovie.seasons !== 1 ? 's' : ''}` : "TV Series") : "Movie"}
-              </Badge>
-              <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-2 sm:mb-4 line-clamp-2" data-testid="text-featured-title">
-                {currentMovie.title}
-              </h1>
-              <p className="text-xs sm:text-base lg:text-lg text-gray-200 mb-3 sm:mb-6 max-w-xl line-clamp-2 sm:line-clamp-4" data-testid="text-featured-synopsis">
-                {currentMovie.synopsis}
-              </p>
-              <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-3 sm:mb-6 text-sm sm:text-base">
-                <div className="flex items-center space-x-1 text-white">
-                  <span className="text-yellow-400">★</span>
-                  <span className="font-semibold" data-testid="text-featured-rating">{currentMovie.rating}</span>
-                </div>
-                <span className="text-gray-300">•</span>
-                <span className="text-gray-300" data-testid="text-featured-year">{currentMovie.year}</span>
-                <span className="text-gray-300 hidden sm:inline">•</span>
-                <span className="text-gray-300 hidden sm:inline" data-testid="text-featured-genre">{currentMovie.genre}</span>
-                {currentMovie.duration && (
-                  <>
-                    <span className="text-gray-300 hidden sm:inline">•</span>
-                    <span className="text-gray-300 hidden sm:inline" data-testid="text-featured-duration">{currentMovie.duration}min</span>
-                  </>
-                )}
-              </div>
-              <div className="flex flex-row sm:flex-col md:flex-row gap-2 sm:gap-4">
-                <Button
-                  size="lg"
-                  className="bg-white text-black hover:bg-gray-200 flex-1 sm:flex-none"
-                  data-testid="button-play"
-                  onClick={handlePlayTrailer}
-                >
-                  <Play className="h-4 w-4 sm:h-5 sm:w-5 mr-2 fill-current" />
-                  <span className="sm:inline">Play Trailer</span>
-                </Button>
-                <Link href={currentMovie.type === "tv" ? `/tv/${currentMovie.id}` : `/movie/${currentMovie.id}`}>
-                  <Button size="lg" variant="secondary" className="bg-gray-500/50 text-white hover:bg-gray-500/70 w-full sm:w-auto" data-testid="button-more-info">
-                    <Info className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                    More Info
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
