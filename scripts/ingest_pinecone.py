@@ -127,7 +127,7 @@ def main():
         print("      PINECONE_API_KEY=pc-xxxxxxxxxxxx")
         sys.exit(1)
 
-    print(f"✅  Pinecone API key loaded ({PINECONE_API_KEY[:8]}...)")
+    print("✅  Pinecone API key loaded.")
 
     # ── 2. Connect to Pinecone & ensure index exists ─────────────────────────
     if not args.dry_run:
