@@ -261,16 +261,28 @@ class ReviewCommentsView(APIView):
         except UserReview.DoesNotExist:
             return Response({'error': 'Review not found', 'code': 'NOT_FOUND'}, status=404)
 
-        comments = ReviewComment.objects.filter(review=review, parent_comment__isnull=True).select_related('user')
+        comments = ReviewComment.objects.filter(review=review, parent_comment__isnull=True).select_related('user', 'user__profile')
 
         def serialize_comment(comment):
-            replies = ReviewComment.objects.filter(parent_comment=comment).select_related('user')
+            replies = ReviewComment.objects.filter(parent_comment=comment).select_related('user', 'user__profile')
+            profile_image = None
+            try:
+                profile_image = comment.user.profile.profile_image_url
+            except Exception:
+                pass
+            first_name = comment.user.first_name or comment.user.username or comment.user.email.split('@')[0]
             return {
                 'id': comment.id,
                 'userId': str(comment.user.id),
-                'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.email,
+                'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.username or comment.user.email,
                 'comment': comment.comment,
+                'content': comment.comment,
                 'createdAt': comment.created_at.isoformat(),
+                'user': {
+                    'firstName': first_name,
+                    'lastName': comment.user.last_name,
+                    'profileImageUrl': profile_image,
+                },
                 'replies': [serialize_comment(r) for r in replies]
             }
 
@@ -330,14 +342,27 @@ def _add_comment_to_review(request, review_id):
     stats.user_level = stats.calculate_level()
     stats.save()
 
+    profile_image = None
+    try:
+        profile_image = request.user.profile.profile_image_url
+    except Exception:
+        pass
+    first_name = request.user.first_name or request.user.username or request.user.email.split('@')[0]
+
     return Response({
         'success': True,
         'comment': {
             'id': comment.id,
             'userId': str(comment.user.id),
-            'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.email,
+            'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.username or comment.user.email,
             'comment': comment.comment,
+            'content': comment.comment,
             'createdAt': comment.created_at.isoformat(),
+            'user': {
+                'firstName': first_name,
+                'lastName': request.user.last_name,
+                'profileImageUrl': profile_image,
+            },
         }
     })
 

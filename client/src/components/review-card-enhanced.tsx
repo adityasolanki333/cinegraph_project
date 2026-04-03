@@ -211,7 +211,8 @@ export function ReviewCardEnhanced({
 
   const deleteReviewMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('DELETE', `/api/users/demo_user/reviews/${review.id}`);
+      if (!user?.id) throw new Error("Not authenticated");
+      return apiRequest('DELETE', `/api/users/${user.id}/reviews/${review.id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/ratings'] });
