@@ -33,7 +33,10 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 │   ├── management/commands/
 │   │   └── refresh_pinecone.py      # TMDB→Pinecone refresh pipeline
 │   ├── pagination.py         # DRF PageNumberPagination (page_size=20) + paginate_queryset helper
-│   └── validation.py         # Standardized error_response() helper
+│   ├── tests.py              # Backend tests: Auth, TMDB proxy (mocked), CRUD, etc.
+│   ├── tests_ml.py           # ML pipeline unit tests (23 tests)
+│   ├── validation.py         # Input validation & standardized error responses
+│   └── decorators.py         # Auth/ownership decorators
 ├── client/                   # React frontend
 │   ├── src/
 │   │   ├── components/
@@ -115,6 +118,15 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 - `/api/external/*` - YouTube, ratings
 
 ## Recent Changes
+- April 2026: Improved Performance & Backend Optimization
+  - Refactored `MovieRow` component for significant frontend performance gains
+  - Removed unused API endpoints and legacy validation helpers
+  - Cleaned up backend by deleting unnecessary files (`logging_service.py`, `embedding_manager.py`)
+- April 3, 2026: Test Infrastructure - Backend Mocking, ML Tests & Frontend Test Setup
+  - Backend: Added 7 TMDB proxy tests using mocked API views and 23 hermetic ML pipeline tests
+  - Frontend: Added 24 Vitest + React Testing Library tests covering page smoke tests, hooks (useAuth, useWatchlist), and queryClient
+  - Implemented proper TypeScript interfaces in mock factories, replacing `any` casts
+  - ML pipeline tests cover RecommendationEngine, BanditEngine, DiversityEngine, SignalAggregator, and FeedbackService
 - April 3, 2026: Complete DRF Migration — All Endpoints Now Class-Based Views
   - Migrated ALL remaining legacy Django function views to DRF APIView classes
   - Created api_views/tmdb.py with TMDBProxyView base class eliminating ~40 duplicate functions

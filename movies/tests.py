@@ -1,12 +1,13 @@
 """
 Cinema-Guide test suite.
-Tests: Auth, TMDB proxy, Reviews CRUD, Lists CRUD, Watchlist, Community.
+Tests: Auth, TMDB proxy (mocked), Reviews CRUD, Lists CRUD, Watchlist, Community.
 
 Run: python manage.py test movies
 """
 from django.test import TestCase, Client
 from django.contrib.auth.models import User
 from django.urls import reverse
+from unittest.mock import patch
 import json
 
 
@@ -17,6 +18,59 @@ import json
 def create_user(username='testuser', password='Secure123!', email='test@cinema.com'):
     return User.objects.create_user(username=username, password=password, email=email,
                                     first_name='Test', last_name='User')
+
+
+TRENDING_FIXTURE = {
+    "page": 1,
+    "results": [
+        {"id": 27205, "title": "Inception", "media_type": "movie", "vote_average": 8.4},
+        {"id": 155, "title": "The Dark Knight", "media_type": "movie", "vote_average": 9.0},
+    ],
+    "total_pages": 1,
+    "total_results": 2,
+}
+
+POPULAR_FIXTURE = {
+    "page": 1,
+    "results": [
+        {"id": 550, "title": "Fight Club", "vote_average": 8.4},
+    ],
+    "total_pages": 1,
+    "total_results": 1,
+}
+
+SEARCH_FIXTURE = {
+    "page": 1,
+    "results": [
+        {"id": 27205, "title": "Inception", "media_type": "movie", "vote_average": 8.4},
+    ],
+    "total_pages": 1,
+    "total_results": 1,
+}
+
+MOVIE_DETAIL_FIXTURE = {
+    "id": 27205,
+    "title": "Inception",
+    "overview": "A thief who steals corporate secrets...",
+    "vote_average": 8.4,
+    "genres": [{"id": 28, "name": "Action"}],
+    "videos": {"results": []},
+    "credits": {"cast": [], "crew": []},
+    "similar": {"results": []},
+    "recommendations": {"results": []},
+}
+
+TV_DETAIL_FIXTURE = {
+    "id": 1396,
+    "name": "Breaking Bad",
+    "overview": "A chemistry teacher diagnosed with cancer...",
+    "vote_average": 9.5,
+    "genres": [{"id": 18, "name": "Drama"}],
+    "videos": {"results": []},
+    "credits": {"cast": [], "crew": []},
+    "similar": {"results": []},
+    "recommendations": {"results": []},
+}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -92,50 +146,81 @@ class AuthTests(TestCase):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 2. TMDB Proxy Tests
+# 2. TMDB Proxy Tests (Mocked)
 # ──────────────────────────────────────────────────────────────────────────────
 
+@patch('movies.api_views.tmdb.tmdb_request')
 class TMDBProxyTests(TestCase):
-    """Verify TMDB proxy endpoints return expected structure."""
+    """Verify TMDB proxy endpoints return expected structure using mocked API."""
 
     def setUp(self):
         self.client = Client()
 
-    def test_trending_movies_returns_results(self):
+    def _get(self, url, **kwargs):
+        return self.client.get(url, follow=True, **kwargs)
+
+    def test_trending_movies_returns_results(self, mock_tmdb):
         """GET /api/tmdb/trending returns result list."""
-        response = self.client.get('/api/tmdb/trending')
+        mock_tmdb.return_value = TRENDING_FIXTURE
+        response = self._get('/api/tmdb/trending')
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn('results', data)
         self.assertIsInstance(data['results'], list)
+        self.assertEqual(len(data['results']), 2)
+        mock_tmdb.assert_called_once()
 
-    def test_popular_movies_returns_results(self):
+    def test_popular_movies_returns_results(self, mock_tmdb):
         """GET /api/tmdb/movies/popular returns result list."""
-        response = self.client.get('/api/tmdb/movies/popular')
+        mock_tmdb.return_value = POPULAR_FIXTURE
+        response = self._get('/api/tmdb/movies/popular')
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn('results', data)
+        mock_tmdb.assert_called_once()
 
-    def test_movie_search_returns_results(self):
+    def test_movie_search_returns_results(self, mock_tmdb):
         """GET /api/tmdb/search/multi?query=inception returns matches."""
-        response = self.client.get('/api/tmdb/search/multi?query=inception')
+        mock_tmdb.return_value = SEARCH_FIXTURE
+        response = self._get('/api/tmdb/search/multi?query=inception')
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn('results', data)
+        mock_tmdb.assert_called_once()
 
-    def test_movie_detail_returns_id(self):
+    def test_movie_detail_returns_id(self, mock_tmdb):
         """GET /api/tmdb/movie/27205 (Inception) returns movie id."""
-        response = self.client.get('/api/tmdb/movie/27205')
+        mock_tmdb.return_value = MOVIE_DETAIL_FIXTURE
+        response = self._get('/api/tmdb/movie/27205')
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data.get('id'), 27205)
+        mock_tmdb.assert_called_once()
 
-    def test_tv_detail_returns_id(self):
+    def test_tv_detail_returns_id(self, mock_tmdb):
         """GET /api/tmdb/tv/1396 (Breaking Bad) returns show id."""
-        response = self.client.get('/api/tmdb/tv/1396')
+        mock_tmdb.return_value = TV_DETAIL_FIXTURE
+        response = self._get('/api/tmdb/tv/1396')
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data.get('id'), 1396)
+        mock_tmdb.assert_called_once()
+
+    def test_search_empty_query_returns_empty(self, mock_tmdb):
+        """GET /api/tmdb/search/multi without query returns empty results."""
+        response = self._get('/api/tmdb/search/multi')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['results'], [])
+        mock_tmdb.assert_not_called()
+
+    def test_trending_fixture_data_preserved(self, mock_tmdb):
+        """Mocked response data is correctly passed through the proxy."""
+        mock_tmdb.return_value = TRENDING_FIXTURE
+        response = self._get('/api/tmdb/trending')
+        data = response.json()
+        self.assertEqual(data['results'][0]['title'], 'Inception')
+        self.assertEqual(data['results'][1]['title'], 'The Dark Knight')
 
 
 # ──────────────────────────────────────────────────────────────────────────────
