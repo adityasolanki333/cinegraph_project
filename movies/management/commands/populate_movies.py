@@ -295,12 +295,17 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(f'Movie already exists: {movie.title}')
 
-        users = ['user1', 'user2', 'user3', 'user4', 'user5']
+        from django.contrib.auth.models import User
+        usernames = ['user1', 'user2', 'user3', 'user4', 'user5']
         all_movies = list(Movie.objects.all())
-        for user_id in users:
+        for username in usernames:
+            user_obj, _ = User.objects.get_or_create(
+                username=username,
+                defaults={'email': f'{username}@example.com'}
+            )
             for movie in random.sample(all_movies, min(10, len(all_movies))):
                 UserRating.objects.get_or_create(
-                    user_id=user_id,
+                    user=user_obj,
                     movie=movie,
                     defaults={'rating': random.uniform(3.0, 5.0)}
                 )

@@ -155,6 +155,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
@@ -163,6 +166,8 @@ REST_FRAMEWORK = {
         'anon': '20/minute',
         'user': '100/minute',
     },
+    'DEFAULT_PAGINATION_CLASS': 'movies.pagination.StandardPagePagination',
+    'PAGE_SIZE': 20,
 }
 
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')

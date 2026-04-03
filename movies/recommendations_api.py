@@ -7,7 +7,6 @@ import concurrent.futures
 import logging
 from datetime import datetime, date
 from django.http import JsonResponse, StreamingHttpResponse
-from django.views.decorators.http import require_POST, require_GET
 from .models import UserPreferences, UserReview, UserWatchlist, UserFavorites, ViewingHistory
 from .api import tmdb_request
 from .validation import error_response
@@ -547,7 +546,6 @@ def get_fallback_trending_movies():
 
 
 @rate_limit()
-@require_POST
 def ai_chat(request):
     user = request.user if request.user.is_authenticated else None
     
@@ -637,7 +635,6 @@ def ai_chat(request):
 
 
 @rate_limit()
-@require_POST
 def ai_chat_stream(request):
     user = request.user if request.user.is_authenticated else None
     
@@ -760,7 +757,6 @@ def ai_chat_stream(request):
 
 
 @rate_limit()
-@require_POST
 def save_preferences(request):
     if not request.user.is_authenticated:
         return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
@@ -797,7 +793,6 @@ def save_preferences(request):
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
-@require_GET
 def get_preferences(request, user_id):
     if not request.user.is_authenticated:
         return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
@@ -828,7 +823,6 @@ def get_preferences(request, user_id):
         })
 
 
-@require_GET
 def pattern_analyze(request, user_id):
     if not request.user.is_authenticated:
         return JsonResponse({
@@ -914,7 +908,6 @@ Write an engaging, personalized insight paragraph (not a list). Focus on pattern
         })
 
 
-@require_GET
 def pattern_predict(request, user_id):
     if not request.user.is_authenticated:
         return error_response('Authentication required', 'AUTH_REQUIRED', 401)
@@ -958,14 +951,21 @@ def pattern_predict(request, user_id):
 
 
 
-@require_GET
 def explain_with_gemini(request):
     from .ml.explainability_engine import explainability_engine as engine
 
-    source_title = request.GET.get('sourceTitle', '')
-    source_overview = request.GET.get('sourceOverview', '')
-    recommended_title = request.GET.get('recommendedTitle', '')
-    recommended_overview = request.GET.get('recommendedOverview', '')
+    params = request.GET
+    if request.method == 'POST':
+        try:
+            body = json.loads(request.body) if request.body else {}
+            params = body
+        except (json.JSONDecodeError, ValueError):
+            params = request.GET
+
+    source_title = params.get('sourceTitle', '')
+    source_overview = params.get('sourceOverview', '')
+    recommended_title = params.get('recommendedTitle', '')
+    recommended_overview = params.get('recommendedOverview', '')
 
     if not all([source_title, recommended_title]):
         return error_response('Missing required parameters', 'VALIDATION_ERROR', 400)

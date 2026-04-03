@@ -1,3 +1,12 @@
+from rest_framework.pagination import PageNumberPagination
+
+
+class StandardPagePagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'limit'
+    max_page_size = 100
+
+
 def paginate_queryset(request, queryset, default_limit=20, max_limit=100):
     try:
         page = max(1, int(request.GET.get('page', 1)))

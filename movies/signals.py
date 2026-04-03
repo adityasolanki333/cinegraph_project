@@ -1,6 +1,9 @@
+import logging
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from .models import UserReview, UserList, ReviewComment, UserFollow, UserActivityStats, UserBadge, ReviewAward
+
+logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=UserReview)
 def update_review_stats(sender, instance, created, **kwargs):
@@ -52,7 +55,7 @@ def update_review_stats(sender, instance, created, **kwargs):
                 analytics.neutral_count = neu
                 analytics.save()
     except Exception as e:
-        print(f"Failed to process sentiment analysis: {e}")
+        logger.warning("Failed to process sentiment analysis: %s", e)
 
     # Trigger real-time ML Upsert via Thread
     if created:
@@ -77,7 +80,7 @@ def update_review_stats(sender, instance, created, **kwargs):
                     }
                     threading.Thread(target=pinecone_service.upsert_movie, args=(movie_data,)).start()
         except Exception as e:
-            print(f"Failed to trigger ML vector upsert on review: {e}")
+            logger.warning("Failed to trigger ML vector upsert on review: %s", e)
 
 @receiver(post_delete, sender=UserReview)
 def decrement_review_stats(sender, instance, **kwargs):

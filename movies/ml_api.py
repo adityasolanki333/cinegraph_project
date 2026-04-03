@@ -7,7 +7,6 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.http import JsonResponse
-from django.views.decorators.http import require_GET, require_POST
 from django.contrib.auth.models import User
 from django.utils import timezone
 from .validation import error_response
@@ -87,7 +86,6 @@ def enrich_recommendations_with_tmdb(recommendations, default_media_type='movie'
     return [enriched[r['tmdb_id']] for r in recommendations if r['tmdb_id'] in enriched]
 
 
-@require_GET
 def get_hybrid_recommendations(request, user_id):
     """
     Hybrid recommendations – bandit-driven tiered strategy:
@@ -469,7 +467,6 @@ def get_hybrid_recommendations(request, user_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_collaborative_recommendations(request, user_id):
     """Get recommendations using collaborative filtering"""
     try:
@@ -511,7 +508,6 @@ def get_collaborative_recommendations(request, user_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_similar_items(request, tmdb_id):
     """Get similar items using item-based collaborative filtering"""
     try:
@@ -563,7 +559,6 @@ def get_similar_items(request, tmdb_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_user_similarity(request, user_id):
     """Find users with similar taste"""
     try:
@@ -851,7 +846,6 @@ def semantic_search(request):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_recommendation_explanation(request, user_id, tmdb_id):
     """Explain why a recommendation was made for a user using the explainability engine"""
     try:
@@ -906,7 +900,6 @@ def get_recommendation_explanation(request, user_id, tmdb_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_bandit_statistics(request, user_id):
     """Get contextual bandit statistics for a user"""
     try:
@@ -1092,7 +1085,6 @@ def apply_diversity(request):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_diversity_metrics(request, user_id):
     """Get diversity metrics for a user's recommendation history"""
     try:
@@ -1143,7 +1135,6 @@ def get_diversity_metrics(request, user_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_sentiment_analytics(request, tmdb_id):
     """Get sentiment analytics for a movie/TV show"""
     try:
@@ -1242,7 +1233,6 @@ def update_sentiment_for_content(request, tmdb_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_recommendation_history(request, user_id):
     """Get recommendation history for a user"""
     try:
@@ -1489,7 +1479,6 @@ def log_recommendation_interaction(request):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_global_feature_importance(request):
     """Get global feature importance scores across all recommendations"""
     try:
@@ -1505,7 +1494,6 @@ def get_global_feature_importance(request):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_counterfactual_explanation(request, user_id, tmdb_id):
     """Get counterfactual explanation for why an alternative was not recommended"""
     try:
@@ -1539,7 +1527,6 @@ def get_counterfactual_explanation(request, user_id, tmdb_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_local_explanation(request, user_id, tmdb_id):
     """Get local explanation using permutation importance for an individual recommendation"""
     try:
@@ -1591,7 +1578,6 @@ def calibrate_confidence(request):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_viewing_patterns(request, user_id):
     """Get viewing pattern analysis for a user"""
     try:
@@ -1610,7 +1596,6 @@ def get_viewing_patterns(request, user_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@require_GET
 def get_similar_movies_semantic(request, tmdb_id):
     """Get semantically similar movies using vector search (Pinecone) with TMDB fallback."""
     try:

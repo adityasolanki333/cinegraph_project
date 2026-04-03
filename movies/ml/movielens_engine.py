@@ -12,6 +12,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import os
 import zipfile
 from collections import defaultdict
@@ -28,18 +29,20 @@ SIMILARITY_CACHE = os.path.join(ML_DATA_DIR, 'similarity_cache.json')
 ML_DOWNLOAD_URL = 'https://files.grouplens.org/datasets/movielens/ml-latest-small.zip'
 TOP_K = 25  # how many similar movies to keep per movie
 
+logger = logging.getLogger(__name__)
+
 
 def _download_movielens():
     """Download and unzip the MovieLens small dataset."""
     import urllib.request
-    print('MovieLens: downloading ml-latest-small.zip …')
+    logger.info('MovieLens: downloading ml-latest-small.zip …')
     os.makedirs(os.path.dirname(ML_DATA_DIR), exist_ok=True)
     zip_path = ML_DATA_DIR + '.zip'
     urllib.request.urlretrieve(ML_DOWNLOAD_URL, zip_path)
     with zipfile.ZipFile(zip_path, 'r') as zf:
         zf.extractall(os.path.dirname(ML_DATA_DIR))
     os.remove(zip_path)
-    print('MovieLens: download complete.')
+    logger.info('MovieLens: download complete.')
 
 
 def _build_similarity_cache():
@@ -50,7 +53,7 @@ def _build_similarity_cache():
     ratings_file = os.path.join(ML_DATA_DIR, 'ratings.csv')
     links_file = os.path.join(ML_DATA_DIR, 'links.csv')
 
-    print('MovieLens: loading links …')
+    logger.info('MovieLens: loading links …')
     movie_to_tmdb: Dict[str, int] = {}
     with open(links_file, encoding='utf-8') as f:
         for row in csv.DictReader(f):
@@ -60,9 +63,9 @@ def _build_similarity_cache():
                     movie_to_tmdb[row['movieId']] = int(float(tmdb_raw))
                 except ValueError:
                     pass
-    print(f'MovieLens: {len(movie_to_tmdb)} movieId→tmdbId mappings')
+    logger.info('MovieLens: %d movieId→tmdbId mappings', len(movie_to_tmdb))
 
-    print('MovieLens: loading ratings …')
+    logger.info('MovieLens: loading ratings …')
     user_ids: Dict[str, int] = {}
     item_ids: Dict[str, int] = {}
     rows, cols, data = [], [], []
@@ -87,12 +90,12 @@ def _build_similarity_cache():
     idx_to_movie = {v: k for k, v in item_ids.items()}
     n_users = len(user_ids)
     n_items = len(item_ids)
-    print(f'MovieLens: {len(data)} ratings | {n_users} users | {n_items} items')
+    logger.info('MovieLens: %d ratings | %d users | %d items', len(data), n_users, n_items)
 
     mat = csr_matrix((data, (rows, cols)), shape=(n_users, n_items), dtype=np.float32)
     item_mat = mat.T  # shape: (n_items, n_users)
 
-    print('MovieLens: computing item-item cosine similarity (batch) …')
+    logger.info('MovieLens: computing item-item cosine similarity (batch) …')
     BATCH = 500
     cache: Dict[str, List] = {}
 
@@ -123,12 +126,12 @@ def _build_similarity_cache():
                 cache[str(tmdb_i)] = neighbours
 
         if (start // BATCH) % 5 == 0:
-            print(f'  … processed {end}/{n_items} items')
+            logger.info('  … processed %d/%d items', end, n_items)
 
-    print(f'MovieLens: similarity cache built ({len(cache)} entries)')
+    logger.info('MovieLens: similarity cache built (%d entries)', len(cache))
     with open(SIMILARITY_CACHE, 'w') as f:
         json.dump(cache, f)
-    print(f'MovieLens: cache saved to {SIMILARITY_CACHE}')
+    logger.info('MovieLens: cache saved to %s', SIMILARITY_CACHE)
     return cache
 
 
@@ -157,13 +160,13 @@ class MovieLensEngine:
             if os.path.exists(SIMILARITY_CACHE):
                 with open(SIMILARITY_CACHE) as f:
                     self._cache = json.load(f)
-                print(f'MovieLens: loaded similarity cache ({len(self._cache)} movies)')
+                logger.info('MovieLens: loaded similarity cache (%d movies)', len(self._cache))
             else:
                 self._cache = _build_similarity_cache()
 
             self._loaded = True
         except Exception as e:
-            print(f'MovieLens engine failed to load: {e}')
+            logger.error('MovieLens engine failed to load: %s', e)
             self._failed = True
 
     def is_ready(self) -> bool:

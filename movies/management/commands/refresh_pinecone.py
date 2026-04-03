@@ -7,9 +7,12 @@ Usage:
     python manage.py refresh_pinecone --dry-run
 """
 
+import logging
 import os
 import time
 from django.core.management.base import BaseCommand
+
+logger = logging.getLogger(__name__)
 
 
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
@@ -30,7 +33,7 @@ def tmdb_api_request(endpoint, params=None):
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
-        print(f"  TMDB request failed: {endpoint} — {e}")
+        logger.warning("TMDB request failed: %s — %s", endpoint, e)
         return None
 
 

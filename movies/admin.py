@@ -103,9 +103,9 @@ class MovieAdmin(admin.ModelAdmin):
 
 @admin.register(UserRating)
 class UserRatingAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user_id', 'movie', 'rating', 'created_at')
+    list_display = ('id', 'user', 'movie', 'rating', 'created_at')
     list_filter = ('rating', 'created_at')
-    search_fields = ('user_id', 'movie__title')
+    search_fields = ('user__username', 'user__email', 'movie__title')
     ordering = ('-created_at',)
     readonly_fields = ('created_at',)
 

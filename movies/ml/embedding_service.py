@@ -4,6 +4,7 @@ Provides TF-IDF based text embeddings for movies and TV shows.
 Used as a fallback when Pinecone is unavailable.
 """
 
+import logging
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -11,6 +12,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from dataclasses import dataclass
 from datetime import datetime
 import hashlib
+
+logger = logging.getLogger(__name__)
 
 from movies.ml.utils import extract_year as _extract_year, recency_score as _recency_score, popularity_score as _popularity_score
 
@@ -94,10 +97,10 @@ class SemanticEmbeddingService:
             if texts:
                 self.vectorizer.fit(texts)
                 self.is_fitted = True
-                print(f"SemanticEmbeddingService: pre-fitted on {len(texts)} movies from DB")
+                logger.info("SemanticEmbeddingService: pre-fitted on %d movies from DB", len(texts))
                 return True
         except Exception as e:
-            print(f"SemanticEmbeddingService: prefit failed — {e}")
+            logger.warning("SemanticEmbeddingService: prefit failed — %s", e)
         return False
 
     def fit_corpus(self, items: List[Dict[str, Any]]) -> None:

@@ -12,6 +12,8 @@ from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 from django.db.models import Avg, Count
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -275,7 +277,7 @@ class ContentBasedRecommender:
                         similar_items.append((int(item['id']), float(item['similarity'])))
                     return similar_items
             except Exception as e:
-                print(f"PineconeService query failed: {e}")
+                logger.warning("PineconeService query failed: %s", e)
                 
         if self.tfidf_matrix is None or tmdb_id not in self.item_ids:
             return []

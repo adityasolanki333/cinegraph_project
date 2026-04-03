@@ -11,16 +11,15 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 │   ├── urls.py               # Root URL routing
 │   └── wsgi.py               # WSGI application
 ├── movies/                   # Main Django application
-│   ├── models.py             # 32 database models (Users, Social, ML, Analytics)
-│   ├── api.py                # TMDB proxy endpoints
-│   ├── api_urls.py           # API route definitions (140+ endpoints)
-│   ├── auth.py               # Authentication endpoints
-│   ├── users_api.py          # User management APIs
-│   ├── social_api.py         # Social features APIs
-│   ├── recommendations_api.py # AI recommendations with Gemini
-│   ├── external_api.py       # YouTube/RapidAPI integrations
-│   ├── analytics_api.py      # User engagement and content analytics
-│   ├── ml_api.py             # ML recommendation endpoints
+│   ├── models/               # Domain-split models package (user, social, ml, analytics)
+│   │   └── __init__.py       # Re-exports all models for backward compatibility
+│   ├── api.py                # TMDB API service helpers (tmdb_request, tmdb_request_post, tmdb_request_delete)
+│   ├── api_urls.py           # API route definitions (180+ endpoints, all DRF class-based views)
+│   ├── api_views/            # DRF views (auth, tmdb, users, followers, lists, reviews, notifications, community, ml, clubs, recommendations, external, analytics)
+│   ├── serializers/          # DRF serializers package (user, media, social, notifications, etc.)
+│   ├── recommendations_api.py # AI recommendation service functions (called by DRF views)
+│   ├── external_api.py       # RapidAPI service helper (rapidapi_request)
+│   ├── ml_api.py             # ML recommendation service functions (called by DRF views)
 │   ├── ml/                   # Python ML modules
 │   │   ├── recommendation_engine.py  # Collaborative/content-based filtering (temporal decay, mean-centering, sparse matrix)
 │   │   ├── signal_aggregator.py      # Unified implicit+explicit signal aggregator
@@ -34,10 +33,18 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 │   │   └── pattern_recognition.py    # Viewing pattern analysis
 │   ├── management/commands/
 │   │   └── refresh_pinecone.py      # TMDB→Pinecone refresh pipeline
+│   ├── pagination.py         # DRF PageNumberPagination (page_size=20) + paginate_queryset helper
 │   ├── validation.py         # Input validation & standardized error responses
 │   └── decorators.py         # Auth/ownership decorators
 ├── client/                   # React frontend
-│   ├── src/                  # React source code
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── media-details.tsx              # Shared MediaDetails component (hero, cast, reviews, recommendations, similar tabs)
+│   │   │   ├── recommendation-comments.tsx    # Extracted shared recommendation comments
+│   │   │   └── user-recommendations-section.tsx # Extracted shared user recommendations
+│   │   └── pages/
+│   │       ├── movie-details.tsx              # Movie page (thin wrapper around MediaDetails)
+│   │       └── tv-show-details.tsx            # TV show page (thin wrapper around MediaDetails)
 │   └── index.html            # Entry point
 ├── shared/                   # Shared TypeScript types
 │   └── schema.ts             # Type definitions for API
@@ -109,6 +116,18 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 - `/api/external/*` - YouTube, ratings
 
 ## Recent Changes
+- April 3, 2026: Complete DRF Migration — All Endpoints Now Class-Based Views
+  - Migrated ALL remaining legacy Django function views to DRF APIView classes
+  - Created api_views/tmdb.py with TMDBProxyView base class eliminating ~40 duplicate functions
+  - Created api_views/auth.py (7 endpoints: CSRF, register, login, logout, me, forgot/reset password)
+  - Created api_views/external.py (4 endpoints: YouTube search/videos, movie ratings, streaming data)
+  - Created api_views/analytics.py (6 endpoints: user engagement, content stats, popular, tracking, platform)
+  - Stripped api.py down to service helpers (tmdb_request/post/delete) — no view functions
+  - Stripped external_api.py down to service helper (rapidapi_request) — no view functions
+  - Removed all @require_GET/@require_POST decorators from ml_api.py and recommendations_api.py
+  - Deleted dead code files: social_api.py, users_api.py, clubs_api.py, analytics_api.py (old), auth.py (old)
+  - Zero legacy patterns remain: no _legacy(), no request._request, no @require_GET/POST in entire codebase
+  - All 180+ URL patterns preserved exactly, all JSON field names unchanged
 - April 3, 2026: Critical Security Hardening (CSRF, Headers, Rate Limiting, Auth)
   - Removed all 57 `@csrf_exempt` decorators from API views; frontend already sends CSRF tokens correctly via X-CSRFToken header
   - Added production security headers to settings.py (SESSION_COOKIE_SECURE, CSRF_COOKIE_SECURE, SECURE_SSL_REDIRECT, SECURE_HSTS_SECONDS=31536000) gated on `DEBUG=False`
