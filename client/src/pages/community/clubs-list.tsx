@@ -203,7 +203,7 @@ export default function ClubsList() {
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {clubs.map((club: Club) => (
                         <Card key={club.id} className="h-full flex flex-col hover:shadow-md transition-shadow">
-                            <div className="aspect-[16/10] w-full overflow-hidden rounded-t-lg bg-muted relative">
+                            <div className="aspect-video w-full overflow-hidden rounded-t-lg bg-muted relative">
                                 {club.cover_image_url ? (
                                     <img
                                         src={club.cover_image_url}
