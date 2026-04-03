@@ -10,12 +10,12 @@ import { AdvancedRecommendations } from "@/components/advanced-recommendations";
 import { MediaCard } from "@/components/media-card";
 import MediaCardSkeleton from "@/components/media-card-skeleton";
 import { tmdbService } from "@/lib/tmdb";
-import { Sparkles, Heart, Brain, Zap, Smile, Loader2, Search, Settings, RefreshCw, Film, Tv, LogIn, Target } from "lucide-react";
+import { Sparkles, Heart, Brain, Zap, Smile, Loader2, Search, Settings, RefreshCw, Film, Tv, Target } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useWatchlist } from "@/hooks/useWatchlist";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import type { Movie } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -253,8 +253,7 @@ export default function Recommendations() {
   });
   const [refreshKey, setRefreshKey] = useState(0);
   const { isInWatchlist } = useWatchlist();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const [, setLocation] = useLocation();
+  const { user, isAuthenticated } = useAuth();
 
   // Persist state to sessionStorage
   useEffect(() => {
@@ -273,12 +272,6 @@ export default function Recommendations() {
     sessionStorage.setItem('recommendations_mediaType', mediaType);
   }, [mediaType]);
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      setLocation('/login');
-    }
-  }, [authLoading, isAuthenticated, setLocation]);
 
   // Get different categories of recommendations from TMDB
   const { data: trendingData, isLoading: trendingLoading } = useQuery({
@@ -512,37 +505,6 @@ export default function Recommendations() {
 
     return combined;
   }, [pipelineRecommendations]);
-
-  // Show loading while checking authentication
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Checking authentication...</span>
-      </div>
-    );
-  }
-
-  // Show login prompt if not authenticated
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="text-center py-12 max-w-md">
-          <CardContent className="pt-6">
-            <LogIn className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Please Log In</h3>
-            <p className="text-muted-foreground mb-6">
-              You need to be logged in to access AI-powered recommendations.
-            </p>
-            <Button onClick={() => setLocation("/login")} data-testid="button-login">
-              <LogIn className="h-4 w-4 mr-2" />
-              Sign In
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
