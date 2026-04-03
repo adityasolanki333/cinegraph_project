@@ -514,7 +514,18 @@ export default function AIChat({ className }: AIChatProps) {
 
                     {message.content && (
                       <p className="text-sm whitespace-pre-line">
-                        {message.content}
+                        {(() => {
+                          const hasMovieCards = message.movies && message.movies.length > 0;
+                          if (hasMovieCards && !message.isStreaming) {
+                            const lines = message.content.split('\n');
+                            const firstNumberedIdx = lines.findIndex(l => /^\s*\d+[\.\)]\s/.test(l));
+                            if (firstNumberedIdx > 0) {
+                              const intro = lines.slice(0, firstNumberedIdx).join('\n').trim();
+                              return intro || message.content;
+                            }
+                          }
+                          return message.content;
+                        })()}
                         {message.isStreaming && (
                           <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-middle" />
                         )}
