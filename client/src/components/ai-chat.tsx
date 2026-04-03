@@ -499,7 +499,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   }, [handleSendMessage]);
 
   return (
-    <div className={cn("fixed bottom-20 md:bottom-4 right-4 z-40 flex flex-col items-end", className)} data-testid="ai-chat-widget">
+    <div className={cn("fixed bottom-20 md:bottom-4 right-4 z-[60] flex flex-col items-end", className)} data-testid="ai-chat-widget">
       {isOpen && (
         <div className="mb-3 w-[92vw] sm:w-[420px] md:w-[480px] h-[75vh] sm:h-[600px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-300">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card shrink-0">
