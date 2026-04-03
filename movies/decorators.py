@@ -1,4 +1,7 @@
+import hashlib
+import time
 from functools import wraps
+from django.core.cache import cache
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from .validation import error_response
@@ -29,10 +32,53 @@ def owner_required(user_id_param='user_id'):
     return decorator
 
 
-def csrf_exempt_for_session_auth(view_func):
-    @wraps(view_func)
-    def wrapper(request, *args, **kwargs):
-        if hasattr(request, '_dont_enforce_csrf_checks'):
-            request._dont_enforce_csrf_checks = True
-        return view_func(request, *args, **kwargs)
-    return wrapper
+def _parse_rate(rate_string):
+    num, period = rate_string.split('/')
+    num = int(num)
+    period_map = {'second': 1, 'minute': 60, 'hour': 3600, 'day': 86400}
+    seconds = period_map.get(period, 60)
+    return num, seconds
+
+
+def rate_limit(rate=None):
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapper(request, *args, **kwargs):
+            from django.conf import settings
+
+            if request.user.is_authenticated:
+                identity = f'rl_user_{request.user.id}'
+                default_rate = getattr(settings, 'REST_FRAMEWORK', {}).get(
+                    'DEFAULT_THROTTLE_RATES', {}
+                ).get('user', '100/minute')
+            else:
+                ip = request.META.get('REMOTE_ADDR', '0.0.0.0')
+                identity = f'rl_anon_{hashlib.md5(ip.encode()).hexdigest()}'
+                default_rate = getattr(settings, 'REST_FRAMEWORK', {}).get(
+                    'DEFAULT_THROTTLE_RATES', {}
+                ).get('anon', '20/minute')
+
+            chosen_rate = rate or default_rate
+            max_requests, window = _parse_rate(chosen_rate)
+
+            cache_key = f'{identity}_{view_func.__name__}'
+            now = time.time()
+            history = cache.get(cache_key, [])
+            history = [ts for ts in history if ts > now - window]
+
+            if len(history) >= max_requests:
+                retry_after = int(window - (now - history[0])) + 1
+                return JsonResponse(
+                    {
+                        'error': 'Rate limit exceeded. Please try again later.',
+                        'code': 'RATE_LIMITED',
+                        'retryAfter': retry_after,
+                    },
+                    status=429,
+                )
+
+            history.append(now)
+            cache.set(cache_key, history, window)
+            return view_func(request, *args, **kwargs)
+        return wrapper
+    return decorator

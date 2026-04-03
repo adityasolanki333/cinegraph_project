@@ -1,8 +1,8 @@
 import json
 from django.http import JsonResponse
 from .validation import error_response
+from .decorators import rate_limit
 from django.views.decorators.http import require_GET, require_POST
-from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
 from django.db.models import Count, Avg, Sum, F
 from django.utils import timezone
@@ -188,6 +188,8 @@ def get_popular_content(request):
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
+
+@rate_limit()
 def track_event(request):
     """Track a user analytics event"""
     if request.method != 'POST':

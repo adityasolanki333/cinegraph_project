@@ -2,7 +2,6 @@ import json
 import logging
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET, require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
 from django.db.models import Count, Avg, Q
 from .models import (
@@ -17,6 +16,7 @@ from .validation import (
     MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH, MAX_REVIEW_TEXT_LENGTH,
     MAX_COMMENT_LENGTH, MAX_NOTE_LENGTH, MAX_URL_LENGTH,
 )
+from .decorators import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ def get_following(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def follow_user(request, user_id):
     if not request.user.is_authenticated:
@@ -103,7 +103,7 @@ def follow_user(request, user_id):
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def unfollow_user(request, user_id, target_user_id):
     if not request.user.is_authenticated:
@@ -249,7 +249,7 @@ def get_list_detail(request, list_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def create_list(request, user_id):
     if not request.user.is_authenticated:
@@ -288,7 +288,7 @@ def create_list(request, user_id):
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def create_community_list(request):
     if not request.user.is_authenticated:
@@ -296,7 +296,7 @@ def create_community_list(request):
     return create_list(request, request.user.id)
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["PUT"])
 def update_list(request, list_id):
     if not request.user.is_authenticated:
@@ -330,7 +330,7 @@ def update_list(request, list_id):
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def delete_list(request, list_id):
     if not request.user.is_authenticated:
@@ -344,7 +344,7 @@ def delete_list(request, list_id):
     return JsonResponse({'success': True, 'deleted': deleted > 0})
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def add_list_item(request, list_id):
     if not request.user.is_authenticated:
@@ -397,7 +397,7 @@ def add_list_item(request, list_id):
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def remove_list_item(request, list_id, item_id):
     if not request.user.is_authenticated:
@@ -442,7 +442,7 @@ def get_notifications(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def mark_notifications_read(request, user_id):
     if not request.user.is_authenticated:
@@ -496,7 +496,7 @@ def community_get_notifications(request):
     } for n in notifications], safe=False)
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["PUT"])
 def community_mark_notification_read(request, notification_id):
     if not request.user.is_authenticated:
@@ -512,7 +512,7 @@ def community_mark_notification_read(request, notification_id):
     return JsonResponse({'success': True})
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["PUT"])
 def community_mark_all_read(request):
     if not request.user.is_authenticated:
@@ -522,7 +522,7 @@ def community_mark_all_read(request):
     return JsonResponse({'success': True})
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def community_delete_notification(request, notification_id):
     if not request.user.is_authenticated:
@@ -696,7 +696,7 @@ def get_sentiment(request, tmdb_id, media_type):
     })
 
 
-@csrf_exempt
+@rate_limit()
 def get_ratings(request):
     """Handle GET for retrieving ratings and POST for creating ratings"""
     if request.method == 'POST':
@@ -733,7 +733,7 @@ def get_ratings(request):
     return JsonResponse(reviews_list, safe=False)
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def create_rating(request):
     """Create or update a rating/review for a movie or TV show"""
@@ -789,7 +789,7 @@ def create_rating(request):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["GET", "PATCH", "PUT", "DELETE"])
 def manage_rating(request, review_id):
     """Get, update or delete a specific rating/review by its ID."""
@@ -852,7 +852,7 @@ def manage_rating(request, review_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["GET", "POST"])
 def get_review_comments(request, review_id):
     try:
@@ -937,7 +937,7 @@ def get_review_comments(request, review_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def add_review_comment(request, review_id):
     if not request.user.is_authenticated:
@@ -1001,7 +1001,7 @@ def add_review_comment(request, review_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["GET", "POST"])
 def get_review_awards(request, review_id):
     try:
@@ -1084,7 +1084,7 @@ def get_user_awards_for_review(request, review_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def mark_review_helpful(request, review_id):
     if not request.user.is_authenticated:
@@ -1148,7 +1148,7 @@ def mark_review_helpful(request, review_id):
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def follow_list(request, list_id):
     if not request.user.is_authenticated:
@@ -1189,7 +1189,7 @@ def follow_list(request, list_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def unfollow_list(request, list_id):
     if not request.user.is_authenticated:
@@ -1269,7 +1269,7 @@ def get_activity_stats(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def submit_user_recommendation(request, user_id=None):
     if not request.user.is_authenticated:
@@ -1374,7 +1374,7 @@ def get_user_recommendations_for_content(request, tmdb_id, media_type):
     return JsonResponse({'recommendations': result})
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def delete_user_recommendation(request, user_id, recommendation_id):
     """Delete a user recommendation"""
@@ -1389,7 +1389,7 @@ def delete_user_recommendation(request, user_id, recommendation_id):
         return error_response('Recommendation not found', 'NOT_FOUND', 404)
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["GET", "POST"])
 def user_recommendation_comments(request, user_id, recommendation_id):
     """Get or add comments for a recommendation"""
@@ -1440,7 +1440,7 @@ def user_recommendation_comments(request, user_id, recommendation_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def user_recommendation_vote(request, user_id, recommendation_id):
     """Vote on a recommendation"""
@@ -1473,7 +1473,7 @@ def user_recommendation_vote(request, user_id, recommendation_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def delete_review_comment(request, review_id, comment_id):
     """Delete a review comment"""
@@ -1488,7 +1488,7 @@ def delete_review_comment(request, review_id, comment_id):
         return error_response('Comment not found', 'NOT_FOUND', 404)
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def delete_review_award(request, review_id, award_id):
     """Delete a review award"""
@@ -1503,7 +1503,7 @@ def delete_review_award(request, review_id, award_id):
         return error_response('Award not found', 'NOT_FOUND', 404)
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def vote_on_recommendation(request, recommendation_id):
     if not request.user.is_authenticated:
@@ -1556,7 +1556,7 @@ def get_recommendation_comments(request, recommendation_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def add_recommendation_comment(request, recommendation_id):
     if not request.user.is_authenticated:
@@ -1617,7 +1617,7 @@ def get_notification_settings(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["PUT", "PATCH"])
 def update_notification_settings(request, user_id):
     if not request.user.is_authenticated:
@@ -1686,7 +1686,7 @@ def get_list_collaborators(request, list_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def invite_list_collaborator(request, list_id):
     if not request.user.is_authenticated:
@@ -1744,7 +1744,7 @@ def invite_list_collaborator(request, list_id):
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def remove_list_collaborator(request, list_id, collaborator_id):
     if not request.user.is_authenticated:
@@ -1780,7 +1780,7 @@ def get_user_badges(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def award_badge(request, user_id):
     if not request.user.is_authenticated:
@@ -2077,7 +2077,7 @@ def get_personalized_feed(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["GET", "PUT", "PATCH", "DELETE"])
 def manage_community_list(request, list_id):
     """GET/update/delete a community list by ID."""

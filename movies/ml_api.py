@@ -8,10 +8,10 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
-from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
 from django.utils import timezone
 from .validation import error_response
+from .decorators import rate_limit
 from .models import (
     UserReview, ViewingHistory, UserWatchlist, UserFavorites,
     Recommendation, RecommendationMetrics, FeatureContribution
@@ -614,7 +614,7 @@ def get_user_similarity(request, user_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@csrf_exempt
+@rate_limit()
 def semantic_search(request):
     """Semantic search for movies/TV shows with hybrid re-ranking"""
     if request.method not in ['POST', 'GET']:
@@ -927,7 +927,7 @@ def get_bandit_statistics(request, user_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@csrf_exempt
+@rate_limit()
 def select_recommendation_arm(request, user_id):
     """Select a recommendation strategy using contextual bandits"""
     if request.method != 'POST':
@@ -976,7 +976,7 @@ def select_recommendation_arm(request, user_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@csrf_exempt
+@rate_limit()
 def update_bandit_reward(request):
     """Update bandit experiment with user feedback reward"""
     if request.method != 'POST':
@@ -1015,7 +1015,7 @@ def update_bandit_reward(request):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@csrf_exempt
+@rate_limit()
 def apply_diversity(request):
     """Apply diversity algorithms to a list of recommendations"""
     if request.method != 'POST':
@@ -1181,7 +1181,7 @@ def get_sentiment_analytics(request, tmdb_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@csrf_exempt
+@rate_limit()
 def analyze_text_sentiment(request):
     """Analyze sentiment of arbitrary text"""
     if request.method != 'POST':
@@ -1216,7 +1216,7 @@ def analyze_text_sentiment(request):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@csrf_exempt
+@rate_limit()
 def update_sentiment_for_content(request, tmdb_id):
     """Trigger sentiment recalculation for a movie/TV show"""
     if request.method != 'POST':
@@ -1308,7 +1308,7 @@ def get_recommendation_history(request, user_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@csrf_exempt
+@rate_limit()
 def log_recommendation_interaction(request):
     """Log recommendation interaction (clicked, watchlisted, rated_high, ignored, dismissed)"""
     if request.method != 'POST':
@@ -1565,7 +1565,7 @@ def get_local_explanation(request, user_id, tmdb_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@csrf_exempt
+@rate_limit()
 def calibrate_confidence(request):
     """Calibrate confidence scores based on historical accuracy"""
     if request.method != 'POST':

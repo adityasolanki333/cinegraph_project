@@ -64,7 +64,12 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 - External movie ratings integration
 - Input validation on all mutation endpoints (rating 1-10, string lengths, TMDB ID format)
 - Standardized error responses: `{ "error": "...", "code": "..." }`
-- DRF throttling configured (100 req/min auth, 20 req/min anon)
+- DRF throttling configured (100 req/min auth, 20 req/min anon) + custom `@rate_limit()` decorator enforced on all write endpoints
+- CSRF protection enforced on all endpoints (no `@csrf_exempt` bypasses); frontend sends CSRF token via `X-CSRFToken` header
+- Production security headers (HSTS, secure cookies, SSL redirect) gated on `DEBUG=False`
+- Django password validators applied on registration
+- Gemini REST fallback uses `x-goog-api-key` header instead of query parameter
+- Password reset endpoint clearly marked as non-functional (email not configured)
 - Structured logging (no print statements in API code)
 
 ## SEO & Accessibility
@@ -104,6 +109,13 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 - `/api/external/*` - YouTube, ratings
 
 ## Recent Changes
+- April 3, 2026: Critical Security Hardening (CSRF, Headers, Rate Limiting, Auth)
+  - Removed all 57 `@csrf_exempt` decorators from API views; frontend already sends CSRF tokens correctly via X-CSRFToken header
+  - Added production security headers to settings.py (SESSION_COOKIE_SECURE, CSRF_COOKIE_SECURE, SECURE_SSL_REDIRECT, SECURE_HSTS_SECONDS=31536000) gated on `DEBUG=False`
+  - Created reusable `@rate_limit()` decorator in `movies/decorators.py` using Django cache framework, enforcing DRF throttle rates (20/min anon, 100/min user); applied to all write endpoints
+  - Registration now uses Django's built-in AUTH_PASSWORD_VALIDATORS (similarity, minimum length, common password, numeric check)
+  - Fixed Gemini REST API fallback to use `x-goog-api-key` header instead of passing API key as URL query parameter
+  - Password reset endpoint now logs warning that email is not configured and returns clear message to user; no token silently discarded
 - April 3, 2026: Full App Audit (Security, Bugs, Dead Code, Tests)
   - Fixed broken API routes: comments/add → add_review_comment, awards/add → get_review_awards (handles GET+POST), community/lists POST → create_community_list wrapper
   - Security: Password reset token no longer returned in response; emails removed from followers/following endpoints; str(e) replaced with generic error messages; demo_user bypasses removed from manage_rating and delete_review

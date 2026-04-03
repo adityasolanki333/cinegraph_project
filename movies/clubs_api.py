@@ -1,17 +1,16 @@
-from .decorators import api_auth_required
+from .decorators import api_auth_required, rate_limit
 import json
 from django.http import JsonResponse
 from .validation import error_response
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
 from django.db.models import Count, Q
 from .models import Club, ClubMember, ClubThread, ClubPost
 
 
+@rate_limit()
 @require_http_methods(["GET", "POST"])
-@csrf_exempt
 def clubs_list(request):
     """
     GET: List all clubs (with optional search) — public
@@ -129,6 +128,7 @@ def club_details(request, club_id):
     })
 
 
+@rate_limit()
 @require_http_methods(["POST"])
 @api_auth_required
 def join_club(request, club_id):
@@ -157,6 +157,7 @@ def join_club(request, club_id):
         return error_response(str(e), 'INTERNAL_ERROR', 500)
 
 
+@rate_limit()
 @require_http_methods(["GET", "POST"])
 @api_auth_required
 def club_threads(request, club_id):
@@ -261,6 +262,7 @@ def thread_details(request, thread_id):
     })
 
 
+@rate_limit()
 @require_http_methods(["POST"])
 @api_auth_required
 def create_post(request, thread_id):

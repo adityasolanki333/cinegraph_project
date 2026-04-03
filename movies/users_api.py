@@ -2,7 +2,6 @@ import json
 import logging
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET, require_http_methods
-from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.db.models import Count, Avg
@@ -10,7 +9,7 @@ from .models import (
     UserProfile, UserWatchlist, UserFavorites, ViewingHistory, 
     UserReview, UserFollow, UserList, ListItem, Notification, UserPreferences
 )
-from .decorators import owner_required, api_auth_required
+from .decorators import owner_required, api_auth_required, rate_limit
 from .validation import (
     error_response, parse_json_body, validate_rating, validate_tmdb_id,
     validate_media_type, validate_string_length,
@@ -70,7 +69,7 @@ def get_profile(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["PATCH"])
 def update_profile(request, user_id):
     if not request.user.is_authenticated:
@@ -144,7 +143,7 @@ def get_watchlist(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def add_to_watchlist(request, user_id):
     if not request.user.is_authenticated:
@@ -189,7 +188,7 @@ def add_to_watchlist(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def remove_from_watchlist(request, user_id, tmdb_id):
     if not request.user.is_authenticated:
@@ -228,7 +227,7 @@ def get_favorites(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def add_to_favorites(request, user_id):
     if not request.user.is_authenticated:
@@ -273,7 +272,7 @@ def add_to_favorites(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def remove_from_favorites(request, user_id, tmdb_id):
     if not request.user.is_authenticated:
@@ -312,7 +311,7 @@ def get_viewing_history(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def add_to_viewing_history(request, user_id):
     if not request.user.is_authenticated:
@@ -358,7 +357,7 @@ def add_to_viewing_history(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def remove_from_viewing_history(request, user_id, tmdb_id):
     if not request.user.is_authenticated:
@@ -407,7 +406,7 @@ def get_user_reviews(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def create_review(request, user_id):
     if not request.user.is_authenticated:
@@ -469,7 +468,7 @@ def create_review(request, user_id):
     })
 
 
-@csrf_exempt
+@rate_limit()
 @require_http_methods(["DELETE"])
 def delete_review(request, user_id, review_id):
     if not request.user.is_authenticated:

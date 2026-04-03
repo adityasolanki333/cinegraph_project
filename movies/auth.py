@@ -1,8 +1,9 @@
 import json
 from django.http import JsonResponse
 from .validation import error_response
+from .decorators import rate_limit
 from django.views.decorators.http import require_POST, require_GET
-from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.middleware.csrf import get_token
@@ -14,6 +15,7 @@ def csrf_token_view(request):
     return JsonResponse({'csrfToken': get_token(request)})
 
 
+@rate_limit()
 @require_POST
 def register_view(request):
     try:
@@ -26,8 +28,13 @@ def register_view(request):
         if not email or not password:
             return error_response('Email and password are required', 'VALIDATION_ERROR', 400)
         
-        if len(password) < 6:
-            return error_response('Password must be at least 6 characters', 'VALIDATION_ERROR', 400)
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            provisional_user = User(username=email, email=email, first_name=first_name, last_name=last_name)
+            validate_password(password, user=provisional_user)
+        except DjangoValidationError as e:
+            return error_response('; '.join(e.messages), 'VALIDATION_ERROR', 400)
         
         if User.objects.filter(email=email).exists():
             return error_response('Email already registered', 'VALIDATION_ERROR', 400)
@@ -62,6 +69,7 @@ def register_view(request):
         return error_response('Registration failed', 'INTERNAL_ERROR', 500)
 
 
+@rate_limit()
 @require_POST
 def login_view(request):
     try:
@@ -93,6 +101,7 @@ def login_view(request):
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
     except Exception as e:
         return error_response('Login failed', 'INTERNAL_ERROR', 500)
+@rate_limit()
 @require_POST
 def logout_view(request):
     logout(request)
@@ -116,37 +125,35 @@ def me_view(request):
         })
     else:
         return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+@rate_limit()
 @require_POST
 def forgot_password_view(request):
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
         data = json.loads(request.body)
         email = data.get('email', '').strip()
         
         if not email:
             return error_response('Email is required', 'VALIDATION_ERROR', 400)
-            
-        user = User.objects.filter(email=email).first()
-        if not user:
-            # Don't reveal user existence, just pretend success
-            # But for this demo we'll just return success
-            return JsonResponse({
-                'success': True, 
-                'message': 'If an account exists with this email, you will receive a password reset link.'
-            })
-            
-        from django.core.signing import TimestampSigner
-        signer = TimestampSigner()
-        token = signer.sign(str(user.id))
-        
+
+        logger.warning(
+            'Password reset requested for %s but email sending is not configured. '
+            'No reset token has been generated or sent.',
+            email,
+        )
+
         return JsonResponse({
             'success': True,
-            'message': 'If an account exists with this email, you will receive a password reset link.'
+            'message': 'Password reset is not yet available. Email delivery has not been configured.'
         })
         
     except json.JSONDecodeError:
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
     except Exception as e:
         return error_response(str(e), 'INTERNAL_ERROR', 500)
+@rate_limit()
 @require_POST
 def reset_password_view(request):
     try:

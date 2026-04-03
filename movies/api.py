@@ -4,8 +4,8 @@ import os
 from django.http import JsonResponse
 from .validation import error_response
 from django.views.decorators.http import require_GET
-from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
+from .decorators import rate_limit
 
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
@@ -424,7 +424,7 @@ def tmdb_request_delete(endpoint):
         return {"error": "Failed to delete data from TMDB"}
 
 
-@csrf_exempt
+@rate_limit()
 def rate_movie(request, movie_id):
     """Rate a movie on TMDB (requires guest session)"""
     if request.method == 'POST':
@@ -453,7 +453,7 @@ def rate_movie(request, movie_id):
         return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
 
 
-@csrf_exempt
+@rate_limit()
 def rate_tv_show(request, tv_id):
     """Rate a TV show on TMDB (requires guest session)"""
     if request.method == 'POST':
@@ -489,7 +489,7 @@ def get_guest_session(request):
     return JsonResponse(data)
 
 
-@csrf_exempt
+@rate_limit()
 def record_interaction(request):
     """Record a search interaction / click feedback for ML training."""
     if request.method != 'POST':

@@ -8,11 +8,11 @@ import logging
 from datetime import datetime, date
 from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.http import require_POST, require_GET
-from django.views.decorators.csrf import csrf_exempt
 from .models import UserPreferences, UserReview, UserWatchlist, UserFavorites, ViewingHistory
 from .api import tmdb_request
 from .validation import error_response
 from movies.ml.utils import GENRE_MAP as _GENRE_ID_TO_NAME_MAP, GENRE_NAME_TO_ID as _GENRE_NAME_TO_ID_MAP
+from .decorators import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -150,8 +150,11 @@ def call_gemini_api(prompt, max_retries=2):
         for attempt in range(max_retries):
             try:
                 response = requests.post(
-                    f"{api_url}?key={GEMINI_API_KEY}",
-                    headers={"Content-Type": "application/json"},
+                    api_url,
+                    headers={
+                        "Content-Type": "application/json",
+                        "x-goog-api-key": GEMINI_API_KEY,
+                    },
                     json={
                         "contents": [{"parts": [{"text": prompt}]}],
                         "generationConfig": {"temperature": 0.7, "maxOutputTokens": 2048}
@@ -315,7 +318,7 @@ def get_fallback_trending_movies():
     return fallback_movies
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def ai_chat(request):
     user = request.user if request.user.is_authenticated else None
@@ -402,7 +405,7 @@ def ai_chat(request):
         return error_response(str(e), 'INTERNAL_ERROR', 500)
 
 
-@csrf_exempt
+@rate_limit()
 @require_POST
 def ai_chat_stream(request):
     user = request.user if request.user.is_authenticated else None
@@ -508,6 +511,7 @@ def ai_chat_stream(request):
         return error_response(str(e), 'INTERNAL_ERROR', 500)
 
 
+@rate_limit()
 @require_POST
 def save_preferences(request):
     if not request.user.is_authenticated:
