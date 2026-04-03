@@ -131,11 +131,22 @@ def fetch_current_movies():
 GEMINI_MODELS = [
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
     "gemma-3-12b-it",
     "gemma-3-4b-it",
 ]
+
+_model_blacklist = {}
+_BLACKLIST_COOLDOWN = 60
+
+def _is_model_available(model):
+    if model in _model_blacklist:
+        if time.time() - _model_blacklist[model] < _BLACKLIST_COOLDOWN:
+            return False
+        del _model_blacklist[model]
+    return True
+
+def _blacklist_model(model):
+    _model_blacklist[model] = time.time()
 
 
 MOVIE_EXTRACTION_SCHEMA = {
@@ -156,12 +167,20 @@ MOVIE_EXTRACTION_SCHEMA = {
 }
 
 
-def call_gemini_api(prompt, max_retries=2, use_json_mode=False, json_schema=None):
+def call_gemini_api(prompt, max_retries=1, use_json_mode=False, json_schema=None):
     if not GEMINI_API_KEY:
         return None, "Gemini API key not configured"
 
+    sdk_tried = False
     if gemini_client:
+        sdk_tried = True
         for model in GEMINI_MODELS:
+            if not _is_model_available(model):
+                logger.info(f"Skipping blacklisted model {model}")
+                continue
+            if use_json_mode and model.startswith("gemma"):
+                logger.info(f"Skipping {model} (no JSON mode support)")
+                continue
             for attempt in range(max_retries):
                 try:
                     sdk_config = {
@@ -185,6 +204,7 @@ def call_gemini_api(prompt, max_retries=2, use_json_mode=False, json_schema=None
                 except Exception as e:
                     error_str = str(e).lower()
                     if '429' in error_str or 'quota' in error_str or 'rate' in error_str or 'resource_exhausted' in error_str or '503' in error_str or 'unavailable' in error_str:
+                        _blacklist_model(model)
                         if attempt < max_retries - 1:
                             time.sleep(2 ** attempt)
                             continue
@@ -193,54 +213,67 @@ def call_gemini_api(prompt, max_retries=2, use_json_mode=False, json_schema=None
                             break
                     elif '404' in error_str or 'not_found' in error_str:
                         logger.warning(f"Model {model} not found, skipping")
+                        _blacklist_model(model)
                         break
                     else:
                         logger.warning(f"Gemini {model} error: {e}")
                         break
 
-    for model in GEMINI_MODELS:
-        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    if not sdk_tried:
+        for model in GEMINI_MODELS:
+            if not _is_model_available(model):
+                logger.info(f"Skipping blacklisted model {model} (REST)")
+                continue
+            if use_json_mode and model.startswith("gemma"):
+                logger.info(f"Skipping {model} (no JSON mode support, REST)")
+                continue
+            api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
-        generation_config = {"temperature": 0.7, "maxOutputTokens": 2048}
-        if use_json_mode:
-            generation_config["responseMimeType"] = "application/json"
-            if json_schema:
-                generation_config["responseSchema"] = json_schema
+            generation_config = {"temperature": 0.7, "maxOutputTokens": 2048}
+            if use_json_mode:
+                generation_config["responseMimeType"] = "application/json"
+                if json_schema:
+                    generation_config["responseSchema"] = json_schema
 
-        for attempt in range(max_retries):
-            try:
-                response = requests.post(
-                    api_url,
-                    headers={
-                        "Content-Type": "application/json",
-                        "x-goog-api-key": GEMINI_API_KEY,
-                    },
-                    json={
-                        "contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": generation_config
-                    },
-                    timeout=30
-                )
+            for attempt in range(max_retries):
+                try:
+                    response = requests.post(
+                        api_url,
+                        headers={
+                            "Content-Type": "application/json",
+                            "x-goog-api-key": GEMINI_API_KEY,
+                        },
+                        json={
+                            "contents": [{"parts": [{"text": prompt}]}],
+                            "generationConfig": generation_config
+                        },
+                        timeout=30
+                    )
 
-                if response.status_code == 200:
-                    data = response.json()
-                    text = data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-                    return text, None
-                elif response.status_code in (429, 503):
-                    if attempt < max_retries - 1:
-                        time.sleep(2 ** attempt)
-                        continue
-                    logger.warning(f"Model {model} returned {response.status_code}, trying next")
+                    if response.status_code == 200:
+                        data = response.json()
+                        text = data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                        return text, None
+                    elif response.status_code in (429, 503):
+                        _blacklist_model(model)
+                        if attempt < max_retries - 1:
+                            time.sleep(2 ** attempt)
+                            continue
+                        logger.warning(f"Model {model} returned {response.status_code}, trying next")
+                        break
+                    elif response.status_code == 404:
+                        _blacklist_model(model)
+                        logger.warning(f"Model {model} not found (REST 404), skipping")
+                        break
+                    elif response.status_code >= 400:
+                        logger.warning(f"Gemini REST API error {response.status_code} for model {model}")
+                        break
+                except requests.Timeout:
+                    logger.warning(f"Gemini REST API timeout for model {model}")
                     break
-                elif response.status_code >= 400:
-                    logger.warning(f"Gemini REST API error {response.status_code} for model {model}")
+                except Exception as e:
+                    logger.warning(f"REST API error: {e}")
                     break
-            except requests.Timeout:
-                logger.warning(f"Gemini REST API timeout for model {model}")
-                break
-            except Exception as e:
-                logger.warning(f"REST API error: {e}")
-                break
 
     return None, "AI service is temporarily busy. Showing trending movies instead."
 
@@ -258,6 +291,9 @@ def call_gemini_streaming(prompt):
         return None
 
     for model in GEMINI_MODELS:
+        if not _is_model_available(model):
+            logger.info(f"Streaming: Skipping blacklisted model {model}")
+            continue
         try:
             raw_stream = gemini_client.models.generate_content_stream(
                 model=model,
@@ -276,9 +312,11 @@ def call_gemini_streaming(prompt):
         except Exception as e:
             error_str = str(e).lower()
             if '429' in error_str or 'quota' in error_str or 'rate' in error_str or 'resource_exhausted' in error_str or '503' in error_str or 'unavailable' in error_str:
+                _blacklist_model(model)
                 logger.warning(f"Streaming: Model {model} rate limited/unavailable, trying next")
                 continue
             elif '404' in error_str or 'not_found' in error_str:
+                _blacklist_model(model)
                 logger.warning(f"Streaming: Model {model} not found, skipping")
                 continue
             else:
@@ -701,28 +739,6 @@ def ai_chat_stream(request):
 
             except Exception as e:
                 logger.error(f"Streaming error: {e}", exc_info=True)
-                logger.info("Attempting non-streaming fallback after stream failure")
-                try:
-                    response_text, api_error = call_gemini_api(prompt)
-                    if response_text and not api_error:
-                        yield f"data: {json.dumps({'type': 'chunk', 'content': response_text})}\n\n"
-                        movie_titles = parse_movie_recommendations(response_text)
-                        if movie_titles:
-                            yield f"data: {json.dumps({'type': 'movies_loading', 'count': min(len(movie_titles), 8)})}\n\n"
-                            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-                                future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:8]}
-                                for future in concurrent.futures.as_completed(future_to_title):
-                                    try:
-                                        result = future.result()
-                                        if result:
-                                            yield f"data: {json.dumps({'type': 'movie', 'movie': result})}\n\n"
-                                    except Exception:
-                                        pass
-                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                        return
-                except Exception as fallback_err:
-                    logger.warning(f"Non-streaming fallback also failed: {fallback_err}")
-
                 fallback = get_fallback_trending_movies()
                 fallback_msg = "I'm experiencing high demand right now, but here are some trending movies you might enjoy!"
                 fallback_payload = json.dumps({'type': 'fallback', 'response': fallback_msg, 'movies': fallback, 'source': 'fallback'})
