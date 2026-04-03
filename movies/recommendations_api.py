@@ -154,6 +154,7 @@ def parse_movie_recommendations(text):
                 movies.append(title)
     
     return movies[:10]
+@csrf_exempt
 @require_POST
 def ai_chat(request):
     from django.contrib.auth.models import User

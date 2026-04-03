@@ -62,6 +62,11 @@ export function PatternInsights() {
     prediction: PatternPrediction;
   }>({
     queryKey: ['/api/recommendations/pattern/predict', user?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/recommendations/pattern/predict/${user?.id}`);
+      if (!res.ok) throw new Error('Failed to fetch pattern prediction');
+      return res.json();
+    },
     enabled: !!user?.id,
   });
 
@@ -71,6 +76,11 @@ export function PatternInsights() {
     analysis: PatternAnalysis;
   }>({
     queryKey: ['/api/recommendations/pattern/analyze', user?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/recommendations/pattern/analyze/${user?.id}`);
+      if (!res.ok) throw new Error('Failed to fetch pattern analysis');
+      return res.json();
+    },
     enabled: !!user?.id,
   });
 

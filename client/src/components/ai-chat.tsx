@@ -8,6 +8,7 @@ import { Send, Bot, User, Sparkles, ArrowDown, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MediaCard } from "@/components/media-card";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ChatMessage {
   id: string;
@@ -44,6 +45,7 @@ const quickSuggestions = [
 ];
 
 export default function AIChat({ className }: AIChatProps) {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const saved = sessionStorage.getItem('aiChat_messages');
     if (saved) {
@@ -134,7 +136,7 @@ export default function AIChat({ className }: AIChatProps) {
       // Use the new AI chat endpoint that provides real TMDB movie data
       const response = await apiRequest('POST', '/api/ai/chat', {
         message: userInput,
-        userId: 'user-1' // You can implement user sessions later
+        userId: user?.id ? String(user.id) : undefined,
       });
 
       const data = await response.json();
