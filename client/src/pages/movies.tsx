@@ -39,25 +39,30 @@ export default function Movies() {
   const [upcomingPage, setUpcomingPage] = useState(1);
   const [indianPage, setIndianPage] = useState(1);
 
+  const [topRatedPage, setTopRatedPage] = useState(1);
   const [indianSearchQuery, setIndianSearchQuery] = useState("");
   const [indianRegion, setIndianRegion] = useState("all");
   const [indianGenre, setIndianGenre] = useState("all");
   const [indianYear, setIndianYear] = useState("all");
   const [indianSortBy, setIndianSortBy] = useState("popular");
 
-  // Handle URL parameters for genre filtering
+  // Handle URL parameters for genre filtering and tab selection
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const genreParam = urlParams.get('genre');
     if (genreParam) {
       setSelectedGenre(decodeURIComponent(genreParam));
     }
+    const tabParam = urlParams.get('tab');
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
   }, [location]);
 
   // Scroll to top when pagination changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [currentPage, trendingPage, nowPlayingPage, upcomingPage, indianPage]);
+  }, [currentPage, trendingPage, nowPlayingPage, upcomingPage, topRatedPage, indianPage]);
 
   // Get genres from TMDB
   const { data: genresData } = useQuery({
@@ -103,6 +108,15 @@ export default function Movies() {
     queryFn: async () => {
       const response = await fetch(`/api/tmdb/movies/upcoming?page=${upcomingPage}`);
       if (!response.ok) throw new Error('Failed to fetch upcoming movies');
+      return response.json();
+    }
+  });
+
+  const { data: topRatedData, isLoading: topRatedLoading } = useQuery({
+    queryKey: ['/api/tmdb/movies/top-rated', topRatedPage],
+    queryFn: async () => {
+      const response = await fetch(`/api/tmdb/movies/top-rated?page=${topRatedPage}`);
+      if (!response.ok) throw new Error('Failed to fetch top rated movies');
       return response.json();
     }
   });
@@ -273,6 +287,8 @@ export default function Movies() {
   const nowPlayingTotalPages = nowPlayingData?.total_pages || 1;
   const upcomingMovies = upcomingData?.results || [];
   const upcomingTotalPages = upcomingData?.total_pages || 1;
+  const topRatedMovies = topRatedData?.results || [];
+  const topRatedTotalPages = topRatedData?.total_pages || 1;
   const indianMovies = indianMoviesData?.results || [];
   const indianTotalPages = indianMoviesData?.total_pages || 1;
 
@@ -310,7 +326,7 @@ export default function Movies() {
         {/* Enhanced Tabs Interface */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 mb-1">
-            <TabsList className="inline-flex w-max sm:grid sm:grid-cols-5 sm:w-full gap-0.5 sm:gap-1">
+            <TabsList className="inline-flex w-max sm:grid sm:grid-cols-6 sm:w-full gap-0.5 sm:gap-1">
               <TabsTrigger value="discover" data-testid="tab-discover" className="text-xs sm:text-sm px-3 gap-1.5">
                 <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 {t("movies.discover")}
@@ -318,6 +334,10 @@ export default function Movies() {
               <TabsTrigger value="trending" data-testid="tab-trending" className="text-xs sm:text-sm px-3 gap-1.5">
                 <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 {t("movies.trending")}
+              </TabsTrigger>
+              <TabsTrigger value="top-rated" data-testid="tab-top-rated" className="text-xs sm:text-sm px-3 gap-1.5">
+                <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                {t("movies.topRated")}
               </TabsTrigger>
               <TabsTrigger value="now-playing" data-testid="tab-now-playing" className="text-xs sm:text-sm px-3 gap-1.5">
                 <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -328,7 +348,7 @@ export default function Movies() {
                 {t("movies.upcoming")}
               </TabsTrigger>
               <TabsTrigger value="indian" data-testid="tab-indian" className="text-xs sm:text-sm px-3 gap-1.5">
-                <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <Heart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 {t("movies.indian")}
               </TabsTrigger>
             </TabsList>
@@ -457,6 +477,44 @@ export default function Movies() {
             ) : (
               <div className="text-center py-12">
                 <p className="text-muted-foreground">No trending movies available</p>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Top Rated Tab */}
+          <TabsContent value="top-rated" className="space-y-6">
+            {topRatedLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
+                {Array.from({ length: 20 }, (_, i) => (
+                  <MediaCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : topRatedMovies.length > 0 ? (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
+                  {topRatedMovies.map((movie: any, index: number) => {
+                    const convertedMovie = tmdbService.convertToMovie(movie, 'movie');
+                    return (
+                      <MediaCard
+                        key={movie.id}
+                        movie={convertedMovie}
+                        isInWatchlist={isInWatchlist(convertedMovie.id)}
+                        priority={index < 4}
+                      />
+                    );
+                  })}
+                </div>
+
+                <Pagination
+                  currentPage={topRatedPage}
+                  totalPages={topRatedTotalPages}
+                  onPageChange={setTopRatedPage}
+                  testIdPrefix="top-rated"
+                />
+              </>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No top rated movies available</p>
               </div>
             )}
           </TabsContent>

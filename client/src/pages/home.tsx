@@ -720,7 +720,7 @@ export default function Home() {
 
         {/* Top Rated */}
         <WithTMDBFallback section="Top Rated">
-          <MovieRow title={t("home.topRated")} movies={topRatedContent} showMore={true} isLoading={topRatedLoading} />
+          <MovieRow title={t("home.topRated")} movies={topRatedContent} showMore={true} showMoreLink="/movies?tab=top-rated" isLoading={topRatedLoading} />
         </WithTMDBFallback>
 
         {/* Trending TV Shows */}
