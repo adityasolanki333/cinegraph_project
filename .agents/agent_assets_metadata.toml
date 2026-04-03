@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "_IZtG_rbKQFiFKICkwD5i"
+uri = "file://README.md"
+type = "text"
+title = "CineGraph README"
