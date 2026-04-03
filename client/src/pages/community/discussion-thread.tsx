@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { getCsrfToken } from "@/lib/queryClient";
 import { useRoute, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -43,7 +44,9 @@ export default function DiscussionThread() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
                 },
+                credentials: 'include',
                 body: JSON.stringify(data),
             });
             if (!res.ok) {

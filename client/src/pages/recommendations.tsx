@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { getCsrfToken } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,27 +20,6 @@ import { Link } from "wouter";
 import type { Movie } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { usePageMeta } from "@/hooks/usePageMeta";
-
-function getCsrfToken(): string {
-  const name = "csrftoken";
-  const cookies = document.cookie.split(";");
-  for (const cookie of cookies) {
-    const trimmed = cookie.trim();
-    if (trimmed.startsWith(name + "=")) {
-      return decodeURIComponent(trimmed.substring(name.length + 1));
-    }
-  }
-  return "";
-}
-
-async function ensureCsrfToken(): Promise<string> {
-  let token = getCsrfToken();
-  if (!token) {
-    await fetch('/api/auth/csrf', { credentials: 'include' });
-    token = getCsrfToken();
-  }
-  return token || "";
-}
 
 const moodOptions = [
   {
@@ -407,15 +387,13 @@ export default function Recommendations() {
     queryKey: ['/api/recommendations/pipeline', user?.id, pipelineRefreshKey, diversityLevel],
     enabled: !!user?.id,
     queryFn: async () => {
-      const csrfToken = await ensureCsrfToken();
-
       // Step 1: Select recommendation strategy via Contextual Bandit
       let arm = 'hybrid';
       let experimentId = null;
       try {
         const banditResp = await fetch(`/api/ml/bandit/${user?.id}/select`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
           credentials: 'include',
           body: JSON.stringify({ mood: selectedMood })
         });
@@ -453,7 +431,7 @@ export default function Recommendations() {
         try {
           const divResp = await fetch(`/api/ml/diversity/apply`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             credentials: 'include',
             body: JSON.stringify({
               candidates: recs,

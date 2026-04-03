@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getCsrfToken } from "@/lib/queryClient";
 import { useRoute, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -57,6 +58,10 @@ export default function ClubDetails() {
         mutationFn: async () => {
             const res = await fetch(`/api/clubs/${clubId}/join`, {
                 method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken(),
+                },
+                credentials: 'include',
             });
             if (!res.ok) throw new Error("Failed to join/leave club");
             return res.json();
@@ -76,7 +81,9 @@ export default function ClubDetails() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
                 },
+                credentials: 'include',
                 body: JSON.stringify(data),
             });
             if (!res.ok) throw new Error("Failed to create thread");

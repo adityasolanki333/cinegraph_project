@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { RatingStars } from "./rating-stars";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getCsrfToken } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import type { InsertRating } from "@shared/schema";
 
@@ -52,7 +52,8 @@ export function ReviewForm({
     mutationFn: async (data: InsertRating) => {
       const response = await fetch("/api/ratings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+        credentials: "include",
         body: JSON.stringify(data)
       });
       if (!response.ok) {
@@ -99,8 +100,10 @@ export function ReviewForm({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
           "x-user-id": user?.id || ""
         },
+        credentials: "include",
         body: JSON.stringify(data)
       });
       if (!response.ok) {
@@ -143,8 +146,10 @@ export function ReviewForm({
       const response = await fetch(`/api/ratings/${existingRating!.id}`, {
         method: "DELETE",
         headers: {
+          "X-CSRFToken": getCsrfToken(),
           "x-user-id": user?.id || ""
-        }
+        },
+        credentials: "include",
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: "Failed to delete rating" }));

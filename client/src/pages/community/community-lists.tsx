@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getCsrfToken } from "@/lib/queryClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { usePageMeta } from "@/hooks/usePageMeta";
@@ -213,7 +214,8 @@ function MyListsTab() {
     mutationFn: async (list: UserList) => {
       const res = await fetch(`/api/community/lists/${list.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+        credentials: "include",
         body: JSON.stringify({ title: list.title, description: list.description, isPublic: !list.isPublic }),
       });
       if (!res.ok) throw new Error("Failed to update list");
@@ -234,7 +236,7 @@ function MyListsTab() {
 
   const deleteListMutation = useMutation({
     mutationFn: async (listId: number) => {
-      const res = await fetch(`/api/community/lists/${listId}`, { method: "DELETE" });
+      const res = await fetch(`/api/community/lists/${listId}`, { method: "DELETE", headers: { "X-CSRFToken": getCsrfToken() }, credentials: "include" });
       if (!res.ok) throw new Error("Failed to delete list");
     },
     onSuccess: () => {
