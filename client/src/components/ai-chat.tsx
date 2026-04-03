@@ -206,6 +206,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   const handleStreamingResponse = useCallback(async (userInput: string) => {
     const history = getConversationHistory();
     const streamingMsgId = Date.now().toString();
+    let streamingReceivedContent = false;
 
     setMessages(prev => [...prev, {
       id: streamingMsgId,
@@ -264,6 +265,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                       : m
                   ));
                 } else if (event.type === 'chunk') {
+                  streamingReceivedContent = true;
                   setMessages(prev => prev.map(m =>
                     m.id === streamingMsgId
                       ? { ...m, content: m.content + event.content, statusMessage: undefined }
@@ -278,6 +280,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                   ));
                   scrollToBottom();
                 } else if (event.type === 'movie') {
+                  streamingReceivedContent = true;
                   setMessages(prev => prev.map(m =>
                     m.id === streamingMsgId
                       ? { ...m, movies: [...(m.movies || []), event.movie] }
@@ -285,6 +288,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                   ));
                   scrollToBottom();
                 } else if (event.type === 'done') {
+                  streamingReceivedContent = true;
                   setMessages(prev => prev.map(m =>
                     m.id === streamingMsgId
                       ? {
@@ -297,6 +301,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                       : m
                   ));
                 } else if (event.type === 'fallback') {
+                  streamingReceivedContent = true;
                   setMessages(prev => prev.map(m =>
                     m.id === streamingMsgId
                       ? {
@@ -373,7 +378,21 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
       }
 
     } catch (error) {
-      await handleFallbackResponse(userInput, streamingMsgId);
+      if (!streamingReceivedContent) {
+        await handleFallbackResponse(userInput, streamingMsgId);
+      } else {
+        setMessages(prev => prev.map(m =>
+          m.id === streamingMsgId
+            ? {
+                ...m,
+                isStreaming: false,
+                moviesDone: true,
+                moviesLoading: undefined,
+                statusMessage: undefined,
+              }
+            : m
+        ));
+      }
     }
   }, [user, getConversationHistory, scrollToBottom]);
 
@@ -540,28 +559,29 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                         </div>
                       )}
 
-                      {message.content && (
-                        <p className="text-[13px] leading-relaxed whitespace-pre-line">
-                          {(() => {
-                            const hasMovieCards = message.movies && message.movies.length > 0;
-                            if (hasMovieCards && !message.isStreaming) {
-                              const lines = message.content.split('\n');
-                              const introLines: string[] = [];
-                              for (const line of lines) {
-                                if (/^\s*(\d+[\.\)\-:]|\*\*\d+|[-•*]\s)/.test(line)) break;
-                                introLines.push(line);
-                              }
-                              const intro = introLines.join('\n').trim();
-                              if (intro) return intro;
-                              return '';
-                            }
-                            return message.content;
-                          })()}
-                          {message.isStreaming && (
-                            <span className="inline-block w-1 h-3.5 bg-primary ml-0.5 animate-pulse align-middle rounded-full" />
-                          )}
-                        </p>
-                      )}
+                      {(() => {
+                        if (!message.content) return null;
+                        const hasMovieCards = message.movies && message.movies.length > 0;
+                        let displayText = message.content;
+                        if (hasMovieCards && !message.isStreaming) {
+                          const lines = message.content.split('\n');
+                          const introLines: string[] = [];
+                          for (const line of lines) {
+                            if (/^\s*(\d+[\.\)\-:]|\*\*\d+|[-•*]\s)/.test(line)) break;
+                            introLines.push(line);
+                          }
+                          displayText = introLines.join('\n').trim();
+                        }
+                        if (!displayText && !message.isStreaming) return null;
+                        return (
+                          <p className="text-[13px] leading-relaxed whitespace-pre-line">
+                            {displayText}
+                            {message.isStreaming && (
+                              <span className="inline-block w-1 h-3.5 bg-primary ml-0.5 animate-pulse align-middle rounded-full" />
+                            )}
+                          </p>
+                        );
+                      })()}
 
                       {((message.movies && message.movies.length > 0) || (message.moviesLoading && !message.moviesDone)) && (
                         <div className="mt-2 pt-2 border-t border-border/30" data-testid={`movie-cards-${message.id}`}>
@@ -569,7 +589,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                             <div className="flex items-center gap-1.5 mb-2">
                               <Sparkles className="h-3 w-3 text-yellow-500" />
                               <span className="text-[11px] font-medium text-foreground">
-                                {Math.min(message.movies.length, 8)} picks for you
+                                {Math.min(message.movies.length, 4)} picks for you
                               </span>
                             </div>
                           )}

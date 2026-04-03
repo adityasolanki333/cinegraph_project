@@ -720,45 +720,113 @@ def semantic_search(request):
                     'searchMethod': search_method,
                 }
 
-        search_method = "tfidf_local"
+        search_method = "gemini_semantic"
         from . import api
         from .ml.embedding_service import semantic_embedding_service
-        from .models import TmdbTrainingData
+        from .recommendations_api import call_gemini_api, parse_movie_recommendations, extract_movie_titles_structured
+        import concurrent.futures
 
-        local_items = []
+        ai_items = []
+        gemini_titles = []
+
+        filter_hints = []
+        media_types = filters.get('mediaType', [])
+        if media_types:
+            filter_hints.append(f"Media type: {', '.join(media_types)}")
+        year_range = filters.get('yearRange')
+        if year_range and isinstance(year_range, list) and len(year_range) == 2:
+            filter_hints.append(f"Year range: {year_range[0]}-{year_range[1]}")
+        min_rating = filters.get('minRating', 0)
+        if min_rating and min_rating > 0:
+            filter_hints.append(f"Minimum rating: {min_rating}/10")
+        genre_filter = filters.get('genres', [])
+        if genre_filter:
+            filter_hints.append(f"Preferred genres: {', '.join(genre_filter)}")
+        mood_filter = filters.get('moods', [])
+        if mood_filter:
+            filter_hints.append(f"Moods: {', '.join(mood_filter)}")
+
+        filter_context = "\n".join(filter_hints) if filter_hints else "No specific filters"
+
+        gemini_prompt = f"""You are a movie and TV show expert. A user is searching for content matching this description:
+
+"{query}"
+
+User filters:
+{filter_context}
+
+Recommend exactly {min(limit, 20)} movies and/or TV shows that best match this description semantically. Focus on:
+- Thematic relevance to the query
+- Quality and critical acclaim
+- Variety (mix of well-known and hidden gems)
+- Match the mood, genre, and style implied by the query
+
+Return ONLY a numbered list of titles, one per line. No descriptions or explanations.
+Example format:
+1. The Shawshank Redemption
+2. Inception
+3. Breaking Bad"""
+
         try:
-            qs = TmdbTrainingData.objects.exclude(overview__isnull=True).exclude(overview='')
-            year_range = filters.get('yearRange')
-            min_rating = filters.get('minRating', 0)
-            max_rating = filters.get('maxRating', 10)
+            response_text, error = call_gemini_api(gemini_prompt, max_retries=1)
+            if response_text:
+                gemini_titles = extract_movie_titles_structured(response_text)
+                if not gemini_titles:
+                    gemini_titles = parse_movie_recommendations(response_text)
+        except Exception as e:
+            logger.warning(f"Gemini semantic search failed: {e}")
 
-            if year_range and isinstance(year_range, list) and len(year_range) == 2:
-                qs = qs.filter(release_date__gte=str(year_range[0]), release_date__lte=str(year_range[1]) + '-12-31')
-            if min_rating and min_rating > 0:
-                qs = qs.filter(vote_average__gte=min_rating)
-            if max_rating and max_rating < 10:
-                qs = qs.filter(vote_average__lte=max_rating)
+        def search_tmdb_movie(title):
+            try:
+                result = api.tmdb_request('/search/multi', {'query': title, 'page': 1})
+                if result and 'results' in result:
+                    for item in result['results'][:3]:
+                        if item.get('media_type') == 'person':
+                            continue
+                        if item.get('poster_path') and item.get('overview'):
+                            return item
+            except Exception:
+                pass
+            return None
 
-            qs = qs.order_by('-popularity')[:limit * 10]
+        if gemini_titles:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+                future_to_title = {executor.submit(search_tmdb_movie, t): t for t in gemini_titles[:min(limit, 20)]}
+                for future in concurrent.futures.as_completed(future_to_title):
+                    try:
+                        result = future.result()
+                        if result:
+                            ai_items.append(result)
+                    except Exception:
+                        pass
 
-            for row in qs:
-                local_items.append({
-                    'id': row.tmdb_id,
-                    'title': row.title or '',
-                    'overview': row.overview or '',
-                    'vote_average': row.vote_average or 0,
-                    'popularity': row.popularity or 0,
-                    'release_date': row.release_date or '',
-                    'poster_path': row.poster_path or '',
-                    'genres': row.genres or '',
-                    'media_type': 'movie',
-                })
-        except Exception:
-            local_items = []
+        if not ai_items:
+            search_method = "tfidf_local"
+            from .models import TmdbTrainingData
+            try:
+                qs = TmdbTrainingData.objects.exclude(overview__isnull=True).exclude(overview='')
+                if year_range and isinstance(year_range, list) and len(year_range) == 2:
+                    qs = qs.filter(release_date__gte=str(year_range[0]), release_date__lte=str(year_range[1]) + '-12-31')
+                if min_rating and min_rating > 0:
+                    qs = qs.filter(vote_average__gte=min_rating)
+                qs = qs.order_by('-popularity')[:limit * 10]
+                for row in qs:
+                    ai_items.append({
+                        'id': row.tmdb_id,
+                        'title': row.title or '',
+                        'overview': row.overview or '',
+                        'vote_average': row.vote_average or 0,
+                        'popularity': row.popularity or 0,
+                        'release_date': row.release_date or '',
+                        'poster_path': row.poster_path or '',
+                        'genres': row.genres or '',
+                        'media_type': 'movie',
+                    })
+            except Exception:
+                pass
 
-        if not local_items:
+        if not ai_items:
             params = {"query": query, "page": 1}
-            media_types = filters.get('mediaType', [])
             if media_types and len(media_types) == 1:
                 if 'movie' in media_types:
                     endpoint = "/search/movie"
@@ -768,31 +836,51 @@ def semantic_search(request):
                     endpoint = "/search/multi"
             else:
                 endpoint = "/search/multi"
-
             result = api.tmdb_request(endpoint, params)
             if 'results' in result:
                 for item in result['results'][:limit * 2]:
                     if item.get('media_type') == 'person':
                         continue
-                    local_items.append(item)
+                    ai_items.append(item)
 
-        if local_items:
+        if ai_items:
+            seen_ids = set()
+            unique_items = []
+            for item in ai_items:
+                item_id = item.get('id')
+                if item_id and item_id not in seen_ids:
+                    seen_ids.add(item_id)
+                    unique_items.append(item)
+            ai_items = unique_items
+
             ranked_results = semantic_embedding_service.search_with_similarity(
-                query, local_items, top_k=limit, apply_reranking=True
+                query, ai_items, top_k=limit, apply_reranking=True
             )
 
             formatted_results = []
-            for item, similarity in ranked_results:
+            for rank, (item, similarity) in enumerate(ranked_results):
                 title = item.get('title') or item.get('name', '')
+
+                if gemini_titles and search_method == "gemini_semantic":
+                    ai_boost = max(0, (len(gemini_titles) - rank) / len(gemini_titles)) * 0.15
+                    similarity = min(1.0, similarity + ai_boost)
 
                 match_pct = int(similarity * 100)
                 labels = []
                 if similarity >= 0.7:
                     labels.append("Semantic match")
+                elif similarity >= 0.5:
+                    labels.append("Related")
                 vote_avg = item.get('vote_average', 0)
                 if vote_avg and vote_avg >= 7.0:
                     labels.append("Popular")
+                if gemini_titles and search_method == "gemini_semantic":
+                    labels.append("AI recommended")
                 match_quality = ", ".join(labels) if labels else "Related"
+
+                genres_data = item.get('genre_ids', item.get('genres', []))
+                if isinstance(genres_data, str) and genres_data:
+                    genres_data = [g.strip() for g in genres_data.split(',')]
 
                 formatted_results.append({
                     'tmdbId': item.get('id'),
@@ -802,7 +890,7 @@ def semantic_search(request):
                     'releaseDate': item.get('release_date') or item.get('first_air_date'),
                     'voteAverage': vote_avg,
                     'popularity': item.get('popularity'),
-                    'genres': item.get('genre_ids', item.get('genres', [])),
+                    'genres': genres_data,
                     'mediaType': item.get('media_type', 'movie'),
                     'similarity': round(similarity, 3),
                     'explanation': f"{match_pct}% match — {match_quality}",
@@ -813,7 +901,7 @@ def semantic_search(request):
                 formatted_results.sort(key=lambda x: x.get('releaseDate') or '', reverse=True)
             elif sort_by == 'rating':
                 formatted_results.sort(key=lambda x: x.get('voteAverage') or 0, reverse=True)
-            
+
             search_time = time.time() - start_time
 
             return {
@@ -824,7 +912,8 @@ def semantic_search(request):
                 "searchMethod": search_method,
                 "queryAnalysis": {
                     "originalQuery": query,
-                    "filters": filters
+                    "filters": filters,
+                    "aiTitlesFound": len(gemini_titles) if gemini_titles else 0,
                 }
             }
 
