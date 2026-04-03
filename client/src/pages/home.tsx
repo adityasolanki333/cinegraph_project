@@ -97,7 +97,30 @@ export default function Home() {
       if (data.error || !data.results || data.results.length === 0) {
         return [];
       }
-      return data.results.slice(0, 5).map((item: any) => tmdbService.convertToMovie(item, item.media_type || 'movie'));
+      const genreMap: Record<number, string> = {
+        28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime",
+        18: "Drama", 14: "Fantasy", 27: "Horror", 10749: "Romance", 878: "Sci-Fi",
+        53: "Thriller", 10752: "War", 37: "Western", 10759: "Action & Adventure",
+        10762: "Kids", 10763: "News", 10764: "Reality", 10765: "Sci-Fi & Fantasy",
+        10766: "Soap", 10767: "Talk", 10768: "War & Politics", 9648: "Mystery",
+      };
+      return data.results.slice(0, 5).map((item: any) => {
+        const mediaType = item.media_type || 'movie';
+        const year = (item.release_date || item.first_air_date || '').split('-')[0];
+        const genre = item.genre_ids?.length
+          ? genreMap[item.genre_ids[0]] || (mediaType === 'tv' ? 'TV Series' : 'Movie')
+          : (mediaType === 'tv' ? 'TV Series' : 'Movie');
+        return {
+          ...tmdbService.convertToMovie(item, mediaType),
+          type: mediaType,
+          synopsis: item.overview || '',
+          rating: item.vote_average?.toFixed(1) || '0.0',
+          year,
+          genre,
+          posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
+          backdropUrl: item.backdrop_path ? `https://image.tmdb.org/t/p/original${item.backdrop_path}` : null,
+        };
+      });
     }
   });
 
