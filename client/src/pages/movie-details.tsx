@@ -118,6 +118,11 @@ export default function MovieDetailsPage() {
 
   const { data: movie, isLoading, error } = useQuery({
     queryKey: ['/api/tmdb/movie', movieId],
+    queryFn: async () => {
+      const response = await fetch(`/api/tmdb/movie/${movieId}`);
+      if (!response.ok) throw new Error('Failed to fetch movie details');
+      return response.json();
+    },
     enabled: !!movieId,
     select: (data: MovieDetails) => data
   });
@@ -935,13 +940,26 @@ function SemanticSimilarMovies({
   const [currentPage, setCurrentPage] = useState(1);
   const moviesPerPage = 12;
 
-  // Utilize the new ChromaDB Nearest Neighbor endpoint
+  // Utilize the semantic similarity endpoint with TMDB fallback
   const { data: semanticResults, isLoading: semanticLoading } = useQuery({
     queryKey: ['/api/ml/similar/semantic', currentMovieId],
     queryFn: async () => {
       const response = await fetch(`/api/ml/similar/semantic/${currentMovieId}`);
-      if (!response.ok) return { results: [], count: 0 };
-      return response.json();
+      if (!response.ok) return { results: [] };
+      const data = await response.json();
+      // Normalize: backend returns `similar_items` with `tmdb_id` and `similarity_score`
+      const items = data.similar_items || data.results || [];
+      return {
+        results: items.map((item: any) => ({
+          id: item.tmdb_id ?? item.id,
+          title: item.title || '',
+          poster_path: item.poster_path || null,
+          vote_average: item.vote_average ?? (item.similarity_score ? item.similarity_score * 10 : 0),
+          release_date: item.release_date || '',
+          similarity: item.similarity_score ?? item.similarity ?? null,
+          explanation: item.explanation || null,
+        })),
+      };
     },
     enabled: !!currentMovieId
   });

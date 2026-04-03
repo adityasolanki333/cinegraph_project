@@ -137,12 +137,22 @@ export default function TVShowDetailsPage() {
 
   const { data: tvShow, isLoading, error } = useQuery({
     queryKey: ['/api/tmdb/tv', tvId],
+    queryFn: async () => {
+      const response = await fetch(`/api/tmdb/tv/${tvId}`);
+      if (!response.ok) throw new Error('Failed to fetch TV show details');
+      return response.json();
+    },
     enabled: !!tvId,
     select: (data: TVShowDetails) => data
   });
 
   const { data: seasonData, isLoading: isSeasonLoading } = useQuery({
     queryKey: ['/api/tmdb/tv', tvId, 'season', selectedSeason],
+    queryFn: async () => {
+      const response = await fetch(`/api/tmdb/tv/${tvId}/season/${selectedSeason}`);
+      if (!response.ok) throw new Error('Failed to fetch season data');
+      return response.json();
+    },
     enabled: !!tvId && !!selectedSeason,
     select: (data: SeasonDetails) => data
   });
