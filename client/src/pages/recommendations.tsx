@@ -10,7 +10,7 @@ import { AdvancedRecommendations } from "@/components/advanced-recommendations";
 import { MediaCard } from "@/components/media-card";
 import MediaCardSkeleton from "@/components/media-card-skeleton";
 import { tmdbService } from "@/lib/tmdb";
-import { Sparkles, Heart, Brain, Zap, Smile, Loader2, Search, Settings, RefreshCw, Film, Tv, Target } from "lucide-react";
+import { Sparkles, Heart, Brain, Zap, Smile, Loader2, Search, Settings, RefreshCw, Film, Tv, Target, ThumbsUp, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -254,6 +254,42 @@ export default function Recommendations() {
   const [refreshKey, setRefreshKey] = useState(0);
   const { isInWatchlist } = useWatchlist();
   const { user, isAuthenticated } = useAuth();
+
+  // Feedback state: dismissed IDs (persisted) + "because you liked" boosts
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
+    try {
+      const saved = sessionStorage.getItem('cg_dismissed_recs');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+  const [likedBoosts, setLikedBoosts] = useState<{ title: string; items: any[] }[]>([]);
+
+  const handleDislike = (tmdbId: string | number) => {
+    const id = String(tmdbId);
+    setDismissedIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      try { sessionStorage.setItem('cg_dismissed_recs', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+
+  const handleLike = async (tmdbId: string | number, mediaType: string, title: string) => {
+    try {
+      const resp = await fetch(`/api/ml/similar/semantic/${tmdbId}?media_type=${mediaType}&limit=8`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const items = (data.similar_items || []).filter((item: any) => item.poster_path);
+      if (items.length > 0) {
+        setLikedBoosts(prev => {
+          if (prev.some(b => b.title === title)) return prev;
+          return [{ title, items }, ...prev];
+        });
+      }
+    } catch (e) {
+      console.warn('Could not fetch similar items:', e);
+    }
+  };
 
   // Persist state to sessionStorage
   useEffect(() => {
@@ -652,24 +688,95 @@ export default function Recommendations() {
                     <span className="ml-2 text-muted-foreground">Finding your perfect matches...</span>
                   </div>
                 ) : unifiedRecommendations.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {unifiedRecommendations.map((rec: any) => {
-                      const rawId = rec.id ?? rec.tmdbId ?? rec.movieId;
-                      if (!rawId) return null;
-
+                  <div className="space-y-8">
+                    {/* "Because you liked X" boost sections */}
+                    {likedBoosts.map((boost, boostIdx) => {
+                      const visibleItems = boost.items.filter(
+                        (item: any) => !dismissedIds.has(String(item.tmdb_id ?? item.id))
+                      );
+                      if (visibleItems.length === 0) return null;
                       return (
-                        <MediaCard
-                          key={rawId}
-                          movie={rec}
-                          showFeedback={true}
-                          recommendationScore={rec.score}
-                          recommendationStrategy={rec.strategy}
-                          recommendationReason={rec.reason}
-                          experimentId={rec.experimentId}
-                          showExplanation={true}
-                        />
+                        <div key={boostIdx} className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-accent">
+                              <ThumbsUp className="h-4 w-4" />
+                              Because you liked &ldquo;{boost.title}&rdquo;
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => setLikedBoosts(prev => prev.filter((_, i) => i !== boostIdx))}
+                              data-testid={`button-dismiss-boost-${boostIdx}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {visibleItems.map((item: any) => {
+                              const itemId = String(item.tmdb_id ?? item.id);
+                              const boostMovie = {
+                                id: itemId,
+                                type: item.media_type || 'movie',
+                                title: item.title,
+                                posterUrl: item.poster_path
+                                  ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                                  : undefined,
+                                rating: item.vote_average || 0,
+                                year: item.release_date ? new Date(item.release_date).getFullYear() : 0,
+                                genre: (item.genres || [])[0] || '',
+                                synopsis: item.overview || undefined,
+                                score: item.similarity_score || 0,
+                                strategy: 'Similar',
+                                reason: item.explanation || `Similar to ${boost.title}`,
+                              };
+                              return (
+                                <MediaCard
+                                  key={itemId}
+                                  movie={boostMovie}
+                                  showFeedback={true}
+                                  recommendationScore={boostMovie.score}
+                                  recommendationStrategy={boostMovie.strategy}
+                                  recommendationReason={boostMovie.reason}
+                                  onLike={handleLike}
+                                  onDislike={handleDislike}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
                       );
                     })}
+
+                    {/* Main recommendation grid — filtered by dismissed IDs */}
+                    {(() => {
+                      const visibleRecs = unifiedRecommendations.filter(
+                        (rec: any) => !dismissedIds.has(String(rec.id ?? rec.tmdbId ?? rec.movieId))
+                      );
+                      if (visibleRecs.length === 0) return null;
+                      return (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {visibleRecs.map((rec: any) => {
+                            const rawId = rec.id ?? rec.tmdbId ?? rec.movieId;
+                            if (!rawId) return null;
+                            return (
+                              <MediaCard
+                                key={rawId}
+                                movie={rec}
+                                showFeedback={true}
+                                recommendationScore={rec.score}
+                                recommendationStrategy={rec.strategy}
+                                recommendationReason={rec.reason}
+                                experimentId={rec.experimentId}
+                                showExplanation={true}
+                                onLike={handleLike}
+                                onDislike={handleDislike}
+                              />
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <div className="py-12 text-center">

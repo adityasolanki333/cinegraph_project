@@ -66,6 +66,8 @@ export interface MediaCardProps {
   experimentId?: string;
   showExplanation?: boolean;
   priority?: boolean;
+  onLike?: (tmdbId: string | number, mediaType: string, title: string) => void;
+  onDislike?: (tmdbId: string | number) => void;
   children?: React.ReactNode;
 }
 
@@ -86,6 +88,8 @@ export function MediaCard({
   experimentId,
   priority = false,
   showExplanation = false,
+  onLike,
+  onDislike,
   children,
 }: MediaCardProps) {
   const item = propItem || propMovie;
@@ -217,13 +221,20 @@ export function MediaCard({
       });
     },
     onSuccess: (_, outcomeType) => {
-      setFeedbackGiven(outcomeType === "preference_positive" ? 'positive' : 'negative');
-      toast({
-        title: "Feedback received!",
-        description: outcomeType === "preference_positive"
-          ? "Thanks! We'll recommend more like this."
-          : "Thanks! We'll adjust future recommendations.",
-      });
+      const isPositive = outcomeType === "preference_positive";
+      setFeedbackGiven(isPositive ? 'positive' : 'negative');
+      if (isPositive) {
+        onLike?.(movie.id, type, title);
+        toast({
+          title: "Great choice!",
+          description: `Finding more like "${title}"…`,
+        });
+      } else {
+        toast({
+          title: "Got it!",
+          description: "We'll stop showing this to you.",
+        });
+      }
     },
     onError: (error) => {
       toast({
@@ -240,15 +251,9 @@ export function MediaCard({
     const outcomeType = positive ? "preference_positive" : "preference_negative";
     feedbackMutation.mutate(outcomeType);
 
-    // Optimistically hide the card if user dislikes the recommendation
     if (!positive) {
-      // Small delay to let the user see the click animation
+      onDislike?.(movie.id);
       setTimeout(() => setIsVisible(false), 300);
-
-      toast({
-        title: "Recommendation Removed",
-        description: "We won't show this to you again.",
-      });
     }
   };
 

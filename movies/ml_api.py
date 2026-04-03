@@ -179,13 +179,27 @@ def get_hybrid_recommendations(request, user_id):
             # Enrich ML-generated recommendations with TMDB metadata
             recommendations = enrich_recommendations_with_tmdb(recommendations)
 
+        # Filter out movies this user has explicitly disliked
+        try:
+            from .models import Recommendation
+            dismissed_tmdb_ids = set(
+                Recommendation.objects.filter(user=user, user_feedback='disliked').values_list('tmdb_id', flat=True)
+            )
+            if dismissed_tmdb_ids:
+                recommendations = [
+                    r for r in recommendations
+                    if r.get('tmdb_id') not in dismissed_tmdb_ids
+                ]
+        except Exception:
+            pass
+
         return JsonResponse({
             "user_id": user_id,
             "recommendations": recommendations,
             "type": "hybrid",
             "count": len(recommendations)
         })
-        
+
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
@@ -1332,6 +1346,23 @@ def get_similar_movies_semantic(request, tmdb_id):
                 ][:limit]
             except Exception as e:
                 print(f"TMDB similar error: {e}")
+
+        # Filter out movies the logged-in user has dismissed
+        if request.user.is_authenticated:
+            try:
+                from .models import Recommendation
+                dismissed_ids = set(
+                    Recommendation.objects.filter(
+                        user=request.user, user_feedback='disliked'
+                    ).values_list('tmdb_id', flat=True)
+                )
+                if dismissed_ids:
+                    similar_items = [
+                        item for item in similar_items
+                        if item.get('tmdb_id') not in dismissed_ids
+                    ]
+            except Exception:
+                pass
 
         return JsonResponse({
             "tmdb_id": tmdb_id,
