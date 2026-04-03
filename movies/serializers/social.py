@@ -108,10 +108,14 @@ class UserListSerializer(serializers.ModelSerializer):
         return obj.items.count()
 
     def get_user(self, obj):
+        profile_url = None
+        if hasattr(obj.user, 'profile'):
+            profile_url = obj.user.profile.profile_image_url
         return {
             'id': str(obj.user.id),
             'firstName': obj.user.first_name or obj.user.username,
             'lastName': obj.user.last_name,
+            'profileImageUrl': profile_url,
         }
 
 

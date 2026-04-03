@@ -28,7 +28,7 @@ class UserListsView(ListAPIView):
 
     def get_queryset(self):
         user_id = self.kwargs['user_id']
-        lists = UserList.objects.filter(user_id=user_id).select_related('user')
+        lists = UserList.objects.filter(user_id=user_id).select_related('user', 'user__profile')
         if not self.request.user.is_authenticated or str(self.request.user.id) != str(user_id):
             lists = lists.filter(is_public=True)
         return lists
@@ -50,7 +50,7 @@ class PublicListsView(ListAPIView):
     def get_queryset(self):
         q = self.request.query_params.get('q', '').strip()
         sort = self.request.query_params.get('sort', 'popular')
-        lists = UserList.objects.filter(is_public=True).select_related('user')
+        lists = UserList.objects.filter(is_public=True).select_related('user', 'user__profile')
         if q:
             lists = lists.filter(Q(title__icontains=q) | Q(description__icontains=q))
         if sort == 'newest':
@@ -107,7 +107,7 @@ class ListDetailView(RetrieveAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         try:
-            lst = UserList.objects.select_related('user').get(id=self.kwargs['list_id'])
+            lst = UserList.objects.select_related('user', 'user__profile').get(id=self.kwargs['list_id'])
         except UserList.DoesNotExist:
             return Response({'error': 'List not found', 'code': 'NOT_FOUND'}, status=404)
         if not lst.is_public:
@@ -199,7 +199,7 @@ class ListsContainingView(ListAPIView):
         media_type = self.kwargs['media_type']
         items = ListItem.objects.filter(
             tmdb_id=tmdb_id, media_type=media_type, list__is_public=True
-        ).select_related('list', 'list__user')[:10]
+        ).select_related('list', 'list__user', 'list__user__profile')[:10]
         lists = [item.list for item in items]
         serializer = self.get_serializer(lists, many=True)
         return Response({'lists': serializer.data})
@@ -435,18 +435,130 @@ class ManageCommunityListView(APIView):
         return Response({'success': True})
 
 
+class ListSearchView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        q = request.query_params.get('q', '').strip()
+        if not q:
+            return Response([])
+
+        lists = (
+            UserList.objects.filter(is_public=True)
+            .filter(Q(title__icontains=q) | Q(description__icontains=q))
+            .select_related('user', 'user__profile')
+            .order_by('-follower_count', '-created_at')[:20]
+        )
+
+        serializer = UserListSerializer(lists, many=True)
+        return Response(serializer.data)
+
+
+class SimilarListsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, list_id):
+        try:
+            lst = UserList.objects.get(id=list_id, is_public=True)
+        except UserList.DoesNotExist:
+            return Response({'error': 'List not found', 'code': 'NOT_FOUND'}, status=404)
+
+        source_items = list(ListItem.objects.filter(list=lst).values('tmdb_id', 'media_type', 'title', 'poster_path'))
+        item_tmdb_ids = set(si['tmdb_id'] for si in source_items)
+        if not item_tmdb_ids:
+            return Response([])
+
+        similar_list_ids = (
+            ListItem.objects.filter(tmdb_id__in=item_tmdb_ids, list__is_public=True)
+            .exclude(list=lst)
+            .values_list('list_id', flat=True)
+        )
+        similar_lists = (
+            UserList.objects.filter(id__in=similar_list_ids, is_public=True)
+            .select_related('user', 'user__profile')
+            .annotate(overlap=Count('items', filter=Q(items__tmdb_id__in=item_tmdb_ids)))
+            .order_by('-overlap', '-follower_count')[:6]
+        )
+
+        source_item_map = {si['tmdb_id']: si for si in source_items}
+
+        result = []
+        for sl in similar_lists:
+            sl_items = list(ListItem.objects.filter(list=sl))
+            sl_tmdb_ids = set(item.tmdb_id for item in sl_items)
+            shared_tmdb_ids = item_tmdb_ids & sl_tmdb_ids
+            shared_count = len(shared_tmdb_ids)
+            total_unique = len(item_tmdb_ids | sl_tmdb_ids)
+            overlap_pct = round((shared_count / total_unique * 100) if total_unique else 0)
+
+            shared_items = []
+            for tmdb_id in list(shared_tmdb_ids)[:5]:
+                si = source_item_map.get(tmdb_id, {})
+                matching = next((i for i in sl_items if i.tmdb_id == tmdb_id), None)
+                shared_items.append({
+                    'id': str(matching.id) if matching else str(tmdb_id),
+                    'tmdbId': tmdb_id,
+                    'mediaType': si.get('media_type', matching.media_type if matching else 'movie'),
+                    'title': si.get('title', matching.title if matching else ''),
+                    'posterPath': si.get('poster_path', matching.poster_path if matching else None),
+                })
+
+            profile_url = None
+            if hasattr(sl.user, 'profile'):
+                profile_url = sl.user.profile.profile_image_url
+
+            preview_items = sl_items[:4]
+            result.append({
+                'id': sl.id,
+                'userId': str(sl.user.id),
+                'title': sl.title,
+                'description': sl.description[:100] if sl.description else '',
+                'isPublic': sl.is_public,
+                'followerCount': sl.follower_count,
+                'itemCount': len(sl_items),
+                'createdAt': sl.created_at.isoformat(),
+                'sharedItemCount': shared_count,
+                'overlapPercentage': overlap_pct,
+                'sharedItems': shared_items,
+                'user': {
+                    'id': str(sl.user.id),
+                    'firstName': sl.user.first_name or sl.user.username,
+                    'lastName': sl.user.last_name,
+                    'profileImageUrl': profile_url,
+                },
+                'items': [{
+                    'id': str(item.id),
+                    'posterPath': item.poster_path,
+                    'title': item.title,
+                } for item in preview_items],
+            })
+
+        return Response(result)
+
+
 class RecommendedListsView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, user_id):
-        lists = UserList.objects.filter(is_public=True).select_related('user').order_by('-follower_count')[:10]
-        return Response({
-            'lists': [{
-                'id': lst.id, 'title': lst.title,
+        lists = UserList.objects.filter(is_public=True).select_related('user', 'user__profile').order_by('-follower_count')[:10]
+        result = []
+        for lst in lists:
+            profile_url = None
+            if hasattr(lst.user, 'profile'):
+                profile_url = lst.user.profile.profile_image_url
+            result.append({
+                'id': lst.id,
+                'title': lst.title,
                 'description': lst.description[:100] if lst.description else '',
-                'userId': str(lst.user.id),
-                'userName': lst.user.first_name or lst.user.email,
+                'isPublic': lst.is_public,
                 'followerCount': lst.follower_count,
                 'itemCount': lst.items.count(),
-            } for lst in lists]
-        })
+                'createdAt': lst.created_at.isoformat(),
+                'user': {
+                    'id': str(lst.user.id),
+                    'firstName': lst.user.first_name or lst.user.username,
+                    'lastName': lst.user.last_name,
+                    'profileImageUrl': profile_url,
+                },
+            })
+        return Response(result)

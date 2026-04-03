@@ -6,12 +6,11 @@ import requests
 import concurrent.futures
 import logging
 from datetime import datetime, date
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import StreamingHttpResponse
 from .models import UserPreferences, UserReview, UserWatchlist, UserFavorites, ViewingHistory
 from .api import tmdb_request
 from .validation import error_response
 from movies.ml.utils import GENRE_MAP as _GENRE_ID_TO_NAME_MAP, GENRE_NAME_TO_ID as _GENRE_NAME_TO_ID_MAP
-from .decorators import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -545,7 +544,6 @@ def get_fallback_trending_movies():
     return fallback_movies
 
 
-@rate_limit()
 def ai_chat(request):
     user = request.user if request.user.is_authenticated else None
     
@@ -579,12 +577,12 @@ def ai_chat(request):
             logger.warning(f"Gemini API failed, using trending fallback: {error}")
             fallback_movies = get_fallback_trending_movies()
 
-            return JsonResponse({
+            return {
                 'response': "I'm experiencing high demand right now, but here are some trending movies you might enjoy! Feel free to ask again in a moment for personalized recommendations.",
                 'movies': fallback_movies,
                 'suggestions': ['Action movies', 'Comedy films', 'Drama recommendations'],
                 'source': 'fallback'
-            })
+            }
 
         movie_titles = extract_movie_titles_structured(response_text)
         if not movie_titles:
@@ -622,10 +620,10 @@ def ai_chat(request):
                 except Exception as e:
                     logger.warning(f"Movie search thread error: {e}")
 
-        return JsonResponse({
+        return {
             'response': response_text,
             'movies': movies,
-        })
+        }
 
     except json.JSONDecodeError:
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
@@ -634,7 +632,6 @@ def ai_chat(request):
         return error_response('An unexpected error occurred. Please try again.', 'INTERNAL_ERROR', 500)
 
 
-@rate_limit()
 def ai_chat_stream(request):
     user = request.user if request.user.is_authenticated else None
     
@@ -756,7 +753,6 @@ def ai_chat_stream(request):
         return error_response('An unexpected error occurred. Please try again.', 'INTERNAL_ERROR', 500)
 
 
-@rate_limit()
 def save_preferences(request):
     if not request.user.is_authenticated:
         return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
@@ -779,7 +775,7 @@ def save_preferences(request):
 
         prefs.save()
 
-        return JsonResponse({
+        return {
             'success': True,
             'preferences': {
                 'preferredGenres': prefs.preferred_genres,
@@ -788,7 +784,7 @@ def save_preferences(request):
                 'languagePreferences': prefs.language_preferences,
                 'moodPreferences': prefs.mood_preferences,
             }
-        })
+        }
     except json.JSONDecodeError:
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
@@ -802,7 +798,7 @@ def get_preferences(request, user_id):
     
     try:
         prefs = UserPreferences.objects.get(user=request.user)
-        return JsonResponse({
+        return {
             'preferences': {
                 'preferredGenres': prefs.preferred_genres,
                 'dislikedGenres': prefs.disliked_genres,
@@ -810,9 +806,9 @@ def get_preferences(request, user_id):
                 'languagePreferences': prefs.language_preferences,
                 'moodPreferences': prefs.mood_preferences,
             }
-        })
+        }
     except UserPreferences.DoesNotExist:
-        return JsonResponse({
+        return {
             'preferences': {
                 'preferredGenres': [],
                 'dislikedGenres': [],
@@ -820,16 +816,16 @@ def get_preferences(request, user_id):
                 'languagePreferences': [],
                 'moodPreferences': {},
             }
-        })
+        }
 
 
 def pattern_analyze(request, user_id):
     if not request.user.is_authenticated:
-        return JsonResponse({
+        return {
             'userId': str(user_id),
             'analysis': None,
             'message': 'Login to see viewing patterns'
-        })
+        }
     user = request.user
     
     try:
@@ -897,15 +893,15 @@ Write an engaging, personalized insight paragraph (not a list). Focus on pattern
         if gemini_insight:
             base_response['aiInsight'] = gemini_insight
 
-        return JsonResponse(base_response)
+        return base_response
 
     except Exception as e:
         logger.error(f"Pattern analysis error: {e}", exc_info=True)
-        return JsonResponse({
+        return {
             'userId': str(user_id),
             'analysis': None,
             'message': 'Unable to analyze viewing patterns right now. Please try again later.'
-        })
+        }
 
 
 def pattern_predict(request, user_id):
@@ -937,7 +933,7 @@ def pattern_predict(request, user_id):
     
     probability = min(0.95, 0.6 + (history.count() * 0.02) + (reviews.count() * 0.01))
     
-    return JsonResponse({
+    return {
         'userId': str(user_id),
         'prediction': {
             'nextGenre': next_genre,
@@ -947,7 +943,7 @@ def pattern_predict(request, user_id):
         },
         'basedOn': 'viewing_patterns',
         'modelVersion': 'v1.0'
-    })
+    }
 
 
 
@@ -976,18 +972,18 @@ def explain_with_gemini(request):
             recommended_title, recommended_overview or ''
         )
 
-        return JsonResponse({
+        return {
             'sourceTitle': source_title,
             'recommendedTitle': recommended_title,
             'geminiExplanation': explanation,
             'fallback': explanation is None
-        })
+        }
     except Exception as e:
         logger.error(f"Gemini explanation error: {e}", exc_info=True)
-        return JsonResponse({
+        return {
             'sourceTitle': source_title,
             'recommendedTitle': recommended_title,
             'geminiExplanation': None,
             'fallback': True
-        })
+        }
 

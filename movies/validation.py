@@ -1,6 +1,4 @@
-import json
 import logging
-from django.http import JsonResponse
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +19,7 @@ def error_response(message, code, status=400):
     if status == 500:
         logger.error('Internal error: %s', message)
         message = 'An internal error occurred'
-    return JsonResponse({'error': message, 'code': code}, status=status)
-
-
-def parse_json_body(request):
-    try:
-        return json.loads(request.body), None
-    except json.JSONDecodeError:
-        return None, error_response('Invalid JSON in request body', 'INVALID_JSON')
+    return {'error': message, 'code': code, '_status': status}
 
 
 def validate_rating(value):

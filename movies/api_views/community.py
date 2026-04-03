@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
+from django.db import models
 from django.db.models import Count, Avg
 from movies.models import (
     UserBadge, UserActivityStats, UserReview, UserList,
@@ -297,31 +298,90 @@ class ActivityPromptsView(APIView):
 class SimilarUsersView(APIView):
     permission_classes = [AllowAny]
 
+    def _build_user_data(self, u, similarity_score, common_movies):
+        profile_url = None
+        if hasattr(u, 'profile'):
+            profile_url = u.profile.profile_image_url
+        stats_obj = UserActivityStats.objects.filter(user=u).first()
+        stats = {}
+        if stats_obj:
+            stats = {
+                'totalReviews': stats_obj.total_reviews,
+                'totalLists': stats_obj.total_lists,
+                'experiencePoints': stats_obj.experience_points,
+            }
+        return {
+            'id': str(u.id),
+            'firstName': u.first_name or u.username,
+            'lastName': u.last_name,
+            'profileImageUrl': profile_url,
+            'matchPercentage': round(similarity_score * 100),
+            'commonMovies': common_movies,
+            'stats': stats,
+        }
+
     def get(self, request, user_id):
         user = _get_user_flexible(user_id)
         if not user:
-            return Response({'similarUsers': []})
+            return Response([])
 
-        similarities = UserSimilarity.objects.filter(user1=user).select_related('user2').order_by('-similarity_score')[:10]
+        similarities = UserSimilarity.objects.filter(user1=user).select_related('user2', 'user2__profile').order_by('-similarity_score')[:10]
 
         if not similarities:
-            similar = User.objects.exclude(id=user.id).order_by('?')[:5]
-            return Response({
-                'similarUsers': [{
-                    'userId': str(u.id),
-                    'userName': u.first_name or u.email,
-                    'similarity': 0.5,
-                } for u in similar]
+            similar = User.objects.exclude(id=user.id).select_related('profile').order_by('?')[:5]
+            return Response([self._build_user_data(u, 0.5, 0) for u in similar])
+
+        return Response([
+            self._build_user_data(s.user2, s.similarity_score, s.common_movies)
+            for s in similarities
+        ])
+
+
+class UserSearchView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        q = request.query_params.get('q', '').strip()
+        try:
+            limit = min(int(request.query_params.get('limit', 10)), 50)
+        except (TypeError, ValueError):
+            limit = 10
+
+        if not q:
+            return Response([])
+
+        users = User.objects.filter(
+            models.Q(first_name__icontains=q) |
+            models.Q(last_name__icontains=q) |
+            models.Q(username__icontains=q)
+        ).select_related('profile')[:limit]
+
+        results = []
+        for u in users:
+            profile_url = None
+            if hasattr(u, 'profile'):
+                profile_url = u.profile.profile_image_url
+            stats_obj = UserActivityStats.objects.filter(user=u).first()
+            stats = {}
+            if stats_obj:
+                stats = {
+                    'totalReviews': stats_obj.total_reviews,
+                    'totalLists': stats_obj.total_lists,
+                    'totalFollowers': UserFollow.objects.filter(following=u).count(),
+                    'totalFollowing': UserFollow.objects.filter(follower=u).count(),
+                    'experiencePoints': stats_obj.experience_points,
+                    'userLevel': 1 + (stats_obj.experience_points // 100),
+                }
+            results.append({
+                'id': str(u.id),
+                'firstName': u.first_name,
+                'lastName': u.last_name,
+                'username': u.username,
+                'profileImageUrl': profile_url,
+                'stats': stats,
             })
 
-        return Response({
-            'similarUsers': [{
-                'userId': str(s.user2.id),
-                'userName': s.user2.first_name or s.user2.email,
-                'similarity': s.similarity_score,
-                'commonMovies': s.common_movies,
-            } for s in similarities]
-        })
+        return Response(results)
 
 
 class PersonalizedFeedView(APIView):

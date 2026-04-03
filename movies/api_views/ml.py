@@ -1,6 +1,4 @@
-import json as _json
 import logging
-from django.http import JsonResponse as _JsonResponse, HttpResponseBase
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -9,11 +7,13 @@ logger = logging.getLogger(__name__)
 
 
 def _to_response(result):
-    if isinstance(result, _JsonResponse):
-        data = _json.loads(result.content)
-        return Response(data, status=result.status_code)
+    from django.http import HttpResponseBase
     if isinstance(result, HttpResponseBase):
         return result
+    if isinstance(result, dict):
+        status = result.get('_status', 200)
+        data = {k: v for k, v in result.items() if k != '_status'}
+        return Response(data, status=status)
     return Response(result)
 
 

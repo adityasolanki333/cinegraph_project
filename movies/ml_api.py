@@ -6,11 +6,9 @@ Provides Python-based ML recommendation services
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from django.http import JsonResponse
 from django.contrib.auth.models import User
 from django.utils import timezone
 from .validation import error_response
-from .decorators import rate_limit
 from .models import (
     UserReview, ViewingHistory, UserWatchlist, UserFavorites,
     Recommendation, RecommendationMetrics, FeatureContribution
@@ -452,14 +450,14 @@ def get_hybrid_recommendations(request, user_id):
             except Exception as e:
                 logger.warning('Diversity engine failed (non-fatal): %s', e)
 
-        return JsonResponse({
+        return {
             "user_id": user_id,
             "recommendations": recommendations[:limit],
             "type": "hybrid",
             "count": len(recommendations[:limit]),
             "strategy": arm_chosen,
             "experiment_id": experiment_id,
-        })
+        }
 
     except Exception as e:
         import traceback
@@ -497,12 +495,12 @@ def get_collaborative_recommendations(request, user_id):
         except Exception as e:
             recommendations = []
 
-        return JsonResponse({
+        return {
             "user_id": user_id,
             "recommendations": recommendations,
             "type": "collaborative",
             "count": len(recommendations)
-        })
+        }
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
@@ -548,12 +546,12 @@ def get_similar_items(request, tmdb_id):
                     for item in result['results'][:limit]
                 ]
         
-        return JsonResponse({
+        return {
             "tmdb_id": tmdb_id,
             "media_type": media_type,
             "similar_items": similar_items,
             "count": len(similar_items)
-        })
+        }
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
@@ -599,17 +597,16 @@ def get_user_similarity(request, user_id):
         except Exception as e:
             similar_users = []
         
-        return JsonResponse({
+        return {
             "user_id": user_id,
             "similar_users": similar_users,
             "count": len(similar_users)
-        })
+        }
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@rate_limit()
 def semantic_search(request):
     """Semantic search for movies/TV shows with hybrid re-ranking"""
     if request.method not in ['POST', 'GET']:
@@ -714,14 +711,14 @@ def semantic_search(request):
 
                 search_time = time.time() - start_time
 
-                return JsonResponse({
+                return {
                     'results': formatted_results,
                     'query': query,
                     'count': len(formatted_results),
                     'totalMatches': len(formatted_results),
                     'searchTime': round(search_time, 3),
                     'searchMethod': search_method,
-                })
+                }
 
         search_method = "tfidf_local"
         from . import api
@@ -819,7 +816,7 @@ def semantic_search(request):
             
             search_time = time.time() - start_time
 
-            return JsonResponse({
+            return {
                 "query": query,
                 "results": formatted_results,
                 "totalMatches": len(formatted_results),
@@ -829,16 +826,16 @@ def semantic_search(request):
                     "originalQuery": query,
                     "filters": filters
                 }
-            })
+            }
 
-        return JsonResponse({
+        return {
             "query": query,
             "results": [],
             "totalMatches": 0,
             "searchTime": round(time.time() - start_time, 3),
             "searchMethod": search_method,
             "queryAnalysis": {"originalQuery": query, "filters": filters}
-        })
+        }
 
     except json.JSONDecodeError:
         return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
@@ -894,7 +891,7 @@ def get_recommendation_explanation(request, user_id, tmdb_id):
             context=context
         )
         
-        return JsonResponse(explainability_engine.to_dict(explanation))
+        return explainability_engine.to_dict(explanation)
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
@@ -911,16 +908,15 @@ def get_bandit_statistics(request, user_id):
         
         stats = contextual_bandit_engine.get_statistics(str(user_id))
         
-        return JsonResponse({
+        return {
             "user_id": user_id,
             "bandit_statistics": stats
-        })
+        }
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@rate_limit()
 def select_recommendation_arm(request, user_id):
     """Select a recommendation strategy using contextual bandits"""
     if request.method != 'POST':
@@ -954,14 +950,14 @@ def select_recommendation_arm(request, user_id):
             selection.exploration_rate
         )
         
-        return JsonResponse({
+        return {
             "user_id": user_id,
             "experiment_id": experiment_id,
             "arm_chosen": selection.arm_chosen,
             "sampled_reward": round(selection.sampled_reward, 4),
             "exploration_rate": round(selection.exploration_rate, 4),
             "all_arm_scores": selection.all_arm_scores
-        })
+        }
         
     except json.JSONDecodeError:
         return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
@@ -969,7 +965,6 @@ def select_recommendation_arm(request, user_id):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@rate_limit()
 def update_bandit_reward(request):
     """Update bandit experiment with user feedback reward"""
     if request.method != 'POST':
@@ -995,12 +990,12 @@ def update_bandit_reward(request):
         
         contextual_bandit_engine.update_reward(feedback)
         
-        return JsonResponse({
+        return {
             "experiment_id": experiment_id,
             "outcome_type": outcome_type,
             "calculated_reward": round(reward, 3),
             "status": "updated"
-        })
+        }
         
     except json.JSONDecodeError:
         return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
@@ -1008,7 +1003,6 @@ def update_bandit_reward(request):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@rate_limit()
 def apply_diversity(request):
     """Apply diversity algorithms to a list of recommendations"""
     if request.method != 'POST':
@@ -1057,7 +1051,7 @@ def apply_diversity(request):
         # Build a lookup map from the original candidates to restore metadata
         candidate_meta = {str(c.get('id', c.get('tmdb_id'))): c for c in candidates}
 
-        return JsonResponse({
+        return {
             "diversified_results": [
                 {
                     **candidate_meta.get(c.id, {}),
@@ -1077,7 +1071,7 @@ def apply_diversity(request):
                 "coverage_score": round(metrics.coverage_score, 4)
             },
             "count": len(diversified)
-        })
+        }
         
     except json.JSONDecodeError:
         return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
@@ -1098,11 +1092,11 @@ def get_diversity_metrics(request, user_id):
         history = ViewingHistory.objects.filter(user=user).order_by('-watched_at')[:50]
         
         if not history:
-            return JsonResponse({
+            return {
                 "user_id": user_id,
                 "metrics": None,
                 "message": "No viewing history found"
-            })
+            }
         
         candidates = []
         for item in history:
@@ -1119,7 +1113,7 @@ def get_diversity_metrics(request, user_id):
         
         metrics = diversity_engine.calculate_metrics(candidates, user_genre_preferences)
         
-        return JsonResponse({
+        return {
             "user_id": user_id,
             "metrics": {
                 "intra_diversity": round(metrics.intra_diversity, 4),
@@ -1129,7 +1123,7 @@ def get_diversity_metrics(request, user_id):
                 "coverage_score": round(metrics.coverage_score, 4)
             },
             "history_count": len(candidates)
-        })
+        }
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
@@ -1148,14 +1142,14 @@ def get_sentiment_analytics(request, tmdb_id):
         ).first()
         
         if not analytics:
-            return JsonResponse({
+            return {
                 "tmdb_id": tmdb_id,
                 "media_type": media_type,
                 "analytics": None,
                 "message": "No sentiment analytics found. Trigger an update first."
-            })
+            }
         
-        return JsonResponse({
+        return {
             "tmdb_id": tmdb_id,
             "media_type": media_type,
             "analytics": {
@@ -1166,13 +1160,12 @@ def get_sentiment_analytics(request, tmdb_id):
                 "neutral_count": analytics.neutral_count,
                 "last_updated": analytics.last_updated.isoformat() if analytics.last_updated else None
             }
-        })
+        }
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@rate_limit()
 def analyze_text_sentiment(request):
     """Analyze sentiment of arbitrary text"""
     if request.method != 'POST':
@@ -1189,7 +1182,7 @@ def analyze_text_sentiment(request):
         
         result = sentiment_analyzer.analyze_text(text)
         
-        return JsonResponse({
+        return {
             "text": text[:200] + "..." if len(text) > 200 else text,
             "sentiment": {
                 "score": round(result.score, 4),
@@ -1199,7 +1192,7 @@ def analyze_text_sentiment(request):
                 "negative": round(result.negative, 4),
                 "neutral": round(result.neutral, 4)
             }
-        })
+        }
         
     except json.JSONDecodeError:
         return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
@@ -1207,7 +1200,6 @@ def analyze_text_sentiment(request):
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@rate_limit()
 def update_sentiment_for_content(request, tmdb_id):
     """Trigger sentiment recalculation for a movie/TV show"""
     if request.method != 'POST':
@@ -1221,11 +1213,11 @@ def update_sentiment_for_content(request, tmdb_id):
         
         result = sentiment_analyzer.update_sentiment_analytics(tmdb_id, media_type)
         
-        return JsonResponse({
+        return {
             "tmdb_id": tmdb_id,
             "media_type": media_type,
             "result": result
-        })
+        }
         
     except json.JSONDecodeError:
         return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
@@ -1285,20 +1277,19 @@ def get_recommendation_history(request, user_id):
         
         total_count = Recommendation.objects.filter(user=user).count()
         
-        return JsonResponse({
+        return {
             "user_id": user_id,
             "recommendations": history,
             "count": len(history),
             "total_count": total_count,
             "offset": offset,
             "limit": limit
-        })
+        }
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@rate_limit()
 def log_recommendation_interaction(request):
     """Log recommendation interaction (clicked, watchlisted, rated_high, ignored, dismissed)"""
     if request.method != 'POST':
@@ -1319,9 +1310,9 @@ def log_recommendation_interaction(request):
         
         valid_interaction_types = ['clicked', 'watchlisted', 'rated_high', 'ignored', 'dismissed']
         if interaction_type not in valid_interaction_types:
-            return JsonResponse({
+            return {
                 "error": f"Invalid interaction_type. Must be one of: {', '.join(valid_interaction_types)}"
-            }, status=400)
+            , "_status": 400}
         
         user = User.objects.filter(id=user_id).first()
         if not user:
@@ -1462,7 +1453,7 @@ def log_recommendation_interaction(request):
         except Exception as e:
             bandit_result = {"error": str(e), "status": "skipped"}
         
-        return JsonResponse({
+        return {
             "recommendation_id": recommendation_id,
             "user_id": user_id,
             "interaction_type": interaction_type,
@@ -1471,7 +1462,7 @@ def log_recommendation_interaction(request):
             "effectiveness_score": metrics.effectiveness_score,
             "bandit_update": bandit_result,
             "status": "logged"
-        })
+        }
         
     except json.JSONDecodeError:
         return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
@@ -1488,7 +1479,7 @@ def get_global_feature_importance(request):
         
         result = explainability_engine.get_feature_importance(user_id)
         
-        return JsonResponse(result)
+        return result
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
@@ -1521,7 +1512,7 @@ def get_counterfactual_explanation(request, user_id, tmdb_id):
             media_type=media_type
         )
         
-        return JsonResponse(result)
+        return result
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
@@ -1546,13 +1537,12 @@ def get_local_explanation(request, user_id, tmdb_id):
             num_permutations=num_permutations
         )
         
-        return JsonResponse(result)
+        return result
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
-@rate_limit()
 def calibrate_confidence(request):
     """Calibrate confidence scores based on historical accuracy"""
     if request.method != 'POST':
@@ -1570,7 +1560,7 @@ def calibrate_confidence(request):
             min_samples=min_samples
         )
         
-        return JsonResponse(result)
+        return result
         
     except json.JSONDecodeError:
         return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
@@ -1590,7 +1580,7 @@ def get_viewing_patterns(request, user_id):
         pattern_summary = viewing_pattern_analyzer.get_pattern_summary(user_id)
         result = viewing_pattern_analyzer.to_dict(pattern_summary)
         
-        return JsonResponse(result)
+        return result
         
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
@@ -1726,12 +1716,12 @@ def get_similar_movies_semantic(request, tmdb_id):
             except Exception:
                 pass
 
-        return JsonResponse({
+        return {
             "tmdb_id": tmdb_id,
             "media_type": media_type,
             "similar_items": similar_items,
             "count": len(similar_items),
-        })
+        }
 
     except Exception as e:
         return error_response(str(e), "INTERNAL_ERROR", 500)
