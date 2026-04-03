@@ -423,11 +423,14 @@ export default function TVShowDetailsPage() {
                     onError={(e) => {
                       // Fallback if image fails to load
                       e.currentTarget.style.display = 'none';
-                      e.currentTarget.parentElement!.innerHTML = `
-                        <div class="w-full h-full flex items-center justify-center">
-                          <span class="text-sm text-center p-4">${tvShow.name}</span>
-                        </div>
-                      `;
+                      const parent = e.currentTarget.parentElement!;
+                      const wrapper = document.createElement('div');
+                      wrapper.className = 'w-full h-full flex items-center justify-center';
+                      const label = document.createElement('span');
+                      label.className = 'text-sm text-center p-4';
+                      label.textContent = tvShow.name;
+                      wrapper.appendChild(label);
+                      parent.appendChild(wrapper);
                     }}
                   />
                 ) : (
