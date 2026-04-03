@@ -839,100 +839,96 @@ export default function TVShowDetailsPage() {
                     </Card>
                   )}
 
-                  {/* Sentiment Analysis */}
+                  {/* Audience Sentiment + TMDB Reviews (combined) */}
                   {sentimentData?.summary && (sentimentData.summary.totalReviews > 0 || (sentimentData as any).sources?.tmdb > 0) && (
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <TrendingUp className="h-5 w-5" />
                           Audience Sentiment
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">Overall Sentiment</span>
-                            <span className="text-sm">{sentimentData.summary.avgScore.toFixed(2)}</span>
-                          </div>
-                          <Progress
-                            value={(sentimentData.summary.avgScore + 1) * 50}
-                            className="w-full"
-                          />
-
-                          <div className="grid grid-cols-3 gap-4 text-center">
-                            <div className="space-y-1">
-                              <div className="text-green-600 font-medium text-2xl">
-                                😊 {sentimentData.summary.distribution.positive}
-                              </div>
-                              <div className="text-xs text-muted-foreground">Positive</div>
-                            </div>
-                            <div className="space-y-1">
-                              <div className="text-gray-600 font-medium text-2xl">
-                                😐 {sentimentData.summary.distribution.neutral}
-                              </div>
-                              <div className="text-xs text-muted-foreground">Neutral</div>
-                            </div>
-                            <div className="space-y-1">
-                              <div className="text-red-600 font-medium text-2xl">
-                                😞 {sentimentData.summary.distribution.negative}
-                              </div>
-                              <div className="text-xs text-muted-foreground">Negative</div>
-                            </div>
-                          </div>
-
-                          {sentimentData.insights && Array.isArray(sentimentData.insights) && sentimentData.insights.length > 0 && (
-                            <div className="mt-4 p-4 bg-muted rounded-lg">
-                              <div className="space-y-2">
-                                {sentimentData.insights.map((insight: string, index: number) => (
-                                  <p key={index} className="text-sm text-muted-foreground flex items-start gap-2">
-                                    <span className="text-accent mt-0.5">•</span>
-                                    <span>{insight}</span>
-                                  </p>
-                                ))}
-                              </div>
-                            </div>
+                          {(sentimentData as any).sources?.tmdb > 0 && (
+                            <Badge variant="secondary" className="ml-auto text-xs">
+                              {(sentimentData as any).sources.tmdb} TMDB reviews
+                            </Badge>
                           )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* TMDB Reviews with Sentiment */}
-                  {(sentimentData as any)?.reviews?.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-base">
-                          <MessageSquare className="h-5 w-5 text-primary" />
-                          TMDB Critic Reviews
-                          <Badge variant="secondary" className="ml-auto text-xs">
-                            {(sentimentData as any).reviews.length} reviews analyzed
-                          </Badge>
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        {(sentimentData as any).reviews.map((rev: any) => (
-                          <div key={rev.id} className="border rounded-lg p-4 space-y-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-sm">{rev.author}</span>
-                                {rev.authorRating && (
-                                  <Badge variant="outline" className="text-xs gap-1">
-                                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                    {rev.authorRating}/10
-                                  </Badge>
-                                )}
-                              </div>
-                              <Badge
-                                variant={rev.sentiment === "positive" ? "default" : rev.sentiment === "negative" ? "destructive" : "secondary"}
-                                className="text-xs capitalize shrink-0"
-                                data-testid={`badge-sentiment-${rev.id}`}
-                              >
-                                {rev.sentiment === "positive" ? "😊" : rev.sentiment === "negative" ? "😞" : "😐"} {rev.sentiment}
-                              </Badge>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Overall Sentiment</span>
+                          <span className="text-sm">{sentimentData.summary.avgScore.toFixed(2)}</span>
+                        </div>
+                        <Progress
+                          value={(sentimentData.summary.avgScore + 1) * 50}
+                          className="w-full"
+                        />
+
+                        <div className="grid grid-cols-3 gap-4 text-center">
+                          <div className="space-y-1">
+                            <div className="text-green-600 font-medium text-2xl">
+                              😊 {sentimentData.summary.distribution.positive}
                             </div>
-                            <p className="text-sm text-muted-foreground leading-relaxed">{rev.content}</p>
+                            <div className="text-xs text-muted-foreground">Positive</div>
                           </div>
-                        ))}
+                          <div className="space-y-1">
+                            <div className="text-gray-600 font-medium text-2xl">
+                              😐 {sentimentData.summary.distribution.neutral}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Neutral</div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-red-600 font-medium text-2xl">
+                              😞 {sentimentData.summary.distribution.negative}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Negative</div>
+                          </div>
+                        </div>
+
+                        {sentimentData.insights && Array.isArray(sentimentData.insights) && sentimentData.insights.length > 0 && (
+                          <div className="p-4 bg-muted rounded-lg">
+                            <div className="space-y-2">
+                              {sentimentData.insights.map((insight: string, index: number) => (
+                                <p key={index} className="text-sm text-muted-foreground flex items-start gap-2">
+                                  <span className="text-accent mt-0.5">•</span>
+                                  <span>{insight}</span>
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {(sentimentData as any)?.reviews?.length > 0 && (
+                          <div className="space-y-3 pt-2">
+                            <Separator />
+                            <p className="text-sm font-medium flex items-center gap-2">
+                              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                              TMDB Critic Reviews
+                            </p>
+                            {(sentimentData as any).reviews.map((rev: any) => (
+                              <div key={rev.id} className="border rounded-lg p-3 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-sm">{rev.author}</span>
+                                    {rev.authorRating && (
+                                      <Badge variant="outline" className="text-xs gap-1">
+                                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                        {rev.authorRating}/10
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <Badge
+                                    variant={rev.sentiment === "positive" ? "default" : rev.sentiment === "negative" ? "destructive" : "secondary"}
+                                    className="text-xs capitalize shrink-0"
+                                    data-testid={`badge-sentiment-${rev.id}`}
+                                  >
+                                    {rev.sentiment === "positive" ? "😊" : rev.sentiment === "negative" ? "😞" : "😐"} {rev.sentiment}
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground leading-relaxed">{rev.content}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   )}

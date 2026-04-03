@@ -647,7 +647,7 @@ export default function Home() {
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h3 className="text-base sm:text-lg font-semibold">
-                    Perfect {mediaType === 'movie' ? 'movies' : 'TV shows'} for your {moodOptions.find(m => m.id === selectedMood)?.label.toLowerCase()} mood:
+                    Latest {mediaType === 'movie' ? 'movies' : 'TV shows'} for your {moodOptions.find(m => m.id === selectedMood)?.label.toLowerCase()} mood:
                   </h3>
                   <Button
                     variant="outline"

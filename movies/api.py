@@ -159,6 +159,8 @@ MOOD_GENRE_MAP = {
 @require_GET
 def mood_recommendations(request, mood):
     import random
+    from datetime import date, timedelta
+
     genre_ids = MOOD_GENRE_MAP.get(mood, [])
     media_type = request.GET.get('type', 'movie')
     seed = int(request.GET.get('seed', 0))
@@ -167,16 +169,36 @@ def mood_recommendations(request, mood):
         return JsonResponse({"recommendations": []})
 
     genre_str = ','.join(map(str, genre_ids[:2]))
-    endpoint = "/discover/movie" if media_type == 'movie' else "/discover/tv"
+    is_movie = media_type == 'movie'
+    endpoint = "/discover/movie" if is_movie else "/discover/tv"
+
+    today = date.today().isoformat()
+    two_years_ago = (date.today() - timedelta(days=730)).isoformat()
 
     page = (seed % 5) + 1
-    data = tmdb_request(endpoint, {
-        "with_genres": genre_str,
-        "sort_by": "popularity.desc",
-        "page": page
-    })
 
-    results = data.get("results", [])
+    if is_movie:
+        params = {
+            "with_genres": genre_str,
+            "sort_by": "primary_release_date.desc",
+            "primary_release_date.gte": two_years_ago,
+            "primary_release_date.lte": today,
+            "vote_count.gte": 50,
+            "page": page,
+        }
+    else:
+        params = {
+            "with_genres": genre_str,
+            "sort_by": "first_air_date.desc",
+            "first_air_date.gte": two_years_ago,
+            "first_air_date.lte": today,
+            "vote_count.gte": 20,
+            "page": page,
+        }
+
+    data = tmdb_request(endpoint, params)
+    results = data.get("results", []) if data else []
+
     rng = random.Random(seed)
     rng.shuffle(results)
 
