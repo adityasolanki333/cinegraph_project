@@ -152,7 +152,7 @@ export default function ClubDetails() {
                     <img
                         src={club.cover_image_url}
                         alt={club.title}
-                        className="w-full h-56 sm:h-72 object-cover"
+                        className="w-full h-56 sm:h-72 object-contain"
                     />
                 ) : (
                     <div className="w-full h-56 sm:h-72 bg-gradient-to-r from-primary/20 to-primary/10" />

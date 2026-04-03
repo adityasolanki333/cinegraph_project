@@ -208,7 +208,7 @@ export default function ClubsList() {
                                     <img
                                         src={club.cover_image_url}
                                         alt={club.title}
-                                        className="w-full h-full object-cover transition-transform hover:scale-105"
+                                        className="w-full h-full object-contain transition-transform hover:scale-105"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-secondary">
