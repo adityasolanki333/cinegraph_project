@@ -550,7 +550,7 @@ def ai_chat(request):
     user = request.user if request.user.is_authenticated else None
     
     try:
-        data = json.loads(request.body)
+        data = request.data if isinstance(request.data, dict) else json.loads(request.data)
         user_message = data.get('message', '').strip()
         conversation_history = data.get('history', [])
 
@@ -639,7 +639,7 @@ def ai_chat_stream(request):
     user = request.user if request.user.is_authenticated else None
     
     try:
-        data = json.loads(request.body)
+        data = request.data if isinstance(request.data, dict) else json.loads(request.data)
         user_message = data.get('message', '').strip()
         conversation_history = data.get('history', [])
 
@@ -762,7 +762,7 @@ def save_preferences(request):
         return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     try:
-        data = json.loads(request.body)
+        data = request.data if isinstance(request.data, dict) else json.loads(request.data)
 
         prefs, _ = UserPreferences.objects.get_or_create(user=request.user)
 
@@ -957,7 +957,7 @@ def explain_with_gemini(request):
     params = request.GET
     if request.method == 'POST':
         try:
-            body = json.loads(request.body) if request.body else {}
+            body = request.data if isinstance(request.data, dict) else (json.loads(request.data) if request.data else {})
             params = body
         except (json.JSONDecodeError, ValueError):
             params = request.GET

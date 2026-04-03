@@ -101,6 +101,7 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 - `TMDB_API_KEY` - Required for movie data
 - `GEMINI_API_KEY` - For AI recommendations
 - `RAPIDAPI_KEY` - For YouTube integration
+- `DEBUG` - Set to `True` in development (defaults to `False`; when False, enables SECURE_SSL_REDIRECT/HSTS which breaks the dev server)
 
 ## Running the App
 - Django backend: `python manage.py runserver 0.0.0.0:8000`

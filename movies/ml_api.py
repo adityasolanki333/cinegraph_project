@@ -620,7 +620,7 @@ def semantic_search(request):
     
     try:
         if request.method == 'POST':
-            body = json.loads(request.body)
+            body = request.data if isinstance(request.data, dict) else json.loads(request.data)
             query = body.get('query', '')
             limit = min(body.get('limit', 20), 100)
             filters = body.get('filters', {})
@@ -931,7 +931,7 @@ def select_recommendation_arm(request, user_id):
         if not user:
             return error_response("User not found", "NOT_FOUND", 404)
         
-        body = json.loads(request.body) if request.body else {}
+        body = request.data if isinstance(request.data, dict) else (json.loads(request.data) if request.data else {})
         session_duration = body.get('session_duration', 0)
         device_type = body.get('device_type')
         mood = body.get('mood')
@@ -976,7 +976,7 @@ def update_bandit_reward(request):
         return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
-        body = json.loads(request.body)
+        body = request.data if isinstance(request.data, dict) else json.loads(request.data)
         experiment_id = body.get('experiment_id')
         outcome_type = body.get('outcome_type')
         
@@ -1015,7 +1015,7 @@ def apply_diversity(request):
         return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
-        body = json.loads(request.body)
+        body = request.data if isinstance(request.data, dict) else json.loads(request.data)
         candidates = body.get('candidates', [])
         config = body.get('config', {})
         user_genre_preferences = body.get('user_genre_preferences', [])
@@ -1179,7 +1179,7 @@ def analyze_text_sentiment(request):
         return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
-        body = json.loads(request.body)
+        body = request.data if isinstance(request.data, dict) else json.loads(request.data)
         text = body.get('text', '')
         
         if not text:
@@ -1214,7 +1214,7 @@ def update_sentiment_for_content(request, tmdb_id):
         return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
-        body = json.loads(request.body) if request.body else {}
+        body = request.data if isinstance(request.data, dict) else (json.loads(request.data) if request.data else {})
         media_type = body.get('media_type', 'movie')
         
         from .ml.sentiment_analyzer import sentiment_analyzer
@@ -1305,7 +1305,7 @@ def log_recommendation_interaction(request):
         return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
-        body = json.loads(request.body)
+        body = request.data if isinstance(request.data, dict) else json.loads(request.data)
         recommendation_id = body.get('recommendation_id')
         user_id = body.get('user_id')
         interaction_type = body.get('interaction_type')
@@ -1559,7 +1559,7 @@ def calibrate_confidence(request):
         return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
-        body = json.loads(request.body) if request.body else {}
+        body = request.data if isinstance(request.data, dict) else (json.loads(request.data) if request.data else {})
         user_id = body.get('user_id')
         min_samples = body.get('min_samples', 10)
         
