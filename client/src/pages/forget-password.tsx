@@ -10,7 +10,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { useTranslation } from "react-i18next";
 
-export default function ForgotPassword() {
+export default function ForgetPassword() {
     const { t } = useTranslation();
 
     usePageMeta({
@@ -40,7 +40,7 @@ export default function ForgotPassword() {
         setIsLoading(true);
 
         try {
-            const response = await apiRequest("POST", "/api/auth/forgot-password", { email });
+            const response = await apiRequest("POST", "/api/auth/forget-password", { email });
             const data = await response.json();
 
             if (response.ok) {

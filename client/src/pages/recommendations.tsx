@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { getCsrfToken } from "@/lib/queryClient";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -354,8 +354,7 @@ export default function Recommendations() {
       try {
         const banditResp = await fetch(`/api/ml/bandit/${user?.id}/select`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
           body: JSON.stringify({ mood: selectedMood })
         });
         if (banditResp.ok) {
@@ -392,8 +391,7 @@ export default function Recommendations() {
         try {
           const divResp = await fetch(`/api/ml/diversity/apply`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
             body: JSON.stringify({
               candidates: recs,
               config: {

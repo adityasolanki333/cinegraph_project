@@ -4,11 +4,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import serializers
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from django.middleware.csrf import get_token
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import ensure_csrf_cookie
+from rest_framework_simplejwt.tokens import RefreshToken
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +23,7 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField()
 
 
-class ForgotPasswordSerializer(serializers.Serializer):
+class ForgetPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
 
@@ -44,12 +42,12 @@ def _user_dict(user):
     }
 
 
-@method_decorator(ensure_csrf_cookie, name='dispatch')
-class CsrfTokenView(APIView):
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        return Response({'csrfToken': get_token(request)})
+def _get_tokens_for_user(user):
+    refresh = RefreshToken.for_user(user)
+    return {
+        'access': str(refresh.access_token),
+        'refresh': str(refresh),
+    }
 
 
 class RegisterView(APIView):
@@ -81,8 +79,8 @@ class RegisterView(APIView):
             username=email, email=email, password=password,
             first_name=first_name, last_name=last_name
         )
-        login(request, user)
-        return Response({'success': True, 'user': _user_dict(user)})
+        tokens = _get_tokens_for_user(user)
+        return Response({'success': True, 'user': _user_dict(user), 'tokens': tokens})
 
 
 class LoginView(APIView):
@@ -98,8 +96,8 @@ class LoginView(APIView):
             password=serializer.validated_data['password']
         )
         if user is not None:
-            login(request, user)
-            return Response({'success': True, 'user': _user_dict(user)})
+            tokens = _get_tokens_for_user(user)
+            return Response({'success': True, 'user': _user_dict(user), 'tokens': tokens})
         return Response({'error': 'Invalid email or password', 'code': 'AUTH_REQUIRED'}, status=401)
 
 
@@ -107,35 +105,44 @@ class LogoutView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        logout(request)
         return Response({'success': True})
 
 
-@method_decorator(ensure_csrf_cookie, name='dispatch')
-class MeView(APIView):
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        if request.user.is_authenticated:
-            user = request.user
-            return Response({
-                'user': {
-                    'id': str(user.id),
-                    'email': user.email,
-                    'username': user.username,
-                    'firstName': user.first_name,
-                    'lastName': user.last_name,
-                    'createdAt': user.date_joined.isoformat(),
-                }
-            })
-        return Response({'error': 'Not authenticated', 'code': 'AUTH_REQUIRED'}, status=401)
-
-
-class ForgotPasswordView(APIView):
+class TokenRefreshView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = ForgotPasswordSerializer(data=request.data)
+        from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+        serializer = TokenRefreshSerializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+            return Response(serializer.validated_data)
+        except Exception:
+            return Response({'error': 'Invalid or expired refresh token', 'code': 'AUTH_REQUIRED'}, status=401)
+
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            'user': {
+                'id': str(user.id),
+                'email': user.email,
+                'username': user.username,
+                'firstName': user.first_name,
+                'lastName': user.last_name,
+                'createdAt': user.date_joined.isoformat(),
+            }
+        })
+
+
+class ForgetPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ForgetPasswordSerializer(data=request.data)
         if not serializer.is_valid():
             return Response({'error': serializer.errors, 'code': 'VALIDATION_ERROR'}, status=400)
 
@@ -225,7 +232,6 @@ class DeleteAccountView(APIView):
                 UserCommunity.objects.filter(user=user).delete()
                 DiversityMetrics.objects.filter(user=user).delete()
 
-                logout(request)
                 user.delete()
 
             return Response({'success': True, 'message': 'Account permanently deleted'})

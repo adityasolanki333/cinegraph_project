@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getCsrfToken } from '@/lib/queryClient';
+import { getAuthHeaders } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -186,9 +186,8 @@ export function AdvancedRecommendations() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrfToken(),
+          ...getAuthHeaders(),
         },
-        credentials: 'include',
         body: JSON.stringify({
           query: lastSearchedQuery,
           limit: 20,

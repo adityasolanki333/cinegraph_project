@@ -25,7 +25,7 @@ const Settings = lazy(() => import("@/pages/settings"));
 const MovieDetails = lazy(() => import("@/pages/movie-details"));
 const TVShowDetails = lazy(() => import("@/pages/tv-show-details"));
 const Login = lazy(() => import("@/pages/login"));
-const ForgotPassword = lazy(() => import("@/pages/forgot-password"));
+const ForgetPassword = lazy(() => import("@/pages/forget-password"));
 const Community = lazy(() => import("@/pages/community"));
 const ClubsList = lazy(() => import("@/pages/community/clubs-list"));
 const ClubDetails = lazy(() => import("@/pages/community/club-details"));
@@ -88,8 +88,8 @@ function Router() {
             <Route path="/movie/:id" component={MovieDetails} />
             <Route path="/tv/:id" component={TVShowDetails} />
             <Route path="/login" component={Login} />
-            <Route path="/forgot-password" component={ForgotPassword} />
-            <Route path="/reset-password" component={ForgotPassword} />
+            <Route path="/forget-password" component={ForgetPassword} />
+            <Route path="/reset-password" component={ForgetPassword} />
             <Route component={NotFound} />
           </Switch>
         </Suspense>

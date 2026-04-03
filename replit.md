@@ -132,10 +132,22 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
   - Frontend: Added 24 Vitest + React Testing Library tests covering page smoke tests, hooks (useAuth, useWatchlist), and queryClient
   - Implemented proper TypeScript interfaces in mock factories, replacing `any` casts
   - ML pipeline tests cover RecommendationEngine, BanditEngine, DiversityEngine, SignalAggregator, and FeedbackService
+- April 3, 2026: JWT Auth & Forget Password Rename
+  - Switched from session-based to JWT-based authentication using djangorestframework-simplejwt
+  - Login and register endpoints now return JWT access/refresh tokens instead of session cookies
+  - Added token refresh endpoint at /api/auth/token/refresh
+  - All frontend API requests use Authorization: Bearer header instead of cookies/CSRF tokens
+  - Removed all CSRF token handling from frontend (getCsrfToken, ensureCsrfToken, X-CSRFToken headers, /api/auth/csrf endpoint)
+  - Removed credentials: 'include' from all fetch calls
+  - Automatic token refresh on 401 responses built into queryClient
+  - Tokens stored in localStorage for persistence across tabs
+  - Renamed all "Forgot Password" → "Forget Password" (URL routes, page titles, link text, view classes, serializers)
+  - File renamed: forgot-password.tsx → forget-password.tsx, route /forgot-password → /forget-password
+  - Backend: ForgotPasswordView → ForgetPasswordView, ForgotPasswordSerializer → ForgetPasswordSerializer
 - April 3, 2026: Complete DRF Migration — All Endpoints Now Class-Based Views
   - Migrated ALL remaining legacy Django function views to DRF APIView classes
   - Created api_views/tmdb.py with TMDBProxyView base class eliminating ~40 duplicate functions
-  - Created api_views/auth.py (7 endpoints: CSRF, register, login, logout, me, forgot/reset password)
+  - Created api_views/auth.py (6 endpoints: register, login, logout, me, forget/reset password, token refresh)
   - Created api_views/external.py (4 endpoints: YouTube search/videos, movie ratings, streaming data)
   - Created api_views/analytics.py (6 endpoints: user engagement, content stats, popular, tracking, platform)
   - Stripped api.py down to service helpers (tmdb_request/post/delete) — no view functions

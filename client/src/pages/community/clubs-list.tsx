@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getCsrfToken } from "@/lib/queryClient";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -66,9 +66,8 @@ export default function ClubsList() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken(),
+                    ...getAuthHeaders(),
                 },
-                credentials: 'include',
                 body: JSON.stringify(data),
             });
 

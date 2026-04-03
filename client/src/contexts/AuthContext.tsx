@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { getAuthToken, getAuthHeaders, clearTokens, getRefreshToken, setTokens } from "@/lib/queryClient";
 
 interface User {
   id: string;
@@ -37,11 +38,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return pendingFetch;
     }
 
+    const token = getAuthToken();
+    if (!token) {
+      setAuthState({
+        user: null,
+        isLoading: false,
+        isAuthenticated: false,
+      });
+      return;
+    }
+
     pendingFetch = (async () => {
       try {
-        const response = await fetch('/api/auth/me', {
-          credentials: 'include',
+        let response = await fetch('/api/auth/me', {
+          headers: {
+            ...getAuthHeaders(),
+          },
         });
+
+        if (response.status === 401) {
+          const refreshToken = getRefreshToken();
+          if (refreshToken) {
+            try {
+              const refreshResponse = await fetch('/api/auth/token/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh: refreshToken }),
+              });
+              if (refreshResponse.ok) {
+                const refreshData = await refreshResponse.json();
+                setTokens(refreshData.access, refreshData.refresh || refreshToken);
+                response = await fetch('/api/auth/me', {
+                  headers: { ...getAuthHeaders() },
+                });
+              } else {
+                clearTokens();
+              }
+            } catch {
+              clearTokens();
+            }
+          }
+        }
 
         if (response.ok || response.status === 304) {
           const data = await response.json();

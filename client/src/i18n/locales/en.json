@@ -218,7 +218,7 @@
     "emailPlaceholder": "Enter your email",
     "password": "Password",
     "passwordPlaceholder": "Enter your password",
-    "forgotPassword": "Forgot password?",
+    "forgotPassword": "Forget password?",
     "firstName": "First Name",
     "firstNamePlaceholder": "Enter your first name",
     "lastName": "Last Name",
@@ -239,7 +239,7 @@
   },
   "forgotPassword": {
     "title": "Reset Password",
-    "forgotTitle": "Forgot Password",
+    "forgotTitle": "Forget Password",
     "forgotDesc": "Enter your email address and we'll send you a password reset link.",
     "resetTitle": "Reset Your Password",
     "resetDesc": "Enter your new password below.",

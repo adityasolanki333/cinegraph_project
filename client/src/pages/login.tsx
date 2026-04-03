@@ -186,7 +186,7 @@ export default function Login() {
               />
               {!isSignUp && (
                 <div className="text-right">
-                  <Link href="/forgot-password">
+                  <Link href="/forget-password">
                     <span className="text-xs text-muted-foreground hover:text-primary cursor-pointer font-medium">
                       {t("login.forgotPassword")}
                     </span>

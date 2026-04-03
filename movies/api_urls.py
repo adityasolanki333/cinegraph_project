@@ -14,13 +14,13 @@ from .api_views import ml as ml_views
 from .api_views import clubs as clubs_views
 
 urlpatterns = [
-    path('auth/csrf', auth_views.CsrfTokenView.as_view(), name='api_csrf'),
     path('auth/register', auth_views.RegisterView.as_view(), name='api_register'),
     path('auth/login', auth_views.LoginView.as_view(), name='api_login'),
     path('auth/logout', auth_views.LogoutView.as_view(), name='api_logout'),
     path('auth/me', auth_views.MeView.as_view(), name='api_me'),
+    path('auth/token/refresh', auth_views.TokenRefreshView.as_view(), name='api_token_refresh'),
     path('auth/delete-account', auth_views.DeleteAccountView.as_view(), name='api_delete_account'),
-    path('auth/forgot-password', auth_views.ForgotPasswordView.as_view(), name='api_forgot_password'),
+    path('auth/forget-password', auth_views.ForgetPasswordView.as_view(), name='api_forget_password'),
     path('auth/reset-password', auth_views.ResetPasswordView.as_view(), name='api_reset_password'),
 
     path('tmdb/trending', tmdb_views.TrendingView.as_view(), name='api_trending'),

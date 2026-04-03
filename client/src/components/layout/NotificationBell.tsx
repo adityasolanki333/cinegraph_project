@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Bell } from "lucide-react";
@@ -27,7 +28,7 @@ export function NotificationBell() {
     queryKey: ['/api/community/notifications', 'bell'],
     queryFn: async () => {
       const response = await fetch('/api/community/notifications?limit=10', {
-        credentials: "include",
+        headers: { ...getAuthHeaders() },
       });
       if (!response.ok) throw new Error('Failed to fetch notifications');
       return response.json();

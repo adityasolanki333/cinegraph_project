@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { usePageMeta } from "@/hooks/usePageMeta";
@@ -157,7 +158,7 @@ export default function ListDetail() {
   }>({
     queryKey: ['/api/community/lists', listId],
     queryFn: async () => {
-      const res = await fetch(`/api/community/lists/${listId}`, { credentials: 'include' });
+      const res = await fetch(`/api/community/lists/${listId}`, { headers: { ...getAuthHeaders() } });
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
       // Backend returns { list: {...} } — unwrap it
@@ -169,7 +170,7 @@ export default function ListDetail() {
   const { data: followData, isLoading: isFollowingLoading } = useQuery<{ isFollowing: boolean }>({
     queryKey: ['/api/community/lists', listId, 'is-following'],
     queryFn: async () => {
-      const res = await fetch(`/api/community/lists/${listId}/is-following`, { credentials: 'include' });
+      const res = await fetch(`/api/community/lists/${listId}/is-following`, { headers: { ...getAuthHeaders() } });
       if (!res.ok) return { isFollowing: false };
       return res.json();
     },

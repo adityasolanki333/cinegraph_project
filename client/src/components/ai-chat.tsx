@@ -46,17 +46,7 @@ const quickSuggestions = [
   { label: "💎 Hidden Gems", query: "underrated movies I should watch" },
 ];
 
-function getCsrfToken(): string {
-  const name = "csrftoken";
-  const cookies = document.cookie.split(";");
-  for (const cookie of cookies) {
-    const trimmed = cookie.trim();
-    if (trimmed.startsWith(name + "=")) {
-      return decodeURIComponent(trimmed.substring(name.length + 1));
-    }
-  }
-  return "";
-}
+import { getAuthHeaders } from "@/lib/queryClient";
 
 export default function AIChat({ className }: AIChatProps) {
   const { user } = useAuth();
@@ -176,9 +166,9 @@ export default function AIChat({ className }: AIChatProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrfToken(),
+          ...getAuthHeaders(),
         },
-        credentials: 'include',
+
         body: JSON.stringify({
           message: userInput,
           userId: user?.id ? String(user.id) : undefined,
@@ -340,9 +330,9 @@ export default function AIChat({ className }: AIChatProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrfToken(),
+          ...getAuthHeaders(),
         },
-        credentials: 'include',
+
         body: JSON.stringify({
           message: userInput,
           userId: user?.id ? String(user.id) : undefined,

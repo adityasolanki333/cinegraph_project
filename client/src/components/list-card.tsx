@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,7 @@ export function ListCard({ list, showAuthor = true }: ListCardProps) {
   const { data: followData, isLoading: isFollowingLoading } = useQuery<{ isFollowing: boolean }>({
     queryKey: ['/api/community/lists', list.id, 'is-following'],
     queryFn: async () => {
-      const res = await fetch(`/api/community/lists/${list.id}/is-following`, { credentials: 'include' });
+      const res = await fetch(`/api/community/lists/${list.id}/is-following`, { headers: { ...getAuthHeaders() } });
       if (!res.ok) return { isFollowing: false };
       return res.json();
     },

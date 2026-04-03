@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,7 @@ export default function NotificationsPage() {
       }
 
       const response = await fetch(`/api/community/notifications?${params}`, {
-        credentials: "include",
+        headers: { ...getAuthHeaders() },
       });
       if (!response.ok) throw new Error('Failed to fetch notifications');
       return response.json();

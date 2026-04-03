@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getCsrfToken } from "@/lib/queryClient";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
@@ -105,8 +105,7 @@ export function OnboardingWizard() {
         ...likedMovies.map(movie =>
           fetch(`/api/users/${user?.id}/favorites/add`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
-            credentials: "include",
+            headers: { "Content-Type": "application/json", ...getAuthHeaders() },
             body: JSON.stringify({
               tmdbId: movie.id,
               mediaType: "movie",
@@ -118,8 +117,7 @@ export function OnboardingWizard() {
         ...dislikedMovies.map(movie =>
           fetch(`/api/users/${user?.id}/reviews/add`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
-            credentials: "include",
+            headers: { "Content-Type": "application/json", ...getAuthHeaders() },
             body: JSON.stringify({
               tmdbId: movie.id,
               mediaType: "movie",

@@ -1,41 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-describe("getCsrfToken", () => {
+describe("getAuthToken", () => {
   beforeEach(() => {
-    Object.defineProperty(document, "cookie", {
-      writable: true,
-      configurable: true,
-      value: "",
-    });
+    localStorage.clear();
   });
 
-  it("extracts csrftoken from cookies", async () => {
-    document.cookie = "csrftoken=abc123; othercookie=xyz";
-    const { getCsrfToken } = await import("@/lib/queryClient");
-    expect(getCsrfToken()).toBe("abc123");
+  it("returns token from localStorage", async () => {
+    localStorage.setItem("auth_access_token", "test-jwt-token");
+    const { getAuthToken } = await import("@/lib/queryClient");
+    expect(getAuthToken()).toBe("test-jwt-token");
   });
 
-  it("returns empty string when no csrftoken present", async () => {
-    document.cookie = "othercookie=xyz";
-    const { getCsrfToken } = await import("@/lib/queryClient");
-    expect(getCsrfToken()).toBe("");
-  });
-
-  it("handles url-encoded csrftoken value", async () => {
-    document.cookie = "csrftoken=abc%20def";
-    const { getCsrfToken } = await import("@/lib/queryClient");
-    expect(getCsrfToken()).toBe("abc def");
+  it("returns null when no token present", async () => {
+    const { getAuthToken } = await import("@/lib/queryClient");
+    expect(getAuthToken()).toBeNull();
   });
 });
 
 describe("apiRequest", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    Object.defineProperty(document, "cookie", {
-      writable: true,
-      configurable: true,
-      value: "csrftoken=testtoken",
-    });
+    localStorage.clear();
+    localStorage.setItem("auth_access_token", "testtoken");
   });
 
   it("throws on non-ok response", async () => {
@@ -63,7 +49,7 @@ describe("apiRequest", () => {
     expect(url).toBe("/api/test");
     expect(options?.method).toBe("POST");
     expect(options?.body).toBe(JSON.stringify({ key: "value" }));
-    expect(options?.headers).toHaveProperty("X-CSRFToken", "testtoken");
+    expect(options?.headers).toHaveProperty("Authorization", "Bearer testtoken");
   });
 
   it("returns Response object on success", async () => {

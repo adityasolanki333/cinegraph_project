@@ -1,3 +1,4 @@
+import { getAuthHeaders } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +49,7 @@ export function SimilarLists({ listId }: SimilarListsProps) {
   const { data: similarLists, isLoading, isError, error } = useQuery<SimilarList[]>({
     queryKey: ['/api/community/lists', listId, 'similar'],
     queryFn: async () => {
-      const res = await fetch(`/api/community/lists/${listId}/similar`, { credentials: 'include' });
+      const res = await fetch(`/api/community/lists/${listId}/similar`, { headers: { ...getAuthHeaders() } });
       if (!res.ok) return [];
       return res.json();
     },

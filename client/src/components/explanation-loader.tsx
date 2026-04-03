@@ -1,5 +1,5 @@
 import React from 'react';
-import { getCsrfToken } from '@/lib/queryClient';
+import { getAuthHeaders } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
 import { ExplanationVisualizer } from './explanation-visualizer';
 import { useAuth } from '@/hooks/useAuth';
@@ -27,8 +27,7 @@ export function ExplanationLoader({ movieId, mediaType, initialReason }: { movie
         try {
             await fetch('/api/ml/recommendations/interaction', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-                credentials: 'include',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                 body: JSON.stringify({
                     recommendation_id: explanation.recommendation_id,
                     interaction_type: type,

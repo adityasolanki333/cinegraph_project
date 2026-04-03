@@ -15,7 +15,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Movie } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation, Link, useRoute } from "wouter";
-import { apiRequest, queryClient, getCsrfToken } from "@/lib/queryClient";
+import { apiRequest, queryClient, getAuthHeaders } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { CreateListDialog } from "@/components/create-list-dialog";
 import { ListCard } from "@/components/list-card";
@@ -290,9 +290,8 @@ export default function Profile() {
       const response = await fetch(`/api/users/${user.id}/reviews/${reviewId}`, {
         method: 'DELETE',
         headers: {
-          'X-CSRFToken': getCsrfToken(),
+          ...getAuthHeaders(),
         },
-        credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to delete review');
       return response.json();

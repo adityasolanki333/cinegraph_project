@@ -1,38 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 describe("useAuth standalone functions", () => {
-  let originalCookie: PropertyDescriptor | undefined;
-
   beforeEach(() => {
     vi.resetModules();
-    originalCookie = Object.getOwnPropertyDescriptor(document, "cookie");
-    Object.defineProperty(document, "cookie", {
-      writable: true,
-      configurable: true,
-      value: "",
-    });
+    localStorage.clear();
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
-      json: async () => ({ user: { id: "1" } }),
+      json: async () => ({ user: { id: "1" }, tokens: { access: "access-token", refresh: "refresh-token" } }),
     } as Response);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    if (originalCookie) {
-      Object.defineProperty(document, "cookie", originalCookie);
-    }
+    localStorage.clear();
   });
 
   describe("login", () => {
     it("returns success on ok response and dispatches auth-change", async () => {
       const dispatchSpy = vi.spyOn(window, "dispatchEvent");
-      document.cookie = "csrftoken=abc123";
       const { login } = await import("@/hooks/useAuth");
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue({
         ok: true,
-        json: async () => ({ user: { id: "1" } }),
+        json: async () => ({ user: { id: "1" }, tokens: { access: "access-token", refresh: "refresh-token" } }),
       } as Response);
 
       const result = await login("test@example.com", "password123");
@@ -42,8 +32,20 @@ describe("useAuth standalone functions", () => {
       );
     });
 
+    it("stores JWT tokens on successful login", async () => {
+      const { login } = await import("@/hooks/useAuth");
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValue({
+        ok: true,
+        json: async () => ({ user: { id: "1" }, tokens: { access: "my-access", refresh: "my-refresh" } }),
+      } as Response);
+
+      await login("test@example.com", "password123");
+      expect(localStorage.getItem("auth_access_token")).toBe("my-access");
+      expect(localStorage.getItem("auth_refresh_token")).toBe("my-refresh");
+    });
+
     it("returns error message on failed response", async () => {
-      document.cookie = "csrftoken=abc123";
       const { login } = await import("@/hooks/useAuth");
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue({
@@ -57,7 +59,6 @@ describe("useAuth standalone functions", () => {
     });
 
     it("returns network error on fetch failure", async () => {
-      document.cookie = "csrftoken=abc123";
       const { login } = await import("@/hooks/useAuth");
 
       vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network failure"));
@@ -67,44 +68,29 @@ describe("useAuth standalone functions", () => {
       expect(result.error).toBe("Network error");
     });
 
-    it("fetches CSRF token when cookie is missing", async () => {
+    it("sends Authorization header with JWT token", async () => {
+      localStorage.setItem("auth_access_token", "existing-token");
       const { login } = await import("@/hooks/useAuth");
       const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
         ok: true,
-        json: async () => ({ user: { id: "1" } }),
-      } as Response);
-
-      await login("test@example.com", "password123");
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/auth/csrf",
-        expect.objectContaining({ credentials: "include" })
-      );
-    });
-
-    it("includes X-CSRFToken header when token is available", async () => {
-      document.cookie = "csrftoken=mytoken";
-      const { login } = await import("@/hooks/useAuth");
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
-        ok: true,
-        json: async () => ({ user: { id: "1" } }),
+        json: async () => ({ user: { id: "1" }, tokens: { access: "new-token", refresh: "new-refresh" } }),
       } as Response);
 
       await login("test@example.com", "password123");
       const loginCall = fetchSpy.mock.calls.find((c) => c[0] === "/api/auth/login");
       expect(loginCall).toBeTruthy();
       const headers = (loginCall![1] as RequestInit).headers as Record<string, string>;
-      expect(headers["X-CSRFToken"]).toBe("mytoken");
+      expect(headers["Content-Type"]).toBe("application/json");
     });
   });
 
   describe("register", () => {
     it("returns success on ok response", async () => {
-      document.cookie = "csrftoken=abc123";
       const { register } = await import("@/hooks/useAuth");
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue({
         ok: true,
-        json: async () => ({ user: { id: "2" } }),
+        json: async () => ({ user: { id: "2" }, tokens: { access: "access-token", refresh: "refresh-token" } }),
       } as Response);
 
       const result = await register("new@example.com", "password123", "First", "Last");
@@ -112,7 +98,6 @@ describe("useAuth standalone functions", () => {
     });
 
     it("returns error on failed registration", async () => {
-      document.cookie = "csrftoken=abc123";
       const { register } = await import("@/hooks/useAuth");
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue({
@@ -127,8 +112,9 @@ describe("useAuth standalone functions", () => {
   });
 
   describe("logout", () => {
-    it("dispatches auth-change event", async () => {
-      document.cookie = "csrftoken=abc123";
+    it("dispatches auth-change event and clears tokens", async () => {
+      localStorage.setItem("auth_access_token", "some-token");
+      localStorage.setItem("auth_refresh_token", "some-refresh");
       const dispatchSpy = vi.spyOn(window, "dispatchEvent");
       const { logout } = await import("@/hooks/useAuth");
 
@@ -139,10 +125,11 @@ describe("useAuth standalone functions", () => {
         (c) => (c[0] as Event).type === "auth-change"
       );
       expect(authChangeEvent).toBeTruthy();
+      expect(localStorage.getItem("auth_access_token")).toBeNull();
+      expect(localStorage.getItem("auth_refresh_token")).toBeNull();
     });
 
     it("dispatches auth-change even when fetch fails", async () => {
-      document.cookie = "csrftoken=abc123";
       const dispatchSpy = vi.spyOn(window, "dispatchEvent");
       const { logout } = await import("@/hooks/useAuth");
 
@@ -157,7 +144,13 @@ describe("useAuth standalone functions", () => {
   });
 
   describe("getAuthToken", () => {
-    it("returns null", async () => {
+    it("returns token from localStorage", async () => {
+      localStorage.setItem("auth_access_token", "my-jwt-token");
+      const { getAuthToken } = await import("@/hooks/useAuth");
+      expect(getAuthToken()).toBe("my-jwt-token");
+    });
+
+    it("returns null when no token stored", async () => {
       const { getAuthToken } = await import("@/hooks/useAuth");
       expect(getAuthToken()).toBeNull();
     });

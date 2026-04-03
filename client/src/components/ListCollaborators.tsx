@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,7 +57,7 @@ export function ListCollaborators({ listId, isOwner }: ListCollaboratorsProps) {
   const { data: collaborators = [], isLoading } = useQuery<CollaboratorWithUser[]>({
     queryKey: ['/api/community/lists', listId, 'collaborators'],
     queryFn: async () => {
-      const res = await fetch(`/api/lists/${listId}/collaborators`, { credentials: 'include' });
+      const res = await fetch(`/api/lists/${listId}/collaborators`, { headers: { ...getAuthHeaders() } });
       if (!res.ok) return [];
       const data = await res.json();
       return data.collaborators ?? data;
