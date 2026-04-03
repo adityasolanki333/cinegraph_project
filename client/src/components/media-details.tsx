@@ -284,20 +284,28 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className={`relative ${mediaType === 'movie' ? 'min-h-[400px] sm:min-h-[500px] md:h-96' : 'pb-4 sm:pb-6 md:pb-8'} bg-gradient-to-r from-black/70 to-black/30`}>
+      <div className={`relative ${mediaType === 'movie' ? 'min-h-[480px] sm:min-h-[520px] md:h-96' : 'pb-4 sm:pb-6 md:pb-8'} bg-gradient-to-r from-black/70 to-black/30`}>
+        {posterPath && (
+          <div
+            className="md:hidden absolute inset-0 bg-cover bg-top"
+            style={{
+              backgroundImage: `url(https://image.tmdb.org/t/p/w780${posterPath})`,
+            }}
+          />
+        )}
         {backdropPath && (
           <div
-            className="absolute inset-0 bg-cover bg-center"
+            className="hidden md:block absolute inset-0 bg-cover bg-center"
             style={{
               backgroundImage: `url(https://image.tmdb.org/t/p/w1280${backdropPath})`,
             }}
           />
         )}
-        <div className="absolute inset-0 bg-black/60" />
-        <div className={`relative ${mediaType === 'movie' ? 'z-10' : ''} container mx-auto px-3 sm:px-4 ${mediaType === 'movie' ? 'h-full flex items-center py-4 sm:py-6 md:py-0' : 'py-4 sm:py-6 md:py-8 flex items-center min-h-[400px] sm:min-h-[500px] md:min-h-96'}`}>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/40 md:bg-black/60 md:bg-none" />
+        <div className={`relative ${mediaType === 'movie' ? 'z-10' : ''} container mx-auto px-3 sm:px-4 ${mediaType === 'movie' ? 'h-full flex items-end md:items-center py-4 sm:py-6 md:py-0' : 'py-4 sm:py-6 md:py-8 flex items-center min-h-[400px] sm:min-h-[500px] md:min-h-96'}`}>
           <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start w-full">
-            <div className="flex-shrink-0">
-              <div className="w-24 h-36 sm:w-40 sm:h-60 md:w-48 md:h-72 bg-muted rounded-lg overflow-hidden">
+            <div className="flex-shrink-0 hidden md:block">
+              <div className="w-48 h-72 bg-muted rounded-lg overflow-hidden shadow-lg">
                 {posterPath && !posterError ? (
                   <img
                     src={`https://image.tmdb.org/t/p/w500${posterPath}`}
