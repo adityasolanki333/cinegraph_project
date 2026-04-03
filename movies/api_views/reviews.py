@@ -137,7 +137,12 @@ class RatingsView(APIView):
             'username': r.user.first_name or r.user.email.split('@')[0],
             'tmdbId': r.tmdb_id, 'mediaType': r.media_type, 'title': r.title,
             'rating': r.rating, 'review': r.review_text,
-            'helpfulCount': r.helpful_count, 'createdAt': r.created_at.isoformat()
+            'helpfulCount': r.helpful_count, 'createdAt': r.created_at.isoformat(),
+            'user': {
+                'firstName': r.user.first_name or '',
+                'lastName': r.user.last_name or '',
+                'profileImageUrl': None,
+            }
         } for r in reviews])
 
     def post(self, request):
@@ -151,7 +156,7 @@ class RatingsView(APIView):
         rating = data.get('rating')
         media_type = data.get('mediaType', 'movie')
         title = data.get('title', '')
-        review_text = data.get('reviewText', '')
+        review_text = data.get('reviewText') or data.get('review', '')
 
         if not tmdb_id:
             return Response({'error': 'tmdbId is required', 'code': 'VALIDATION_ERROR'}, status=400)
@@ -218,8 +223,8 @@ class ManageRatingView(APIView):
             if not (1 <= float(r) <= 10):
                 return Response({'error': 'Rating must be between 1 and 10', 'code': 'VALIDATION_ERROR'}, status=400)
             review.rating = r
-        if 'reviewText' in data:
-            review.review_text = data['reviewText']
+        if 'reviewText' in data or 'review' in data:
+            review.review_text = data.get('reviewText') or data.get('review', '')
         if 'isPublic' in data:
             review.is_public = data['isPublic']
         review.save()

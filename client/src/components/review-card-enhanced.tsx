@@ -306,16 +306,16 @@ export function ReviewCardEnhanced({
           <Avatar data-testid={`avatar-user-${review.userId}`}>
             <AvatarImage src={review.user?.profileImageUrl} />
             <AvatarFallback>
-              {review.user?.firstName?.[0] || review.userId === currentUserId ? "Me" : "U"}
+              {review.user?.firstName?.[0] || String(review.userId) === String(currentUserId) ? "Me" : "U"}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
             <div className="flex items-center justify-between mb-2">
               <div>
                 <p className="font-medium" data-testid={`text-user-name-${review.id}`}>
-                  {review.user?.firstName && review.user?.lastName
-                    ? `${review.user.firstName} ${review.user.lastName}`
-                    : review.userId === currentUserId ? "Your Review" : "Anonymous User"}
+                  {review.user?.firstName
+                    ? `${review.user.firstName} ${review.user.lastName || ''}`.trim()
+                    : String(review.userId) === String(currentUserId) ? "Your Review" : "Anonymous User"}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {review.createdAt ? formatDistanceToNow(new Date(review.createdAt)) + " ago" : ""}
@@ -328,7 +328,7 @@ export function ReviewCardEnhanced({
                   size="sm"
                   showValue={false}
                 />
-                {(review.userId === currentUserId || currentUserId === 'demo_user') && (
+                {(String(review.userId) === String(currentUserId) || currentUserId === 'demo_user') && (
                   <Button
                     variant="ghost"
                     size="sm"
