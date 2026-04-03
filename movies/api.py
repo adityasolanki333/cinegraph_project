@@ -121,8 +121,15 @@ def discover_movies(request):
         "page": request.GET.get('page', 1),
         "sort_by": request.GET.get('sort_by', 'popularity.desc'),
     }
-    if request.GET.get('with_genres'):
-        params['with_genres'] = request.GET.get('with_genres')
+    optional_params = [
+        'with_genres', 'with_original_language', 'region',
+        'primary_release_year', 'primary_release_date.gte',
+        'primary_release_date.lte', 'vote_count.gte', 'vote_average.gte',
+    ]
+    for param in optional_params:
+        value = request.GET.get(param)
+        if value:
+            params[param] = value
     if request.GET.get('year'):
         params['primary_release_year'] = request.GET.get('year')
     data = tmdb_request("/discover/movie", params)
