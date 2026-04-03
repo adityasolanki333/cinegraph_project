@@ -1905,9 +1905,10 @@ def get_trending_content(request):
     offset = int(request.GET.get('offset', 0))
     limit = int(request.GET.get('limit', 20))
     
-    from django.db.models import Count
+    from django.db.models import Count, Avg as DbAvg
     trending = UserReview.objects.values('tmdb_id', 'media_type', 'title', 'poster_path').annotate(
-        review_count=Count('id')
+        review_count=Count('id'),
+        avg_rating=DbAvg('rating'),
     ).order_by('-review_count')[offset:offset + limit + 1]
     
     has_more = len(trending) > limit
@@ -1920,6 +1921,7 @@ def get_trending_content(request):
             'title': t['title'],
             'posterPath': t['poster_path'],
             'ratingCount': t['review_count'],
+            'avgRating': round(t['avg_rating'], 1) if t['avg_rating'] else None,
         } for t in results],
         'offset': offset,
         'nextOffset': offset + limit if has_more else None,
