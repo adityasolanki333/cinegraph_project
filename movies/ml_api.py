@@ -62,10 +62,16 @@ def enrich_recommendations_with_tmdb(recommendations, default_media_type='movie'
             rec['media_type'] = resolved_type
             rec['title'] = meta.get('title') or meta.get('name', '')
             rec['poster_path'] = meta.get('poster_path')
+            if not rec['poster_path']:
+                continue  # Skip items with no poster
+            vote_avg = round(meta.get('vote_average', 0), 1)
+            vote_count = meta.get('vote_count', 0)
+            if vote_avg < 5.5 and vote_count >= 20:
+                continue  # Skip poorly rated movies with enough votes to be sure
             rec['backdrop_path'] = meta.get('backdrop_path')
             rec['overview'] = meta.get('overview', '')
-            rec['vote_average'] = round(meta.get('vote_average', 0), 1)
-            rec['vote_count'] = meta.get('vote_count', 0)
+            rec['vote_average'] = vote_avg
+            rec['vote_count'] = vote_count
             rec['release_date'] = meta.get('release_date') or meta.get('first_air_date', '')
             rec['genre_ids'] = [g['id'] for g in meta.get('genres', [])] or meta.get('genre_ids', [])
             rec['popularity'] = meta.get('popularity', 0)
@@ -73,7 +79,7 @@ def enrich_recommendations_with_tmdb(recommendations, default_media_type='movie'
             rec['number_of_seasons'] = meta.get('number_of_seasons')
             enriched[tmdb_id] = rec
 
-    # Preserve original ordering, skip items without metadata
+    # Preserve original ordering, skip items without metadata or poster
     return [enriched[r['tmdb_id']] for r in recommendations if r['tmdb_id'] in enriched]
 
 
@@ -97,25 +103,78 @@ def get_hybrid_recommendations(request, user_id):
         
         if not recommendations:
             from . import api
-            trending = api.tmdb_request("/trending/all/week")
-            if 'results' in trending:
-                recommendations = [
-                    {
-                        'tmdb_id': item['id'],
-                        'media_type': item.get('media_type', 'movie'),
-                        'title': item.get('title') or item.get('name', ''),
-                        'poster_path': item.get('poster_path'),
-                        'backdrop_path': item.get('backdrop_path'),
-                        'overview': item.get('overview', ''),
-                        'vote_average': round(item.get('vote_average', 0), 1),
-                        'release_date': item.get('release_date') or item.get('first_air_date', ''),
-                        'genre_ids': item.get('genre_ids', []),
-                        'score': item.get('vote_average', 7.0) / 10,
-                        'type': 'trending',
-                        'reason': 'Trending this week'
-                    }
-                    for item in trending['results'][:limit]
-                ]
+            from datetime import datetime
+
+            # Pull from multiple high-quality sources
+            sources = [
+                ("/trending/all/week", {}, "Trending this week"),
+                ("/movie/popular", {"page": 1}, "Popular right now"),
+                ("/movie/now_playing", {"page": 1}, "In cinemas now"),
+                ("/tv/popular", {"page": 1}, "Popular on TV"),
+            ]
+
+            pool = {}  # keyed by (id, media_type) to deduplicate
+            for endpoint, params, reason in sources:
+                try:
+                    data = api.tmdb_request(endpoint, params)
+                    for item in data.get('results', []):
+                        key = (item['id'], item.get('media_type', 'movie' if '/movie' in endpoint else 'tv'))
+                        if key not in pool:
+                            pool[key] = (item, reason)
+                except Exception:
+                    pass
+
+            # Quality filter: must have poster, decent rating and enough votes
+            MIN_RATING = 6.5
+            MIN_VOTES = 50
+            MIN_POPULARITY = 20
+
+            current_year = datetime.now().year
+
+            def quality_score(item):
+                """Blend popularity, rating and recency into a single rank."""
+                vote_avg = item.get('vote_average', 0)
+                popularity = item.get('popularity', 0)
+                raw_date = item.get('release_date') or item.get('first_air_date', '')
+                try:
+                    year = int(raw_date[:4]) if raw_date else 2000
+                except ValueError:
+                    year = 2000
+                recency = max(0, 1 - (current_year - year) / 20)  # decays over 20 years
+                return (vote_avg / 10) * 0.45 + min(popularity / 500, 1) * 0.35 + recency * 0.20
+
+            filtered = [
+                (item, reason)
+                for (item, reason) in pool.values()
+                if (
+                    item.get('poster_path')
+                    and item.get('vote_average', 0) >= MIN_RATING
+                    and item.get('vote_count', 0) >= MIN_VOTES
+                    and item.get('popularity', 0) >= MIN_POPULARITY
+                )
+            ]
+
+            filtered.sort(key=lambda x: quality_score(x[0]), reverse=True)
+
+            recommendations = [
+                {
+                    'tmdb_id': item['id'],
+                    'media_type': item.get('media_type', 'movie' if not item.get('first_air_date') else 'tv'),
+                    'title': item.get('title') or item.get('name', ''),
+                    'poster_path': item.get('poster_path'),
+                    'backdrop_path': item.get('backdrop_path'),
+                    'overview': item.get('overview', ''),
+                    'vote_average': round(item.get('vote_average', 0), 1),
+                    'vote_count': item.get('vote_count', 0),
+                    'popularity': round(item.get('popularity', 0), 1),
+                    'release_date': item.get('release_date') or item.get('first_air_date', ''),
+                    'genre_ids': item.get('genre_ids', []),
+                    'score': round(quality_score(item), 4),
+                    'type': 'curated',
+                    'reason': reason,
+                }
+                for item, reason in filtered
+            ][:limit]
         else:
             # Enrich ML-generated recommendations with TMDB metadata
             recommendations = enrich_recommendations_with_tmdb(recommendations)

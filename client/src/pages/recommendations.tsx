@@ -481,13 +481,15 @@ export default function Recommendations() {
       for (const rec of pipelineRecommendations.recommendations) {
         const tmdbId = rec.tmdb_id || rec.tmdbId;
         if (!tmdbId || seenIds.has(tmdbId)) continue;
+        const posterUrl = rec.poster_path ? `https://image.tmdb.org/t/p/w500${rec.poster_path}` : (rec.posterUrl || undefined);
+        if (!posterUrl) continue; // Skip items with no poster
         seenIds.add(tmdbId);
 
         combined.push({
           id: tmdbId.toString(),
           type: rec.media_type || rec.mediaType || 'movie',
           title: rec.title,
-          posterUrl: rec.poster_path ? `https://image.tmdb.org/t/p/w500${rec.poster_path}` : undefined,
+          posterUrl,
           rating: rec.vote_average || 0,
           year: rec.release_date ? new Date(rec.release_date).getFullYear() : (rec.year || 0),
           genre: '',
@@ -508,6 +510,8 @@ export default function Recommendations() {
       for (const item of trendingData.slice(0, 24)) {
         const tmdbId = Number(item.id);
         if (!tmdbId || seenIds.has(tmdbId)) continue;
+        const itemPoster = item.posterUrl || (item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined);
+        if (!itemPoster) continue; // Skip items with no poster
         seenIds.add(tmdbId);
         combined.push({
           ...item,
