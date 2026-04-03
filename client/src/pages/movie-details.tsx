@@ -545,16 +545,15 @@ export default function MovieDetailsPage() {
       {/* Content Tabs */}
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-3 sm:grid-cols-5 w-full gap-1 sm:gap-1 mb-4 sm:mb-6 h-auto">
-            <TabsTrigger value="details" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Details</TabsTrigger>
-            <TabsTrigger value="cast" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Cast</TabsTrigger>
-            <TabsTrigger value="reviews" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Reviews</TabsTrigger>
-            <TabsTrigger value="recommendations" className="text-xs sm:text-sm px-2 sm:px-3 py-2">
-              <span className="hidden sm:inline">Recommendations</span>
-              <span className="sm:hidden">Recommend</span>
-            </TabsTrigger>
-            <TabsTrigger value="similar" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Similar</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 mb-4 sm:mb-6">
+            <TabsList className="inline-flex w-max sm:grid sm:grid-cols-5 sm:w-full gap-1 h-auto">
+              <TabsTrigger value="details" className="text-xs sm:text-sm px-3 py-2">Details</TabsTrigger>
+              <TabsTrigger value="cast" className="text-xs sm:text-sm px-3 py-2">Cast</TabsTrigger>
+              <TabsTrigger value="reviews" className="text-xs sm:text-sm px-3 py-2">Reviews</TabsTrigger>
+              <TabsTrigger value="recommendations" className="text-xs sm:text-sm px-3 py-2">For You</TabsTrigger>
+              <TabsTrigger value="similar" className="text-xs sm:text-sm px-3 py-2">Similar</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Details Tab */}
           <TabsContent value="details" className="mt-4 sm:mt-6">

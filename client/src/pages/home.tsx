@@ -87,6 +87,8 @@ export default function Home() {
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [dragX, setDragX] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const { isInWatchlist } = useWatchlist();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -238,44 +240,66 @@ export default function Home() {
 
   // Auto-advance slider removed - users navigate manually
 
+  const goToSlide = (index: number) => {
+    setIsTransitioning(true);
+    setDragX(0);
+    setCurrentSlide(index);
+    setTimeout(() => setIsTransitioning(false), 380);
+  };
+
   const nextSlide = () => {
-    setCurrentSlide(prev => (prev + 1) % featuredMovies.length);
+    goToSlide((currentSlide + 1) % featuredMovies.length);
   };
 
   const prevSlide = () => {
-    setCurrentSlide(prev => (prev - 1 + featuredMovies.length) % featuredMovies.length);
+    goToSlide((currentSlide - 1 + featuredMovies.length) % featuredMovies.length);
   };
 
-  // Touch handlers for swipe
+  // Touch handlers for swipe with live drag
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
     setTouchStartY(e.targetTouches[0].clientY);
+    setIsTransitioning(false);
+    setDragX(0);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
+    const currentX = e.targetTouches[0].clientX;
+    const currentY = e.targetTouches[0].clientY;
+    setTouchEnd(currentX);
+    if (touchStart !== null && touchStartY !== null) {
+      const xDist = currentX - touchStart;
+      const yDist = Math.abs(currentY - touchStartY);
+      if (Math.abs(xDist) > yDist) {
+        setDragX(xDist);
+      }
+    }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStart === null || touchEnd === null || touchStartY === null) return;
+    if (touchStart === null || touchEnd === null || touchStartY === null) {
+      setDragX(0);
+      return;
+    }
 
     const xDistance = touchStart - touchEnd;
     const yDistance = Math.abs(e.changedTouches[0].clientY - touchStartY);
 
-    // Only count as a horizontal swipe if X movement > Y movement (not a scroll)
-    // and the swipe distance is meaningful (>= 50px)
-    if (Math.abs(xDistance) < yDistance || Math.abs(xDistance) < 50) {
-      setTouchStart(null);
-      setTouchEnd(null);
-      return;
-    }
+    setIsTransitioning(true);
+    setDragX(0);
 
-    if (xDistance > 0 && featuredMovies.length > 1) nextSlide();
-    if (xDistance < 0 && featuredMovies.length > 1) prevSlide();
+    if (Math.abs(xDistance) >= yDistance && Math.abs(xDistance) >= 50 && featuredMovies.length > 1) {
+      if (xDistance > 0) {
+        setCurrentSlide(prev => (prev + 1) % featuredMovies.length);
+      } else {
+        setCurrentSlide(prev => (prev - 1 + featuredMovies.length) % featuredMovies.length);
+      }
+    }
 
     setTouchStart(null);
     setTouchEnd(null);
+    setTimeout(() => setIsTransitioning(false), 380);
   };
 
   const currentMovie = featuredMovies[currentSlide] || featuredMovies[0];
@@ -383,13 +407,13 @@ export default function Home() {
         <div className="flex space-x-3 sm:space-x-4 pb-4">
           {isLoading ? (
             Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className="flex-none w-36 sm:w-40 md:w-48">
+              <div key={i} className="flex-none w-40 sm:w-44 md:w-48">
                 <MediaCardSkeleton />
               </div>
             ))
           ) : (
             movies.map((movie: any) => (
-              <div key={movie.id} className="flex-none w-36 sm:w-40 md:w-48" data-testid={`movie-card-${movie.id}`}>
+              <div key={movie.id} className="flex-none w-40 sm:w-44 md:w-48" data-testid={`movie-card-${movie.id}`}>
                 <MediaCard
                   movie={movie}
                   recommendationScore={movie.recommendationScore}
@@ -526,12 +550,6 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* Mobile swipe hint - fades out */}
-              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[50] sm:hidden flex items-center gap-1.5 text-white/60 text-[11px]">
-                <ChevronLeft className="h-3 w-3" />
-                <span>swipe to browse</span>
-                <ChevronRight className="h-3 w-3" />
-              </div>
             </>
           )}
 

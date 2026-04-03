@@ -9,6 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { Loader2 } from "lucide-react";
 import Navbar from "@/components/layout/navbar";
+import MobileBottomNav from "@/components/layout/mobile-bottom-nav";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
 
 // Lazy load pages
@@ -52,7 +53,7 @@ function Router() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background pb-14 md:pb-0">
         <ScrollToTop />
         <Navbar />
         <OnboardingWizard />
@@ -87,6 +88,7 @@ function Router() {
             <Route component={NotFound} />
           </Switch>
         </Suspense>
+        <MobileBottomNav />
       </div>
     </ErrorBoundary>
   );

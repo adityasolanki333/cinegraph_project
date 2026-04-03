@@ -323,11 +323,11 @@ export default function Navbar() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Mobile menu button */}
+            {/* Mobile menu button - hidden since bottom nav handles navigation */}
             <Button
               variant="ghost"
               size="sm"
-              className="md:hidden"
+              className="hidden"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
               {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

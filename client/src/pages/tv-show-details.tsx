@@ -576,17 +576,16 @@ export default function TVShowDetailsPage() {
       {/* Content Tabs */}
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full gap-1 sm:gap-1 mb-4 sm:mb-6 h-auto" data-testid="tabs-navigation">
-            <TabsTrigger value="details" data-testid="tab-details" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Details</TabsTrigger>
-            <TabsTrigger value="cast" data-testid="tab-cast" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Cast</TabsTrigger>
-            <TabsTrigger value="episodes" data-testid="tab-episodes" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Episodes</TabsTrigger>
-            <TabsTrigger value="reviews" data-testid="tab-reviews" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Reviews</TabsTrigger>
-            <TabsTrigger value="recommendations" data-testid="tab-recommendations" className="text-xs sm:text-sm px-2 sm:px-3 py-2">
-              <span className="hidden sm:inline">Recommendations</span>
-              <span className="sm:hidden">Recommend</span>
-            </TabsTrigger>
-            <TabsTrigger value="similar" data-testid="tab-similar" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Similar</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 mb-4 sm:mb-6">
+            <TabsList className="inline-flex w-max sm:grid sm:grid-cols-6 sm:w-full gap-1 h-auto" data-testid="tabs-navigation">
+              <TabsTrigger value="details" data-testid="tab-details" className="text-xs sm:text-sm px-3 py-2">Details</TabsTrigger>
+              <TabsTrigger value="cast" data-testid="tab-cast" className="text-xs sm:text-sm px-3 py-2">Cast</TabsTrigger>
+              <TabsTrigger value="episodes" data-testid="tab-episodes" className="text-xs sm:text-sm px-3 py-2">Episodes</TabsTrigger>
+              <TabsTrigger value="reviews" data-testid="tab-reviews" className="text-xs sm:text-sm px-3 py-2">Reviews</TabsTrigger>
+              <TabsTrigger value="recommendations" data-testid="tab-recommendations" className="text-xs sm:text-sm px-3 py-2">For You</TabsTrigger>
+              <TabsTrigger value="similar" data-testid="tab-similar" className="text-xs sm:text-sm px-3 py-2">Similar</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Details Tab */}
           <TabsContent value="details" className="mt-4 sm:mt-6">

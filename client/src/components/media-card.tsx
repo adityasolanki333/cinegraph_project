@@ -515,8 +515,8 @@ export function MediaCard({
             {showFeedback && (
               <div className="mt-2" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                 {feedbackGiven ? (
-                  <p className="text-[10px] sm:text-xs text-green-600 dark:text-green-400 text-center py-1" data-testid="text-feedback-thanks">
-                    ✓ Thanks!
+                  <p className="text-[10px] sm:text-xs text-green-600 dark:text-green-400 text-center py-1.5" data-testid="text-feedback-thanks">
+                    ✓ Thanks for the feedback!
                   </p>
                 ) : (
                   <div className="flex gap-1.5">
@@ -529,11 +529,11 @@ export function MediaCard({
                         handleFeedback(true);
                       }}
                       disabled={feedbackMutation.isPending}
-                      className="flex-1 text-[11px] h-8 px-1 gap-1 min-w-0"
+                      className="flex-1 h-10 px-2 gap-1.5 min-w-0 touch-manipulation border-green-500/30 hover:bg-green-500/10 hover:border-green-500/60 hover:text-green-600 dark:hover:text-green-400 transition-colors"
                       data-testid="button-feedback-like"
                     >
-                      <ThumbsUp className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate">Like</span>
+                      <ThumbsUp className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate text-xs font-medium">Like</span>
                     </Button>
                     <Button
                       variant="outline"
@@ -544,11 +544,11 @@ export function MediaCard({
                         handleFeedback(false);
                       }}
                       disabled={feedbackMutation.isPending}
-                      className="flex-1 text-[11px] h-8 px-1 gap-1 min-w-0"
+                      className="flex-1 h-10 px-2 gap-1.5 min-w-0 touch-manipulation border-red-500/30 hover:bg-red-500/10 hover:border-red-500/60 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                       data-testid="button-feedback-dislike"
                     >
-                      <ThumbsDown className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate">Dislike</span>
+                      <ThumbsDown className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate text-xs font-medium">Nope</span>
                     </Button>
                   </div>
                 )}

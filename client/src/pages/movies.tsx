@@ -297,28 +297,30 @@ export default function Movies() {
 
         {/* Enhanced Tabs Interface */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 gap-0.5 sm:gap-1">
-            <TabsTrigger value="discover" data-testid="tab-discover" className="text-[10px] sm:text-sm px-1 sm:px-3">
-              <Filter className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Discover</span>
-            </TabsTrigger>
-            <TabsTrigger value="trending" data-testid="tab-trending" className="text-[10px] sm:text-sm px-1 sm:px-3">
-              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Trending</span>
-            </TabsTrigger>
-            <TabsTrigger value="now-playing" data-testid="tab-now-playing" className="text-[10px] sm:text-sm px-1 sm:px-3">
-              <Clock className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Now Playing</span>
-            </TabsTrigger>
-            <TabsTrigger value="upcoming" data-testid="tab-upcoming" className="text-[10px] sm:text-sm px-1 sm:px-3">
-              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Upcoming</span>
-            </TabsTrigger>
-            <TabsTrigger value="indian" data-testid="tab-indian" className="text-[10px] sm:text-sm px-1 sm:px-3">
-              <Star className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Indian Movies</span>
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 mb-1">
+            <TabsList className="inline-flex w-max sm:grid sm:grid-cols-5 sm:w-full gap-0.5 sm:gap-1">
+              <TabsTrigger value="discover" data-testid="tab-discover" className="text-xs sm:text-sm px-3 gap-1.5">
+                <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                Discover
+              </TabsTrigger>
+              <TabsTrigger value="trending" data-testid="tab-trending" className="text-xs sm:text-sm px-3 gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                Trending
+              </TabsTrigger>
+              <TabsTrigger value="now-playing" data-testid="tab-now-playing" className="text-xs sm:text-sm px-3 gap-1.5">
+                <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                Now Playing
+              </TabsTrigger>
+              <TabsTrigger value="upcoming" data-testid="tab-upcoming" className="text-xs sm:text-sm px-3 gap-1.5">
+                <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                Upcoming
+              </TabsTrigger>
+              <TabsTrigger value="indian" data-testid="tab-indian" className="text-xs sm:text-sm px-3 gap-1.5">
+                <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                Indian
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Discover Tab */}
           <TabsContent value="discover" className="space-y-6">
