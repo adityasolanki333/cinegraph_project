@@ -158,22 +158,29 @@ MOOD_GENRE_MAP = {
 
 @require_GET
 def mood_recommendations(request, mood):
+    import random
     genre_ids = MOOD_GENRE_MAP.get(mood, [])
     media_type = request.GET.get('type', 'movie')
-    
+    seed = int(request.GET.get('seed', 0))
+
     if not genre_ids:
         return JsonResponse({"recommendations": []})
-    
+
     genre_str = ','.join(map(str, genre_ids[:2]))
     endpoint = "/discover/movie" if media_type == 'movie' else "/discover/tv"
-    
+
+    page = (seed % 5) + 1
     data = tmdb_request(endpoint, {
         "with_genres": genre_str,
         "sort_by": "popularity.desc",
-        "page": 1
+        "page": page
     })
-    
-    return JsonResponse({"recommendations": data.get("results", [])[:8]})
+
+    results = data.get("results", [])
+    rng = random.Random(seed)
+    rng.shuffle(results)
+
+    return JsonResponse({"recommendations": results[:8]})
 
 
 @require_GET

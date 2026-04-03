@@ -57,7 +57,7 @@ export function OnboardingWizard() {
   const { data: popularMoviesResponse, isLoading: isLoadingMovies } = useQuery({
     queryKey: ['/api/movies/popular', 1],
     queryFn: async () => {
-      const res = await fetch(`/api/tmdb/movie/popular`);
+      const res = await fetch(`/api/tmdb/movies/popular`);
       if (!res.ok) throw new Error("Failed");
       return await res.json();
     },
