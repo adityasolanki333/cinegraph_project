@@ -82,6 +82,7 @@ export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const heroRef = useRef<HTMLDivElement>(null);
   const scrollSnapTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const isScrolling = useRef(false); // true during programmatic scroll animation
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'movie' | 'tv'>('movie');
   const [refreshKey, setRefreshKey] = useState(0);
@@ -237,68 +238,65 @@ export default function Home() {
 
   const total = featuredMovies.length;
 
-  // allSlides: clone-last | real slides | clone-first  (for infinite loop)
-  const allSlides = total > 1
-    ? [featuredMovies[total - 1], ...featuredMovies, featuredMovies[0]]
-    : featuredMovies;
-
-  // Set initial scrollLeft so the first real slide is visible (skip clone-last at index 0)
-  useEffect(() => {
-    const el = heroRef.current;
-    if (!el || total === 0) return;
-    el.scrollLeft = el.offsetWidth; // jump to real slide[0]
-  }, [total]);
-
-  // On scroll: update the dot indicator and handle infinite-loop reset
-  const handleHeroScroll = useCallback(() => {
-    const el = heroRef.current;
-    if (!el || total < 2) return;
-    const w = el.offsetWidth;
-    const sl = el.scrollLeft;
-
-    // Which real slide index are we closest to?
-    const nearest = Math.round(sl / w) - 1; // subtract 1 for clone-last offset
-    if (nearest >= 0 && nearest < total) setCurrentSlide(nearest);
-
-    // After snap settles, silently reset if we're on a clone
-    clearTimeout(scrollSnapTimeout.current);
-    scrollSnapTimeout.current = setTimeout(() => {
-      const sl2 = el.scrollLeft;
-      if (sl2 < w * 0.5) {
-        // On clone-last → jump to real last
-        el.scrollLeft = w * total;
-      } else if (sl2 > w * (total + 0.5)) {
-        // On clone-first → jump to real first
-        el.scrollLeft = w;
-      }
-    }, 150);
-  }, [total]);
-
-  // Navigate to a specific real slide index (smooth scroll)
-  const goToSlide = useCallback((index: number) => {
+  // Custom 280ms scroll animation — browser's native "smooth" is too slow on desktop
+  const animateScrollTo = useCallback((targetLeft: number, duration = 280) => {
     const el = heroRef.current;
     if (!el) return;
-    const w = el.offsetWidth;
-    el.scrollTo({ left: w * (index + 1), behavior: 'smooth' });
-    setCurrentSlide(index);
+    const startLeft = el.scrollLeft;
+    const dist = targetLeft - startLeft;
+    if (dist === 0) return;
+    const startTime = performance.now();
+    isScrolling.current = true;
+
+    const step = (now: number) => {
+      const t = Math.min((now - startTime) / duration, 1);
+      // ease-in-out cubic
+      const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      el.scrollLeft = startLeft + dist * eased;
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        el.scrollLeft = targetLeft; // snap to exact position
+        isScrolling.current = false;
+      }
+    };
+    requestAnimationFrame(step);
   }, []);
 
-  const nextSlide = useCallback(() => {
+  // Update dot indicator on user swipe (suppressed during programmatic animation)
+  const handleHeroScroll = useCallback(() => {
+    if (isScrolling.current) return; // ignore scroll events from our own animation
     const el = heroRef.current;
     if (!el || total < 2) return;
     const w = el.offsetWidth;
-    // Scroll one width forward (may land on clone-first; handleHeroScroll will reset)
-    el.scrollTo({ left: el.scrollLeft + w, behavior: 'smooth' });
-    setCurrentSlide(prev => (prev + 1) % total);
+    if (w === 0) return;
+    const nearest = Math.round(el.scrollLeft / w);
+    if (nearest >= 0 && nearest < total) setCurrentSlide(nearest);
   }, [total]);
 
-  const prevSlide = useCallback(() => {
+  // Navigate to a slide index (instant = no animation, used for wrap-around)
+  const goToSlide = useCallback((index: number, instant = false) => {
     const el = heroRef.current;
-    if (!el || total < 2) return;
-    const w = el.offsetWidth;
-    el.scrollTo({ left: el.scrollLeft - w, behavior: 'smooth' });
-    setCurrentSlide(prev => (prev - 1 + total) % total);
-  }, [total]);
+    if (!el) return;
+    setCurrentSlide(index);
+    if (instant) {
+      el.scrollLeft = el.offsetWidth * index;
+    } else {
+      animateScrollTo(el.offsetWidth * index);
+    }
+  }, [animateScrollTo]);
+
+  const nextSlide = useCallback(() => {
+    if (total < 2) return;
+    const next = (currentSlide + 1) % total;
+    goToSlide(next, next === 0); // instant wrap: last → first
+  }, [currentSlide, total, goToSlide]);
+
+  const prevSlide = useCallback(() => {
+    if (total < 2) return;
+    const prev = (currentSlide - 1 + total) % total;
+    goToSlide(prev, prev === total - 1); // instant wrap: first → last
+  }, [currentSlide, total, goToSlide]);
 
   const currentMovie = featuredMovies[currentSlide] || featuredMovies[0];
   const [trailerInfo, setTrailerInfo] = useState<{ id: string; type: 'movie' | 'tv'; title: string } | null>(null);
@@ -472,7 +470,7 @@ export default function Home() {
             className="absolute inset-0 flex overflow-x-scroll snap-x snap-mandatory scrollbar-none select-none"
             onScroll={handleHeroScroll}
           >
-            {allSlides.map((movie: any, index: number) => (
+            {featuredMovies.map((movie: any, index: number) => (
               <div key={`${movie.id}-${index}`} className="snap-start snap-always shrink-0 basis-full h-full relative">
                 {/* Mobile: blurred bg + centred poster */}
                 <div className="sm:hidden absolute inset-0">
