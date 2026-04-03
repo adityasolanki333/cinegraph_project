@@ -1,6 +1,7 @@
 import os
 import requests
 from django.http import JsonResponse
+from .validation import error_response
 from django.views.decorators.http import require_GET
 
 
@@ -36,7 +37,7 @@ def youtube_search(request):
     gl = request.GET.get('gl', 'US')
     
     if not query:
-        return JsonResponse({'error': 'Search query is required'}, status=400)
+        return error_response('Search query is required', 'VALIDATION_ERROR', 400)
     
     url = f"https://youtube138.p.rapidapi.com/auto-complete/?q={query}&hl={hl}&gl={gl}"
     data, error = rapidapi_request(url, 'youtube138.p.rapidapi.com')
@@ -54,7 +55,7 @@ def youtube_videos(request):
     gl = request.GET.get('gl', 'US')
     
     if not query:
-        return JsonResponse({'error': 'Search query is required'}, status=400)
+        return error_response('Search query is required', 'VALIDATION_ERROR', 400)
     
     search_query = f"{query} review"
     url = f"https://youtube138.p.rapidapi.com/search/?q={search_query}&hl={hl}&gl={gl}"
@@ -69,7 +70,7 @@ def youtube_videos(request):
 @require_GET
 def movie_ratings(request, imdb_id):
     if not imdb_id or not imdb_id.startswith('tt'):
-        return JsonResponse({'error': 'Valid IMDb ID is required (format: tt1234567)'}, status=400)
+        return error_response('Valid IMDb ID is required (format: tt1234567)', 'VALIDATION_ERROR', 400)
     
     url = f"https://movies-ratings2.p.rapidapi.com/ratings?id={imdb_id}"
     data, error = rapidapi_request(url, 'movies-ratings2.p.rapidapi.com')
@@ -83,7 +84,7 @@ def movie_ratings(request, imdb_id):
 @require_GET
 def youtube_streaming_data(request, video_id):
     if not video_id:
-        return JsonResponse({'error': 'Video ID is required'}, status=400)
+        return error_response('Video ID is required', 'VALIDATION_ERROR', 400)
     
     url = f"https://youtube138.p.rapidapi.com/video/details/?id={video_id}"
     data, error = rapidapi_request(url, 'youtube138.p.rapidapi.com')

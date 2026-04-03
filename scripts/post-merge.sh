@@ -1,4 +1,5 @@
 #!/bin/bash
 set -e
-npm install
-python manage.py migrate --noinput
+
+PATH="$HOME/workspace/.pythonlibs/bin:$PATH"
+python3 manage.py migrate --noinput

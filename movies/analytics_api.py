@@ -1,5 +1,6 @@
 import json
 from django.http import JsonResponse
+from .validation import error_response
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
@@ -19,7 +20,7 @@ def get_user_engagement(request, user_id):
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
         
         now = timezone.now()
         last_7_days = now - timedelta(days=7)
@@ -79,7 +80,7 @@ def get_user_engagement(request, user_id):
         return JsonResponse(engagement)
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -141,7 +142,7 @@ def get_content_stats(request, tmdb_id):
         return JsonResponse(stats)
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -186,11 +187,11 @@ def get_popular_content(request):
         })
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 def track_event(request):
     """Track a user analytics event"""
     if request.method != 'POST':
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
         body = json.loads(request.body)
@@ -201,7 +202,7 @@ def track_event(request):
         metadata = body.get('metadata', {})
         
         if not event_type:
-            return JsonResponse({"error": "event_type is required"}, status=400)
+            return error_response("event_type is required", "VALIDATION_ERROR", 400)
         
         if user_id:
             try:
@@ -251,9 +252,9 @@ def track_event(request):
         })
         
     except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
+        return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -262,7 +263,7 @@ def get_recommendation_metrics(request, user_id):
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
         
         recommendations = Recommendation.objects.filter(user=user)
         total_recs = recommendations.count()
@@ -313,7 +314,7 @@ def get_recommendation_metrics(request, user_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET 
@@ -373,4 +374,4 @@ def get_platform_stats(request):
         })
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)

@@ -4,16 +4,20 @@ Provides Python-based ML recommendation services
 """
 
 import json
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
 from django.utils import timezone
+from .validation import error_response
 from .models import (
     UserReview, ViewingHistory, UserWatchlist, UserFavorites,
     Recommendation, RecommendationMetrics, FeatureContribution
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _fetch_tmdb_metadata(tmdb_id, media_type='movie'):
@@ -107,7 +111,7 @@ def get_hybrid_recommendations(request, user_id):
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
 
         limit = min(int(request.GET.get('limit', 20)), 100)
         current_year = datetime.now().year
@@ -200,9 +204,9 @@ def get_hybrid_recommendations(request, user_id):
 
                         filtered.sort(key=lambda x: x['score'], reverse=True)
                         recommendations = filtered[:limit]
-                        print(f'MovieLens: returned {len(recommendations)} recs for user {user_id}')
+                        logger.info('MovieLens: returned %d recs for user %s', len(recommendations), user_id)
             except Exception as e:
-                print(f'MovieLens tier failed: {e}')
+                logger.warning('MovieLens tier failed: %s', e)
 
         # ═══════════════════════════════════════════════════════════════════
         # TIER 2 — TMDB Discover filtered by preferred genres
@@ -281,7 +285,7 @@ def get_hybrid_recommendations(request, user_id):
             genre_recs.sort(key=lambda x: x['score'], reverse=True)
             needed = limit - len(recommendations)
             recommendations += genre_recs[:needed]
-            print(f'Genre-discover: added {min(len(genre_recs), needed)} recs for user {user_id}')
+            logger.info('Genre-discover: added %d recs for user %s', min(len(genre_recs), needed), user_id)
 
         # ═══════════════════════════════════════════════════════════════════
         # TIER 3 — Trending / popular fallback
@@ -338,8 +342,8 @@ def get_hybrid_recommendations(request, user_id):
 
     except Exception as e:
         import traceback
-        print(f'get_hybrid_recommendations error: {traceback.format_exc()}')
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        logger.error('get_hybrid_recommendations error: %s', traceback.format_exc())
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -348,7 +352,7 @@ def get_collaborative_recommendations(request, user_id):
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
         
         limit = min(int(request.GET.get('limit', 20)), 100)
         
@@ -381,7 +385,7 @@ def get_collaborative_recommendations(request, user_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -433,7 +437,7 @@ def get_similar_items(request, tmdb_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -442,7 +446,7 @@ def get_user_similarity(request, user_id):
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
         
         limit = min(int(request.GET.get('limit', 10)), 50)
         
@@ -484,14 +488,14 @@ def get_user_similarity(request, user_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @csrf_exempt
 def semantic_search(request):
     """Semantic search for movies/TV shows with hybrid re-ranking"""
     if request.method not in ['POST', 'GET']:
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     import time
     start_time = time.time()
@@ -513,8 +517,7 @@ def semantic_search(request):
             sort_by = request.GET.get('sortBy', 'relevance')
         
         if not query:
-            return JsonResponse({"error": "query is required"}, status=400)
-
+            return error_response("query is required", "VALIDATION_ERROR", 400)
         from .ml.pinecone_service import pinecone_service
         search_method = "pinecone_semantic"
 
@@ -720,9 +723,9 @@ def semantic_search(request):
         })
 
     except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
+        return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -731,7 +734,7 @@ def get_recommendation_explanation(request, user_id, tmdb_id):
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
         
         media_type = request.GET.get('media_type', 'movie')
         
@@ -777,7 +780,7 @@ def get_recommendation_explanation(request, user_id, tmdb_id):
         return JsonResponse(explainability_engine.to_dict(explanation))
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -786,7 +789,7 @@ def get_bandit_statistics(request, user_id):
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
         
         from .ml.contextual_bandits import contextual_bandit_engine
         
@@ -798,19 +801,19 @@ def get_bandit_statistics(request, user_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @csrf_exempt
 def select_recommendation_arm(request, user_id):
     """Select a recommendation strategy using contextual bandits"""
     if request.method != 'POST':
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
         
         body = json.loads(request.body) if request.body else {}
         session_duration = body.get('session_duration', 0)
@@ -845,16 +848,16 @@ def select_recommendation_arm(request, user_id):
         })
         
     except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
+        return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @csrf_exempt
 def update_bandit_reward(request):
     """Update bandit experiment with user feedback reward"""
     if request.method != 'POST':
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
         body = json.loads(request.body)
@@ -862,7 +865,7 @@ def update_bandit_reward(request):
         outcome_type = body.get('outcome_type')
         
         if not experiment_id or not outcome_type:
-            return JsonResponse({"error": "experiment_id and outcome_type are required"}, status=400)
+            return error_response("experiment_id and outcome_type are required", "VALIDATION_ERROR", 400)
         
         from .ml.contextual_bandits import contextual_bandit_engine, RewardFeedback
         
@@ -884,16 +887,16 @@ def update_bandit_reward(request):
         })
         
     except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
+        return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @csrf_exempt
 def apply_diversity(request):
     """Apply diversity algorithms to a list of recommendations"""
     if request.method != 'POST':
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
         body = json.loads(request.body)
@@ -902,7 +905,7 @@ def apply_diversity(request):
         user_genre_preferences = body.get('user_genre_preferences', [])
         
         if not candidates:
-            return JsonResponse({"error": "candidates is required"}, status=400)
+            return error_response("candidates is required", "VALIDATION_ERROR", 400)
         
         from .ml.diversity_engine import diversity_engine, DiversityCandidate, DiversityConfig
         
@@ -961,9 +964,9 @@ def apply_diversity(request):
         })
         
     except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
+        return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -972,7 +975,7 @@ def get_diversity_metrics(request, user_id):
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
         
         from .ml.diversity_engine import diversity_engine, DiversityCandidate
         from .models import UserPreferences
@@ -1014,7 +1017,7 @@ def get_diversity_metrics(request, user_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -1052,21 +1055,21 @@ def get_sentiment_analytics(request, tmdb_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @csrf_exempt
 def analyze_text_sentiment(request):
     """Analyze sentiment of arbitrary text"""
     if request.method != 'POST':
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
         body = json.loads(request.body)
         text = body.get('text', '')
         
         if not text:
-            return JsonResponse({"error": "text is required"}, status=400)
+            return error_response("text is required", "VALIDATION_ERROR", 400)
         
         from .ml.sentiment_analyzer import sentiment_analyzer
         
@@ -1085,16 +1088,16 @@ def analyze_text_sentiment(request):
         })
         
     except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
+        return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @csrf_exempt
 def update_sentiment_for_content(request, tmdb_id):
     """Trigger sentiment recalculation for a movie/TV show"""
     if request.method != 'POST':
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
         body = json.loads(request.body) if request.body else {}
@@ -1111,9 +1114,9 @@ def update_sentiment_for_content(request, tmdb_id):
         })
         
     except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
+        return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -1122,7 +1125,7 @@ def get_recommendation_history(request, user_id):
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
         
         limit = min(int(request.GET.get('limit', 50)), 200)
         offset = int(request.GET.get('offset', 0))
@@ -1179,14 +1182,14 @@ def get_recommendation_history(request, user_id):
         })
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @csrf_exempt
 def log_recommendation_interaction(request):
     """Log recommendation interaction (clicked, watchlisted, rated_high, ignored, dismissed)"""
     if request.method != 'POST':
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
         body = json.loads(request.body)
@@ -1195,11 +1198,11 @@ def log_recommendation_interaction(request):
         interaction_type = body.get('interaction_type')
         
         if not recommendation_id:
-            return JsonResponse({"error": "recommendation_id is required"}, status=400)
+            return error_response("recommendation_id is required", "VALIDATION_ERROR", 400)
         if not user_id:
-            return JsonResponse({"error": "user_id is required"}, status=400)
+            return error_response("user_id is required", "VALIDATION_ERROR", 400)
         if not interaction_type:
-            return JsonResponse({"error": "interaction_type is required"}, status=400)
+            return error_response("interaction_type is required", "VALIDATION_ERROR", 400)
         
         valid_interaction_types = ['clicked', 'watchlisted', 'rated_high', 'ignored', 'dismissed']
         if interaction_type not in valid_interaction_types:
@@ -1209,7 +1212,7 @@ def log_recommendation_interaction(request):
         
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
 
         # recommendation_id may be a DB integer ID or "tmdb_id-media_type" composite
         recommendation = None
@@ -1249,7 +1252,7 @@ def log_recommendation_interaction(request):
                 pass
 
         if not recommendation:
-            return JsonResponse({"error": "Recommendation not found"}, status=404)
+            return error_response("Recommendation not found", "NOT_FOUND", 404)
         
         recommendation.user_interacted = True
         
@@ -1338,9 +1341,9 @@ def log_recommendation_interaction(request):
         })
         
     except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
+        return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -1356,7 +1359,7 @@ def get_global_feature_importance(request):
         return JsonResponse(result)
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -1365,16 +1368,16 @@ def get_counterfactual_explanation(request, user_id, tmdb_id):
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
         
         alternative_tmdb_id = request.GET.get('alternative_tmdb_id')
         if not alternative_tmdb_id:
-            return JsonResponse({"error": "alternative_tmdb_id query parameter is required"}, status=400)
+            return error_response("alternative_tmdb_id query parameter is required", "VALIDATION_ERROR", 400)
         
         try:
             alternative_tmdb_id = int(alternative_tmdb_id)
         except ValueError:
-            return JsonResponse({"error": "alternative_tmdb_id must be a valid integer"}, status=400)
+            return error_response("alternative_tmdb_id must be a valid integer", "VALIDATION_ERROR", 400)
         
         media_type = request.GET.get('media_type', 'movie')
         
@@ -1390,7 +1393,7 @@ def get_counterfactual_explanation(request, user_id, tmdb_id):
         return JsonResponse(result)
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -1399,7 +1402,7 @@ def get_local_explanation(request, user_id, tmdb_id):
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
         
         media_type = request.GET.get('media_type', 'movie')
         num_permutations = min(int(request.GET.get('num_permutations', 10)), 50)
@@ -1416,14 +1419,14 @@ def get_local_explanation(request, user_id, tmdb_id):
         return JsonResponse(result)
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @csrf_exempt
 def calibrate_confidence(request):
     """Calibrate confidence scores based on historical accuracy"""
     if request.method != 'POST':
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
     
     try:
         body = json.loads(request.body) if request.body else {}
@@ -1440,9 +1443,9 @@ def calibrate_confidence(request):
         return JsonResponse(result)
         
     except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
+        return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -1451,7 +1454,7 @@ def get_viewing_patterns(request, user_id):
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return error_response("User not found", "NOT_FOUND", 404)
         
         from .ml.pattern_recognition import viewing_pattern_analyzer
         
@@ -1461,7 +1464,7 @@ def get_viewing_patterns(request, user_id):
         return JsonResponse(result)
         
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)
 
 
 @require_GET
@@ -1519,9 +1522,9 @@ def get_similar_movies_semantic(request, tmdb_id):
                     ][:limit]
                     similar_items = enrich_and_filter(similar_items)
                 else:
-                    print(f"Pinecone quality too low for {tmdb_id} (top={top_score:.2f}), using TMDB fallback")
+                    logger.info("Pinecone quality too low for %s (top=%.2f), using TMDB fallback", tmdb_id, top_score)
         except Exception as e:
-            print(f"Pinecone search error: {e}")
+            logger.warning("Pinecone search error: %s", e)
 
         # 2. Fallback: TMDB recommendations (better quality than /similar for popular films)
         if not similar_items:
@@ -1548,7 +1551,7 @@ def get_similar_movies_semantic(request, tmdb_id):
                         if item.get('poster_path')
                     ][:limit]
             except Exception as e:
-                print(f"TMDB recommendations error: {e}")
+                logger.warning("TMDB recommendations error: %s", e)
 
         # 3. Last resort: TMDB /similar endpoint
         if not similar_items:
@@ -1574,7 +1577,7 @@ def get_similar_movies_semantic(request, tmdb_id):
                     if item.get('poster_path')
                 ][:limit]
             except Exception as e:
-                print(f"TMDB similar error: {e}")
+                logger.warning("TMDB similar error: %s", e)
 
         # Filter out movies the logged-in user has dismissed
         if request.user.is_authenticated:
@@ -1601,4 +1604,4 @@ def get_similar_movies_semantic(request, tmdb_id):
         })
 
     except Exception as e:
-        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+        return error_response(str(e), "INTERNAL_ERROR", 500)

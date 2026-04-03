@@ -1,4 +1,5 @@
 import json
+import logging
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET, require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -10,6 +11,14 @@ from .models import (
     UserActivityStats, UserReview, UserRecommendation, RecommendationVote,
     RecommendationComment, NotificationSettings, ListCollaborator, UserBadge
 )
+from .validation import (
+    error_response, parse_json_body, validate_rating, validate_tmdb_id,
+    validate_media_type, validate_string_length,
+    MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH, MAX_REVIEW_TEXT_LENGTH,
+    MAX_COMMENT_LENGTH, MAX_NOTE_LENGTH, MAX_URL_LENGTH,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def get_user_or_404(user_id):
@@ -23,7 +32,7 @@ def get_user_or_404(user_id):
 def get_followers(request, user_id):
     user = get_user_or_404(user_id)
     if not user:
-        return JsonResponse({'error': 'User not found'}, status=404)
+        return error_response('User not found', 'NOT_FOUND', 404)
     
     followers = UserFollow.objects.filter(following=user).select_related('follower')
     return JsonResponse({
@@ -40,7 +49,7 @@ def get_followers(request, user_id):
 def get_following(request, user_id):
     user = get_user_or_404(user_id)
     if not user:
-        return JsonResponse({'error': 'User not found'}, status=404)
+        return error_response('User not found', 'NOT_FOUND', 404)
     
     following = UserFollow.objects.filter(follower=user).select_related('following')
     return JsonResponse({
@@ -57,24 +66,24 @@ def get_following(request, user_id):
 @require_POST
 def follow_user(request, user_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     if str(request.user.id) != str(user_id):
-        return JsonResponse({'error': 'Not authorized'}, status=403)
+        return error_response('Not authorized', 'FORBIDDEN', 403)
     
     try:
         data = json.loads(request.body)
         target_user_id = data.get('targetUserId')
         
         if not target_user_id:
-            return JsonResponse({'error': 'targetUserId is required'}, status=400)
+            return error_response('targetUserId is required', 'VALIDATION_ERROR', 400)
         
         target_user = get_user_or_404(target_user_id)
         if not target_user:
-            return JsonResponse({'error': 'Target user not found'}, status=404)
+            return error_response('Target user not found', 'NOT_FOUND', 404)
         
         if request.user.id == target_user.id:
-            return JsonResponse({'error': 'Cannot follow yourself'}, status=400)
+            return error_response('Cannot follow yourself', 'VALIDATION_ERROR', 400)
         
         follow, created = UserFollow.objects.get_or_create(
             follower=request.user,
@@ -91,17 +100,17 @@ def follow_user(request, user_id):
         
         return JsonResponse({'success': True, 'created': created})
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @csrf_exempt
 @require_http_methods(["DELETE"])
 def unfollow_user(request, user_id, target_user_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     if str(request.user.id) != str(user_id):
-        return JsonResponse({'error': 'Not authorized'}, status=403)
+        return error_response('Not authorized', 'FORBIDDEN', 403)
     
     deleted, _ = UserFollow.objects.filter(
         follower=request.user,
@@ -131,7 +140,7 @@ def is_following(request, user_id, target_user_id):
 def get_user_lists(request, user_id):
     user = get_user_or_404(user_id)
     if not user:
-        return JsonResponse({'error': 'User not found'}, status=404)
+        return error_response('User not found', 'NOT_FOUND', 404)
     
     lists = UserList.objects.filter(user=user)
     if not request.user.is_authenticated or request.user.id != user.id:
@@ -204,11 +213,11 @@ def get_list_detail(request, list_id):
     try:
         lst = UserList.objects.get(id=list_id)
     except UserList.DoesNotExist:
-        return JsonResponse({'error': 'List not found'}, status=404)
+        return error_response('List not found', 'NOT_FOUND', 404)
     
     if not lst.is_public:
         if not request.user.is_authenticated or request.user.id != lst.user.id:
-            return JsonResponse({'error': 'Not authorized'}, status=403)
+            return error_response('Not authorized', 'FORBIDDEN', 403)
     
     items = ListItem.objects.filter(list=lst)
     
@@ -244,10 +253,10 @@ def get_list_detail(request, list_id):
 @require_POST
 def create_list(request, user_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     if str(request.user.id) != str(user_id):
-        return JsonResponse({'error': 'Not authorized'}, status=403)
+        return error_response('Not authorized', 'FORBIDDEN', 403)
     
     try:
         data = json.loads(request.body)
@@ -256,7 +265,7 @@ def create_list(request, user_id):
         is_public = data.get('isPublic', True)
         
         if not title:
-            return JsonResponse({'error': 'Title is required'}, status=400)
+            return error_response('Title is required', 'VALIDATION_ERROR', 400)
         
         lst = UserList.objects.create(
             user=request.user,
@@ -276,7 +285,7 @@ def create_list(request, user_id):
             }
         })
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @csrf_exempt
@@ -291,12 +300,12 @@ def create_community_list(request):
 @require_http_methods(["PUT"])
 def update_list(request, list_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     try:
         lst = UserList.objects.get(id=list_id, user=request.user)
     except UserList.DoesNotExist:
-        return JsonResponse({'error': 'List not found or not authorized'}, status=404)
+        return error_response('List not found or not authorized', 'NOT_FOUND', 404)
     
     try:
         data = json.loads(request.body)
@@ -318,14 +327,14 @@ def update_list(request, list_id):
             }
         })
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @csrf_exempt
 @require_http_methods(["DELETE"])
 def delete_list(request, list_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     deleted, _ = UserList.objects.filter(
         id=list_id,
@@ -339,12 +348,12 @@ def delete_list(request, list_id):
 @require_POST
 def add_list_item(request, list_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     try:
         lst = UserList.objects.get(id=list_id, user=request.user)
     except UserList.DoesNotExist:
-        return JsonResponse({'error': 'List not found or not authorized'}, status=404)
+        return error_response('List not found or not authorized', 'NOT_FOUND', 404)
     
     try:
         data = json.loads(request.body)
@@ -355,7 +364,7 @@ def add_list_item(request, list_id):
         note = data.get('note', '')
         
         if not tmdb_id:
-            return JsonResponse({'error': 'tmdbId is required'}, status=400)
+            return error_response('tmdbId is required', 'VALIDATION_ERROR', 400)
         
         max_position = ListItem.objects.filter(list=lst).count()
         
@@ -385,19 +394,19 @@ def add_list_item(request, list_id):
             }
         })
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @csrf_exempt
 @require_http_methods(["DELETE"])
 def remove_list_item(request, list_id, item_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     try:
         lst = UserList.objects.get(id=list_id, user=request.user)
     except UserList.DoesNotExist:
-        return JsonResponse({'error': 'List not found or not authorized'}, status=404)
+        return error_response('List not found or not authorized', 'NOT_FOUND', 404)
     
     deleted, _ = ListItem.objects.filter(
         list=lst,
@@ -410,10 +419,10 @@ def remove_list_item(request, list_id, item_id):
 @require_GET
 def get_notifications(request, user_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     if str(request.user.id) != str(user_id):
-        return JsonResponse({'error': 'Not authorized'}, status=403)
+        return error_response('Not authorized', 'FORBIDDEN', 403)
     
     notifications = Notification.objects.filter(user=request.user)[:50]
     unread_count = Notification.objects.filter(user=request.user, is_read=False).count()
@@ -437,10 +446,10 @@ def get_notifications(request, user_id):
 @require_POST
 def mark_notifications_read(request, user_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     if str(request.user.id) != str(user_id):
-        return JsonResponse({'error': 'Not authorized'}, status=403)
+        return error_response('Not authorized', 'FORBIDDEN', 403)
     
     try:
         data = json.loads(request.body)
@@ -456,7 +465,7 @@ def mark_notifications_read(request, user_id):
         
         return JsonResponse({'success': True})
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @require_GET
@@ -628,7 +637,7 @@ def get_ratings(request):
     media_type = request.GET.get('mediaType', 'movie')
     
     if not tmdb_id:
-        return JsonResponse({'error': 'tmdbId required'}, status=400)
+        return error_response('tmdbId required', 'VALIDATION_ERROR', 400)
     
     reviews = UserReview.objects.filter(
         tmdb_id=tmdb_id,
@@ -658,60 +667,56 @@ def get_ratings(request):
 @require_POST
 def create_rating(request):
     """Create or update a rating/review for a movie or TV show"""
-    try:
-        data = json.loads(request.body)
-        tmdb_id = data.get('tmdbId')
-        media_type = data.get('mediaType', 'movie')
-        rating = data.get('rating')
-        review_text = data.get('reviewText', '')
-        title = data.get('title', '')
-        poster_path = data.get('posterPath', '')
-        
-        if not tmdb_id or rating is None:
-            return JsonResponse({'error': 'tmdbId and rating are required'}, status=400)
-        
-        # For demo mode, use demo user
-        if not request.user.is_authenticated:
-            try:
-                demo_user = User.objects.get(username='demo_user')
-            except User.DoesNotExist:
-                demo_user = User.objects.create_user(
-                    username='demo_user',
-                    email='demo@cinesuggest.com',
-                    password='demo123'
-                )
-            user = demo_user
-        else:
-            user = request.user
-        
-        # Create or update the review
-        review, created = UserReview.objects.update_or_create(
-            user=user,
-            tmdb_id=tmdb_id,
-            media_type=media_type,
-            defaults={
-                'rating': rating,
-                'review_text': review_text,
-                'title': title,
-                'poster_path': poster_path,
-                'is_public': True
-            }
-        )
-        
-        return JsonResponse({
-            'id': review.id,
-            'tmdbId': review.tmdb_id,
-            'mediaType': review.media_type,
-            'rating': review.rating,
-            'review': review.review_text,
-            'title': review.title,
-            'createdAt': review.created_at.isoformat(),
-            'created': created
-        })
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
-    except Exception as e:
-        return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
+    if not request.user.is_authenticated:
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+
+    data, err = parse_json_body(request)
+    if err:
+        return err
+
+    tmdb_id, err = validate_tmdb_id(data.get('tmdbId'))
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    rating, err = validate_rating(data.get('rating'))
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    media_type, err = validate_media_type(data.get('mediaType'))
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    title, err = validate_string_length(data.get('title', ''), 'title', MAX_TITLE_LENGTH)
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    review_text, err = validate_string_length(data.get('reviewText', ''), 'reviewText', MAX_REVIEW_TEXT_LENGTH)
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    review, created = UserReview.objects.update_or_create(
+        user=request.user,
+        tmdb_id=tmdb_id,
+        media_type=media_type,
+        defaults={
+            'rating': rating,
+            'review_text': review_text,
+            'title': title,
+            'poster_path': data.get('posterPath', ''),
+            'is_public': True
+        }
+    )
+
+    return JsonResponse({
+        'id': review.id,
+        'tmdbId': review.tmdb_id,
+        'mediaType': review.media_type,
+        'rating': review.rating,
+        'review': review.review_text,
+        'title': review.title,
+        'createdAt': review.created_at.isoformat(),
+        'created': created
+    })
 
 
 @csrf_exempt
@@ -721,7 +726,7 @@ def manage_rating(request, review_id):
     try:
         review = UserReview.objects.get(id=review_id)
     except UserReview.DoesNotExist:
-        return JsonResponse({'error': 'Rating not found'}, status=404)
+        return error_response('Rating not found', 'NOT_FOUND', 404)
 
     if request.method == "GET":
         return JsonResponse({
@@ -742,34 +747,39 @@ def manage_rating(request, review_id):
         })
 
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
 
     if review.user != request.user:
-        return JsonResponse({'error': 'Not authorized'}, status=403)
+        return error_response('Not authorized', 'FORBIDDEN', 403)
 
     if request.method == "DELETE":
         review.delete()
         return JsonResponse({'success': True, 'deleted': True})
 
-    # PATCH / PUT — update rating and/or review text
-    try:
-        data = json.loads(request.body)
-        if 'rating' in data:
-            review.rating = data['rating']
-        if 'reviewText' in data:
-            review.review_text = data['reviewText']
-        if 'isPublic' in data:
-            review.is_public = data['isPublic']
-        review.save()
-        return JsonResponse({
-            'success': True,
-            'id': review.id,
-            'rating': review.rating,
-            'review': review.review_text,
-            'isPublic': review.is_public,
-        })
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    data, err = parse_json_body(request)
+    if err:
+        return err
+
+    if 'rating' in data:
+        rating_val, err = validate_rating(data['rating'])
+        if err:
+            return error_response(err, 'VALIDATION_ERROR')
+        review.rating = rating_val
+    if 'reviewText' in data:
+        text_val, err = validate_string_length(data['reviewText'], 'reviewText', MAX_REVIEW_TEXT_LENGTH)
+        if err:
+            return error_response(err, 'VALIDATION_ERROR')
+        review.review_text = text_val
+    if 'isPublic' in data:
+        review.is_public = data['isPublic']
+    review.save()
+    return JsonResponse({
+        'success': True,
+        'id': review.id,
+        'rating': review.rating,
+        'review': review.review_text,
+        'isPublic': review.is_public,
+    })
 
 
 @csrf_exempt
@@ -778,7 +788,7 @@ def get_review_comments(request, review_id):
     try:
         review = UserReview.objects.get(id=review_id)
     except UserReview.DoesNotExist:
-        return JsonResponse({'error': 'Review not found'}, status=404)
+        return error_response('Review not found', 'NOT_FOUND', 404)
     
     if request.method == "GET":
         comments = ReviewComment.objects.filter(review=review, parent_comment__isnull=True).select_related('user')
@@ -798,134 +808,127 @@ def get_review_comments(request, review_id):
             'comments': [serialize_comment(c) for c in comments]
         })
     
-    # POST - add a new comment
     if not request.user.is_authenticated:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'Not authenticated'}, status=401)
-    else:
-        user = request.user
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
-    try:
-        data = json.loads(request.body)
-        comment_text = (data.get('comment') or data.get('content') or '').strip()
-        parent_id = data.get('parentCommentId')
-        
-        if not comment_text:
-            return JsonResponse({'error': 'Comment is required'}, status=400)
-        
-        parent_comment = None
-        if parent_id:
-            try:
-                parent_comment = ReviewComment.objects.get(id=parent_id)
-            except ReviewComment.DoesNotExist:
-                pass
-        
-        comment = ReviewComment.objects.create(
-            user=user,
-            review=review,
-            comment=comment_text,
-            parent_comment=parent_comment
+    data, err = parse_json_body(request)
+    if err:
+        return err
+
+    comment_text = (data.get('comment') or data.get('content') or '').strip()
+    parent_id = data.get('parentCommentId')
+
+    if not comment_text:
+        return error_response('Comment is required', 'VALIDATION_ERROR')
+
+    comment_text_val, err = validate_string_length(comment_text, 'comment', MAX_COMMENT_LENGTH, required=True)
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    parent_comment = None
+    if parent_id:
+        try:
+            parent_comment = ReviewComment.objects.get(id=parent_id)
+        except ReviewComment.DoesNotExist:
+            pass
+
+    comment = ReviewComment.objects.create(
+        user=request.user,
+        review=review,
+        comment=comment_text_val,
+        parent_comment=parent_comment
+    )
+
+    if review.user != request.user:
+        Notification.objects.create(
+            user=review.user,
+            notification_type='comment',
+            message=f'{request.user.first_name or request.user.email} commented on your review',
+            related_user_id=request.user.id,
+            related_tmdb_id=review.tmdb_id,
+            related_media_type=review.media_type
         )
-        
-        if review.user != user:
-            Notification.objects.create(
-                user=review.user,
-                notification_type='comment',
-                message=f'{user.first_name or user.email} commented on your review',
-                related_user_id=user.id,
-                related_tmdb_id=review.tmdb_id,
-                related_media_type=review.media_type
-            )
-        
-        stats, _ = UserActivityStats.objects.get_or_create(user=user)
-        stats.total_comments += 1
-        stats.experience_points += 5
-        stats.user_level = stats.calculate_level()
-        stats.save()
-        
-        return JsonResponse({
-            'success': True,
-            'comment': {
-                'id': comment.id,
-                'userId': str(comment.user.id),
-                'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.email,
-                'comment': comment.comment,
-                'createdAt': comment.created_at.isoformat(),
-            }
-        })
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    stats, _ = UserActivityStats.objects.get_or_create(user=request.user)
+    stats.total_comments += 1
+    stats.experience_points += 5
+    stats.user_level = stats.calculate_level()
+    stats.save()
+
+    return JsonResponse({
+        'success': True,
+        'comment': {
+            'id': comment.id,
+            'userId': str(comment.user.id),
+            'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.email,
+            'comment': comment.comment,
+            'createdAt': comment.created_at.isoformat(),
+        }
+    })
 
 
 @csrf_exempt
 @require_POST
 def add_review_comment(request, review_id):
-    # Support demo user for unauthenticated requests
     if not request.user.is_authenticated:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'Not authenticated'}, status=401)
-    else:
-        user = request.user
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     try:
         review = UserReview.objects.get(id=review_id)
     except UserReview.DoesNotExist:
-        return JsonResponse({'error': 'Review not found'}, status=404)
+        return error_response('Review not found', 'NOT_FOUND', 404)
     
-    try:
-        data = json.loads(request.body)
-        comment_text = (data.get('comment') or data.get('content') or '').strip()
-        parent_id = data.get('parentCommentId')
-        
-        if not comment_text:
-            return JsonResponse({'error': 'Comment is required'}, status=400)
-        
-        parent_comment = None
-        if parent_id:
-            try:
-                parent_comment = ReviewComment.objects.get(id=parent_id)
-            except ReviewComment.DoesNotExist:
-                pass
-        
-        comment = ReviewComment.objects.create(
-            user=user,
-            review=review,
-            comment=comment_text,
-            parent_comment=parent_comment
+    data, err = parse_json_body(request)
+    if err:
+        return err
+
+    comment_text = (data.get('comment') or data.get('content') or '').strip()
+    parent_id = data.get('parentCommentId')
+
+    comment_text_val, err = validate_string_length(comment_text, 'comment', MAX_COMMENT_LENGTH, required=True)
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    parent_comment = None
+    if parent_id:
+        try:
+            parent_comment = ReviewComment.objects.get(id=parent_id)
+        except ReviewComment.DoesNotExist:
+            pass
+
+    comment = ReviewComment.objects.create(
+        user=request.user,
+        review=review,
+        comment=comment_text_val,
+        parent_comment=parent_comment
+    )
+
+    if review.user != request.user:
+        Notification.objects.create(
+            user=review.user,
+            notification_type='comment',
+            message=f'{request.user.first_name or request.user.email} commented on your review',
+            related_user_id=request.user.id,
+            related_tmdb_id=review.tmdb_id,
+            related_media_type=review.media_type
         )
-        
-        if review.user != user:
-            Notification.objects.create(
-                user=review.user,
-                notification_type='comment',
-                message=f'{user.first_name or user.email} commented on your review',
-                related_user_id=user.id,
-                related_tmdb_id=review.tmdb_id,
-                related_media_type=review.media_type
-            )
-        
-        stats, _ = UserActivityStats.objects.get_or_create(user=user)
-        stats.total_comments += 1
-        stats.experience_points += 5
-        stats.user_level = stats.calculate_level()
-        stats.save()
-        
-        return JsonResponse({
-            'success': True,
-            'comment': {
-                'id': comment.id,
-                'userId': str(comment.user.id),
-                'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.email,
-                'comment': comment.comment,
-                'createdAt': comment.created_at.isoformat(),
-            }
-        })
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    stats, _ = UserActivityStats.objects.get_or_create(user=request.user)
+    stats.total_comments += 1
+    stats.experience_points += 5
+    stats.user_level = stats.calculate_level()
+    stats.save()
+
+    return JsonResponse({
+        'success': True,
+        'comment': {
+            'id': comment.id,
+            'userId': str(comment.user.id),
+            'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.email,
+            'comment': comment.comment,
+            'createdAt': comment.created_at.isoformat(),
+        }
+    })
 
 
 @csrf_exempt
@@ -934,7 +937,7 @@ def get_review_awards(request, review_id):
     try:
         review = UserReview.objects.get(id=review_id)
     except UserReview.DoesNotExist:
-        return JsonResponse({'error': 'Review not found'}, status=404)
+        return error_response('Review not found', 'NOT_FOUND', 404)
     
     if request.method == "GET":
         awards = ReviewAward.objects.filter(review=review).select_related('user')
@@ -951,53 +954,46 @@ def get_review_awards(request, review_id):
             'counts': {item['award_type']: item['count'] for item in award_counts}
         })
     
-    # POST - give a new award
     if not request.user.is_authenticated:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'Not authenticated'}, status=401)
-    else:
-        user = request.user
-    
-    if review.user == user:
-        return JsonResponse({'error': 'Cannot give awards to your own review'}, status=400)
-    
-    try:
-        data = json.loads(request.body)
-        award_type = data.get('awardType', '').lower()
-        
-        valid_types = ['outstanding', 'perfect', 'great', 'helpful', 'insightful', 'funny']
-        if award_type not in valid_types:
-            return JsonResponse({'error': f'Invalid award type. Must be one of: {", ".join(valid_types)}'}, status=400)
-        
-        award, created = ReviewAward.objects.get_or_create(
-            user=user,
-            review=review,
-            award_type=award_type
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+
+    if review.user == request.user:
+        return error_response('Cannot give awards to your own review', 'VALIDATION_ERROR')
+
+    data, err = parse_json_body(request)
+    if err:
+        return err
+
+    award_type = data.get('awardType', '').lower()
+    valid_types = ['outstanding', 'perfect', 'great', 'helpful', 'insightful', 'funny']
+    if award_type not in valid_types:
+        return error_response(f'Invalid award type. Must be one of: {", ".join(valid_types)}', 'VALIDATION_ERROR')
+
+    award, created = ReviewAward.objects.get_or_create(
+        user=request.user,
+        review=review,
+        award_type=award_type
+    )
+
+    if created and review.user != request.user:
+        Notification.objects.create(
+            user=review.user,
+            notification_type='like',
+            message=f'{request.user.first_name or request.user.email} gave your review a "{award_type}" award',
+            related_user_id=request.user.id,
+            related_tmdb_id=review.tmdb_id,
+            related_media_type=review.media_type
         )
-        
-        if created and review.user != user:
-            Notification.objects.create(
-                user=review.user,
-                notification_type='like',
-                message=f'{user.first_name or user.email} gave your review a "{award_type}" award',
-                related_user_id=user.id,
-                related_tmdb_id=review.tmdb_id,
-                related_media_type=review.media_type
-            )
-        
-        return JsonResponse({
-            'success': True,
-            'created': created,
-            'award': {
-                'id': award.id,
-                'awardType': award.award_type,
-                'createdAt': award.created_at.isoformat(),
-            }
-        })
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    return JsonResponse({
+        'success': True,
+        'created': created,
+        'award': {
+            'id': award.id,
+            'awardType': award.award_type,
+            'createdAt': award.created_at.isoformat(),
+        }
+    })
 
 
 @require_GET
@@ -1006,19 +1002,12 @@ def get_user_awards_for_review(request, review_id):
     try:
         review = UserReview.objects.get(id=review_id)
     except UserReview.DoesNotExist:
-        return JsonResponse({'error': 'Review not found'}, status=404)
+        return error_response('Review not found', 'NOT_FOUND', 404)
     
-    # For demo mode, use demo user
     if not request.user.is_authenticated:
-        try:
-            demo_user = User.objects.get(username='demo_user')
-            user = demo_user
-        except User.DoesNotExist:
-            return JsonResponse({'userAwards': []})
-    else:
-        user = request.user
-    
-    user_awards = ReviewAward.objects.filter(review=review, user=user)
+        return JsonResponse({'userAwards': []})
+
+    user_awards = ReviewAward.objects.filter(review=review, user=request.user)
     
     return JsonResponse({
         'userAwards': [a.award_type for a in user_awards]
@@ -1029,15 +1018,15 @@ def get_user_awards_for_review(request, review_id):
 @require_POST
 def mark_review_helpful(request, review_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     try:
         review = UserReview.objects.get(id=review_id)
     except UserReview.DoesNotExist:
-        return JsonResponse({'error': 'Review not found'}, status=404)
+        return error_response('Review not found', 'NOT_FOUND', 404)
     
     if review.user == request.user:
-        return JsonResponse({'error': 'Cannot vote on your own review'}, status=400)
+        return error_response('Cannot vote on your own review', 'VALIDATION_ERROR', 400)
     
     try:
         data = json.loads(request.body)
@@ -1086,25 +1075,25 @@ def mark_review_helpful(request, review_id):
                 'helpfulCount': review.helpful_count
             })
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @csrf_exempt
 @require_POST
 def follow_list(request, list_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     try:
         user_list = UserList.objects.get(id=list_id)
     except UserList.DoesNotExist:
-        return JsonResponse({'error': 'List not found'}, status=404)
+        return error_response('List not found', 'NOT_FOUND', 404)
     
     if not user_list.is_public and user_list.user != request.user:
-        return JsonResponse({'error': 'List not found'}, status=404)
+        return error_response('List not found', 'NOT_FOUND', 404)
     
     if user_list.user == request.user:
-        return JsonResponse({'error': 'Cannot follow your own list'}, status=400)
+        return error_response('Cannot follow your own list', 'VALIDATION_ERROR', 400)
     
     follow, created = ListFollow.objects.get_or_create(
         user=request.user,
@@ -1134,12 +1123,12 @@ def follow_list(request, list_id):
 @require_http_methods(["DELETE"])
 def unfollow_list(request, list_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     try:
         user_list = UserList.objects.get(id=list_id)
     except UserList.DoesNotExist:
-        return JsonResponse({'error': 'List not found'}, status=404)
+        return error_response('List not found', 'NOT_FOUND', 404)
     
     deleted, _ = ListFollow.objects.filter(
         user=request.user,
@@ -1163,7 +1152,7 @@ def get_list_followers(request, list_id):
     try:
         user_list = UserList.objects.get(id=list_id)
     except UserList.DoesNotExist:
-        return JsonResponse({'error': 'List not found'}, status=404)
+        return error_response('List not found', 'NOT_FOUND', 404)
     
     followers = ListFollow.objects.filter(list=user_list).select_related('user')
     
@@ -1182,7 +1171,7 @@ def get_list_followers(request, list_id):
 def get_activity_stats(request, user_id):
     user = get_user_or_404(user_id)
     if not user:
-        return JsonResponse({'error': 'User not found'}, status=404)
+        return error_response('User not found', 'NOT_FOUND', 404)
     
     stats, _ = UserActivityStats.objects.get_or_create(user=user)
     
@@ -1213,71 +1202,69 @@ def get_activity_stats(request, user_id):
 @csrf_exempt
 @require_POST
 def submit_user_recommendation(request, user_id=None):
-    # Support demo user for unauthenticated requests
     if not request.user.is_authenticated:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'Not authenticated'}, status=401)
-    else:
-        user = request.user
-    
-    try:
-        data = json.loads(request.body)
-        for_tmdb_id = data.get('forTmdbId')
-        for_media_type = data.get('forMediaType', 'movie')
-        recommended_tmdb_id = data.get('recommendedTmdbId')
-        recommended_media_type = data.get('recommendedMediaType', 'movie')
-        recommended_title = data.get('recommendedTitle', '')
-        recommended_poster_path = data.get('recommendedPosterPath', '')
-        reason = data.get('reason', '')
-        
-        if not for_tmdb_id or not recommended_tmdb_id:
-            return JsonResponse({'error': 'forTmdbId and recommendedTmdbId are required'}, status=400)
-        
-        rec = UserRecommendation.objects.create(
-            user=user,
-            for_tmdb_id=for_tmdb_id,
-            for_media_type=for_media_type,
-            recommended_tmdb_id=recommended_tmdb_id,
-            recommended_media_type=recommended_media_type,
-            recommended_title=recommended_title,
-            recommended_poster_path=recommended_poster_path,
-            reason=reason
-        )
-        
-        stats, _ = UserActivityStats.objects.get_or_create(user=user)
-        stats.experience_points += 15
-        stats.user_level = stats.calculate_level()
-        stats.save()
-        
-        return JsonResponse({
-            'success': True,
-            'recommendation': {
-                'id': rec.id,
-                'forTmdbId': rec.for_tmdb_id,
-                'recommendedTmdbId': rec.recommended_tmdb_id,
-                'recommendedTitle': rec.recommended_title,
-                'reason': rec.reason,
-                'createdAt': rec.created_at.isoformat(),
-            }
-        })
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+
+    data, err = parse_json_body(request)
+    if err:
+        return err
+
+    for_tmdb_id, err = validate_tmdb_id(data.get('forTmdbId'))
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    recommended_tmdb_id, err = validate_tmdb_id(data.get('recommendedTmdbId'))
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    for_media_type, err = validate_media_type(data.get('forMediaType'))
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    recommended_media_type, err = validate_media_type(data.get('recommendedMediaType'))
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    recommended_title, err = validate_string_length(data.get('recommendedTitle', ''), 'recommendedTitle', MAX_TITLE_LENGTH)
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    reason, err = validate_string_length(data.get('reason', ''), 'reason', MAX_DESCRIPTION_LENGTH)
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    rec = UserRecommendation.objects.create(
+        user=request.user,
+        for_tmdb_id=for_tmdb_id,
+        for_media_type=for_media_type,
+        recommended_tmdb_id=recommended_tmdb_id,
+        recommended_media_type=recommended_media_type,
+        recommended_title=recommended_title,
+        recommended_poster_path=data.get('recommendedPosterPath', ''),
+        reason=reason
+    )
+
+    stats, _ = UserActivityStats.objects.get_or_create(user=request.user)
+    stats.experience_points += 15
+    stats.user_level = stats.calculate_level()
+    stats.save()
+
+    return JsonResponse({
+        'success': True,
+        'recommendation': {
+            'id': rec.id,
+            'forTmdbId': rec.for_tmdb_id,
+            'recommendedTmdbId': rec.recommended_tmdb_id,
+            'recommendedTitle': rec.recommended_title,
+            'reason': rec.reason,
+            'createdAt': rec.created_at.isoformat(),
+        }
+    })
 
 
 @require_GET
 def get_user_recommendations_for_content(request, tmdb_id, media_type):
-    # Get current user for checking their votes
-    current_user = None
-    user_id = request.GET.get('userId')
-    if request.user.is_authenticated:
-        current_user = request.user
-    elif user_id:
-        try:
-            current_user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            pass
+    current_user = request.user if request.user.is_authenticated else None
     
     from django.db.models import Count, Q
     
@@ -1322,19 +1309,14 @@ def get_user_recommendations_for_content(request, tmdb_id, media_type):
 def delete_user_recommendation(request, user_id, recommendation_id):
     """Delete a user recommendation"""
     if not request.user.is_authenticated:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'Not authenticated'}, status=401)
-    else:
-        user = request.user
-    
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+
     try:
-        rec = UserRecommendation.objects.get(id=recommendation_id, user=user)
+        rec = UserRecommendation.objects.get(id=recommendation_id, user=request.user)
         rec.delete()
         return JsonResponse({'success': True})
     except UserRecommendation.DoesNotExist:
-        return JsonResponse({'error': 'Recommendation not found'}, status=404)
+        return error_response('Recommendation not found', 'NOT_FOUND', 404)
 
 
 @csrf_exempt
@@ -1344,7 +1326,7 @@ def user_recommendation_comments(request, user_id, recommendation_id):
     try:
         rec = UserRecommendation.objects.get(id=recommendation_id)
     except UserRecommendation.DoesNotExist:
-        return JsonResponse({'error': 'Recommendation not found'}, status=404)
+        return error_response('Recommendation not found', 'NOT_FOUND', 404)
     
     if request.method == "GET":
         comments = RecommendationComment.objects.filter(recommendation=rec).select_related('user')
@@ -1358,40 +1340,34 @@ def user_recommendation_comments(request, user_id, recommendation_id):
             } for c in comments]
         })
     
-    # POST - add comment
     if not request.user.is_authenticated:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'Not authenticated'}, status=401)
-    else:
-        user = request.user
-    
-    try:
-        data = json.loads(request.body)
-        comment_text = (data.get('comment') or data.get('content') or '').strip()
-        
-        if not comment_text:
-            return JsonResponse({'error': 'Comment is required'}, status=400)
-        
-        comment = RecommendationComment.objects.create(
-            user=user,
-            recommendation=rec,
-            comment=comment_text
-        )
-        
-        return JsonResponse({
-            'success': True,
-            'comment': {
-                'id': comment.id,
-                'userId': str(comment.user.id),
-                'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.email,
-                'comment': comment.comment,
-                'createdAt': comment.created_at.isoformat(),
-            }
-        })
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+
+    data, err = parse_json_body(request)
+    if err:
+        return err
+
+    comment_text = (data.get('comment') or data.get('content') or '').strip()
+    comment_text_val, err = validate_string_length(comment_text, 'comment', MAX_COMMENT_LENGTH, required=True)
+    if err:
+        return error_response(err, 'VALIDATION_ERROR')
+
+    comment = RecommendationComment.objects.create(
+        user=request.user,
+        recommendation=rec,
+        comment=comment_text_val
+    )
+
+    return JsonResponse({
+        'success': True,
+        'comment': {
+            'id': comment.id,
+            'userId': str(comment.user.id),
+            'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.email,
+            'comment': comment.comment,
+            'createdAt': comment.created_at.isoformat(),
+        }
+    })
 
 
 @csrf_exempt
@@ -1399,38 +1375,32 @@ def user_recommendation_comments(request, user_id, recommendation_id):
 def user_recommendation_vote(request, user_id, recommendation_id):
     """Vote on a recommendation"""
     if not request.user.is_authenticated:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'Not authenticated'}, status=401)
-    else:
-        user = request.user
-    
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+
     try:
         rec = UserRecommendation.objects.get(id=recommendation_id)
     except UserRecommendation.DoesNotExist:
-        return JsonResponse({'error': 'Recommendation not found'}, status=404)
-    
-    try:
-        data = json.loads(request.body)
-        vote_type = data.get('voteType', '').lower()
-        
-        if vote_type not in ['like', 'dislike']:
-            return JsonResponse({'error': 'voteType must be "like" or "dislike"'}, status=400)
-        
-        vote, created = RecommendationVote.objects.update_or_create(
-            user=user,
-            recommendation=rec,
-            defaults={'vote_type': vote_type}
-        )
-        
-        return JsonResponse({
-            'success': True,
-            'created': created,
-            'voteType': vote.vote_type
-        })
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Recommendation not found', 'NOT_FOUND', 404)
+
+    data, err = parse_json_body(request)
+    if err:
+        return err
+
+    vote_type = data.get('voteType', '').lower()
+    if vote_type not in ['like', 'dislike']:
+        return error_response('voteType must be "like" or "dislike"', 'VALIDATION_ERROR')
+
+    vote, created = RecommendationVote.objects.update_or_create(
+        user=request.user,
+        recommendation=rec,
+        defaults={'vote_type': vote_type}
+    )
+
+    return JsonResponse({
+        'success': True,
+        'created': created,
+        'voteType': vote.vote_type
+    })
 
 
 @csrf_exempt
@@ -1438,19 +1408,14 @@ def user_recommendation_vote(request, user_id, recommendation_id):
 def delete_review_comment(request, review_id, comment_id):
     """Delete a review comment"""
     if not request.user.is_authenticated:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'Not authenticated'}, status=401)
-    else:
-        user = request.user
-    
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+
     try:
-        comment = ReviewComment.objects.get(id=comment_id, review_id=review_id, user=user)
+        comment = ReviewComment.objects.get(id=comment_id, review_id=review_id, user=request.user)
         comment.delete()
         return JsonResponse({'success': True})
     except ReviewComment.DoesNotExist:
-        return JsonResponse({'error': 'Comment not found'}, status=404)
+        return error_response('Comment not found', 'NOT_FOUND', 404)
 
 
 @csrf_exempt
@@ -1458,38 +1423,33 @@ def delete_review_comment(request, review_id, comment_id):
 def delete_review_award(request, review_id, award_id):
     """Delete a review award"""
     if not request.user.is_authenticated:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'Not authenticated'}, status=401)
-    else:
-        user = request.user
-    
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+
     try:
-        award = ReviewAward.objects.get(id=award_id, review_id=review_id, user=user)
+        award = ReviewAward.objects.get(id=award_id, review_id=review_id, user=request.user)
         award.delete()
         return JsonResponse({'success': True})
     except ReviewAward.DoesNotExist:
-        return JsonResponse({'error': 'Award not found'}, status=404)
+        return error_response('Award not found', 'NOT_FOUND', 404)
 
 
 @csrf_exempt
 @require_POST
 def vote_on_recommendation(request, recommendation_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     try:
         rec = UserRecommendation.objects.get(id=recommendation_id)
     except UserRecommendation.DoesNotExist:
-        return JsonResponse({'error': 'Recommendation not found'}, status=404)
+        return error_response('Recommendation not found', 'NOT_FOUND', 404)
     
     try:
         data = json.loads(request.body)
         vote_type = data.get('voteType', '').lower()
         
         if vote_type not in ['like', 'dislike']:
-            return JsonResponse({'error': 'voteType must be "like" or "dislike"'}, status=400)
+            return error_response('voteType must be "like" or "dislike"', 'VALIDATION_ERROR', 400)
         
         vote, created = RecommendationVote.objects.update_or_create(
             user=request.user,
@@ -1503,7 +1463,7 @@ def vote_on_recommendation(request, recommendation_id):
             'voteType': vote.vote_type
         })
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @require_GET
@@ -1511,7 +1471,7 @@ def get_recommendation_comments(request, recommendation_id):
     try:
         rec = UserRecommendation.objects.get(id=recommendation_id)
     except UserRecommendation.DoesNotExist:
-        return JsonResponse({'error': 'Recommendation not found'}, status=404)
+        return error_response('Recommendation not found', 'NOT_FOUND', 404)
     
     comments = RecommendationComment.objects.filter(recommendation=rec).select_related('user')
     
@@ -1530,19 +1490,19 @@ def get_recommendation_comments(request, recommendation_id):
 @require_POST
 def add_recommendation_comment(request, recommendation_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     try:
         rec = UserRecommendation.objects.get(id=recommendation_id)
     except UserRecommendation.DoesNotExist:
-        return JsonResponse({'error': 'Recommendation not found'}, status=404)
+        return error_response('Recommendation not found', 'NOT_FOUND', 404)
     
     try:
         data = json.loads(request.body)
         comment_text = (data.get('comment') or data.get('content') or '').strip()
         
         if not comment_text:
-            return JsonResponse({'error': 'Comment is required'}, status=400)
+            return error_response('Comment is required', 'VALIDATION_ERROR', 400)
         
         comment = RecommendationComment.objects.create(
             user=request.user,
@@ -1561,16 +1521,16 @@ def add_recommendation_comment(request, recommendation_id):
             }
         })
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @require_GET
 def get_notification_settings(request, user_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     if str(request.user.id) != str(user_id):
-        return JsonResponse({'error': 'Not authorized'}, status=403)
+        return error_response('Not authorized', 'FORBIDDEN', 403)
     
     settings, _ = NotificationSettings.objects.get_or_create(user=request.user)
     
@@ -1591,10 +1551,10 @@ def get_notification_settings(request, user_id):
 @require_http_methods(["PUT", "PATCH"])
 def update_notification_settings(request, user_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     if str(request.user.id) != str(user_id):
-        return JsonResponse({'error': 'Not authorized'}, status=403)
+        return error_response('Not authorized', 'FORBIDDEN', 403)
     
     settings, _ = NotificationSettings.objects.get_or_create(user=request.user)
     
@@ -1631,7 +1591,7 @@ def update_notification_settings(request, user_id):
             }
         })
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @require_GET
@@ -1639,7 +1599,7 @@ def get_list_collaborators(request, list_id):
     try:
         lst = UserList.objects.get(id=list_id)
     except UserList.DoesNotExist:
-        return JsonResponse({'error': 'List not found'}, status=404)
+        return error_response('List not found', 'NOT_FOUND', 404)
     
     collaborators = ListCollaborator.objects.filter(list=lst).select_related('user')
     
@@ -1660,12 +1620,12 @@ def get_list_collaborators(request, list_id):
 @require_POST
 def invite_list_collaborator(request, list_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     try:
         lst = UserList.objects.get(id=list_id, user=request.user)
     except UserList.DoesNotExist:
-        return JsonResponse({'error': 'List not found or not authorized'}, status=404)
+        return error_response('List not found or not authorized', 'NOT_FOUND', 404)
     
     try:
         data = json.loads(request.body)
@@ -1673,15 +1633,15 @@ def invite_list_collaborator(request, list_id):
         permission = data.get('permission', 'view')
         
         if not user_id:
-            return JsonResponse({'error': 'userId is required'}, status=400)
+            return error_response('userId is required', 'VALIDATION_ERROR', 400)
         
         try:
             target_user = User.objects.get(id=user_id)
         except User.DoesNotExist:
-            return JsonResponse({'error': 'User not found'}, status=404)
+            return error_response('User not found', 'NOT_FOUND', 404)
         
         if target_user == request.user:
-            return JsonResponse({'error': 'Cannot invite yourself'}, status=400)
+            return error_response('Cannot invite yourself', 'VALIDATION_ERROR', 400)
         
         collaborator, created = ListCollaborator.objects.get_or_create(
             list=lst,
@@ -1711,19 +1671,19 @@ def invite_list_collaborator(request, list_id):
             }
         })
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @csrf_exempt
 @require_http_methods(["DELETE"])
 def remove_list_collaborator(request, list_id, collaborator_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     try:
         lst = UserList.objects.get(id=list_id, user=request.user)
     except UserList.DoesNotExist:
-        return JsonResponse({'error': 'List not found or not authorized'}, status=404)
+        return error_response('List not found or not authorized', 'NOT_FOUND', 404)
     
     deleted, _ = ListCollaborator.objects.filter(
         list=lst,
@@ -1737,7 +1697,7 @@ def remove_list_collaborator(request, list_id, collaborator_id):
 def get_user_badges(request, user_id):
     user = get_user_or_404(user_id)
     if not user:
-        return JsonResponse({'error': 'User not found'}, status=404)
+        return error_response('User not found', 'NOT_FOUND', 404)
     
     badges = UserBadge.objects.filter(user=user)
     
@@ -1754,14 +1714,14 @@ def get_user_badges(request, user_id):
 @require_POST
 def award_badge(request, user_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     
     if not request.user.is_staff:
-        return JsonResponse({'error': 'Not authorized'}, status=403)
+        return error_response('Not authorized', 'FORBIDDEN', 403)
     
     user = get_user_or_404(user_id)
     if not user:
-        return JsonResponse({'error': 'User not found'}, status=404)
+        return error_response('User not found', 'NOT_FOUND', 404)
     
     try:
         data = json.loads(request.body)
@@ -1770,7 +1730,7 @@ def award_badge(request, user_id):
         valid_types = ['first_review', 'review_master', 'list_creator', 'social_butterfly', 
                       'movie_buff', 'tv_addict', 'critic', 'curator', 'trendsetter', 'influencer']
         if badge_type not in valid_types:
-            return JsonResponse({'error': f'Invalid badge type'}, status=400)
+            return error_response('Invalid badge type', 'VALIDATION_ERROR')
         
         badge, created = UserBadge.objects.get_or_create(
             user=user,
@@ -1793,7 +1753,7 @@ def award_badge(request, user_id):
             }
         })
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 def check_and_award_badges(user):
@@ -2047,232 +2007,6 @@ def get_personalized_feed(request, user_id):
     })
 
 
-def get_or_create_demo_user():
-    demo_user, _ = User.objects.get_or_create(
-        username='demo_user',
-        defaults={
-            'email': 'demo@cinesuggest.com',
-            'first_name': 'Demo',
-            'last_name': 'User',
-        }
-    )
-    return demo_user
-
-
-@require_GET
-def demo_user_stats(request):
-    """Get demo user activity stats"""
-    demo_user = get_or_create_demo_user()
-    stats, _ = UserActivityStats.objects.get_or_create(
-        user=demo_user,
-        defaults={
-            'total_reviews': 0,
-            'total_lists': 0,
-            'total_followers': 0,
-            'total_following': 0,
-            'user_level': 1,
-            'experience_points': 0,
-        }
-    )
-    
-    stats.total_reviews = UserReview.objects.filter(user=demo_user).count()
-    stats.total_lists = UserList.objects.filter(user=demo_user).count()
-    stats.total_followers = UserFollow.objects.filter(following=demo_user).count()
-    stats.total_following = UserFollow.objects.filter(follower=demo_user).count()
-    stats.save()
-    
-    return JsonResponse({
-        'stats': {
-            'totalReviews': stats.total_reviews,
-            'totalLists': stats.total_lists,
-            'totalFollowers': stats.total_followers,
-            'totalFollowing': stats.total_following,
-            'totalAwardsGiven': stats.total_awards_given,
-            'totalAwardsReceived': stats.total_awards_received,
-            'totalComments': stats.total_comments,
-            'userLevel': stats.user_level,
-            'experiencePoints': stats.experience_points,
-            'lastActivityAt': stats.last_activity_at.isoformat() if stats.last_activity_at else None,
-        }
-    })
-
-
-@require_GET
-def demo_user_lists(request):
-    """Get demo user lists"""
-    demo_user = get_or_create_demo_user()
-    lists = UserList.objects.filter(user=demo_user)
-    
-    return JsonResponse({
-        'lists': [{
-            'id': lst.id,
-            'title': lst.title,
-            'description': lst.description,
-            'isPublic': lst.is_public,
-            'followerCount': lst.follower_count,
-            'itemCount': lst.items.count(),
-            'createdAt': lst.created_at.isoformat(),
-            'updatedAt': lst.updated_at.isoformat(),
-            'user': {
-                'id': str(demo_user.id),
-                'firstName': demo_user.first_name,
-                'lastName': demo_user.last_name,
-            }
-        } for lst in lists]
-    })
-
-
-@require_GET
-def demo_user_badge_progress(request):
-    """Get demo user badge progress"""
-    demo_user = get_or_create_demo_user()
-    badges = UserBadge.objects.filter(user=demo_user)
-    earned_badge_types = set(b.badge_type for b in badges)
-    
-    reviews_count = UserReview.objects.filter(user=demo_user).count()
-    lists_count = UserList.objects.filter(user=demo_user).count()
-    followers_count = UserFollow.objects.filter(following=demo_user).count()
-    
-    badge_definitions = [
-        {
-            'badgeType': 'first_review',
-            'name': 'First Review',
-            'description': 'Write your first review',
-            'icon': '⭐',
-            'requiredValue': 1,
-            'currentValue': min(reviews_count, 1),
-        },
-        {
-            'badgeType': 'review_master',
-            'name': 'Review Master',
-            'description': 'Write 50 reviews',
-            'icon': '🏆',
-            'requiredValue': 50,
-            'currentValue': min(reviews_count, 50),
-        },
-        {
-            'badgeType': 'list_creator',
-            'name': 'List Creator',
-            'description': 'Create your first list',
-            'icon': '📝',
-            'requiredValue': 1,
-            'currentValue': min(lists_count, 1),
-        },
-        {
-            'badgeType': 'social_butterfly',
-            'name': 'Social Butterfly',
-            'description': 'Get 10 followers',
-            'icon': '🦋',
-            'requiredValue': 10,
-            'currentValue': min(followers_count, 10),
-        },
-        {
-            'badgeType': 'movie_buff',
-            'name': 'Movie Buff',
-            'description': 'Write 100 reviews',
-            'icon': '🎬',
-            'requiredValue': 100,
-            'currentValue': min(reviews_count, 100),
-        },
-    ]
-    
-    badge_progress = []
-    for badge in badge_definitions:
-        earned = badge['badgeType'] in earned_badge_types or badge['currentValue'] >= badge['requiredValue']
-        progress_pct = min(100, int((badge['currentValue'] / badge['requiredValue']) * 100)) if badge['requiredValue'] > 0 else 0
-        badge_progress.append({
-            'badgeType': badge['badgeType'],
-            'name': badge['name'],
-            'description': badge['description'],
-            'icon': badge['icon'],
-            'earned': earned,
-            'currentValue': badge['currentValue'],
-            'requiredValue': badge['requiredValue'],
-            'progressPercentage': progress_pct,
-        })
-    
-    return JsonResponse(badge_progress, safe=False)
-
-
-@require_GET
-def demo_user_impact(request):
-    """Get demo user impact stats"""
-    demo_user = get_or_create_demo_user()
-    
-    reviews_count = UserReview.objects.filter(user=demo_user).count()
-    avg_rating = UserReview.objects.filter(user=demo_user).aggregate(avg=Avg('rating'))['avg'] or 0
-    total_helpful = sum(r.helpful_count for r in UserReview.objects.filter(user=demo_user))
-    awards_received = ReviewAward.objects.filter(review__user=demo_user).count()
-    comments_received = ReviewComment.objects.filter(review__user=demo_user).count()
-    lists_created = UserList.objects.filter(user=demo_user).count()
-    list_items = ListItem.objects.filter(list__user=demo_user).count()
-    list_followers = sum(l.follower_count for l in UserList.objects.filter(user=demo_user))
-    followers_count = UserFollow.objects.filter(following=demo_user).count()
-    following_count = UserFollow.objects.filter(follower=demo_user).count()
-    
-    engagement_score = reviews_count * 2 + lists_created * 5 + awards_received + followers_count * 3
-    
-    if engagement_score >= 100:
-        rank = "Legend"
-        next_rank_score = 100
-        progress = 100
-    elif engagement_score >= 50:
-        rank = "Expert"
-        next_rank_score = 100
-        progress = int((engagement_score - 50) / 50 * 100)
-    elif engagement_score >= 20:
-        rank = "Active Member"
-        next_rank_score = 50
-        progress = int((engagement_score - 20) / 30 * 100)
-    elif engagement_score >= 5:
-        rank = "Contributor"
-        next_rank_score = 20
-        progress = int((engagement_score - 5) / 15 * 100)
-    else:
-        rank = "Newcomer"
-        next_rank_score = 5
-        progress = int(engagement_score / 5 * 100)
-    
-    # Compute most active genre from user preferences
-    most_active_genre = 'N/A'
-    try:
-        from .models import UserPreferences
-        prefs = UserPreferences.objects.get(user=user)
-        if prefs.preferred_genres:
-            most_active_genre = prefs.preferred_genres[0]
-    except Exception:
-        pass
-
-    return JsonResponse({
-        'reviewStats': {
-            'totalReviews': reviews_count,
-            'averageRatingGiven': round(avg_rating, 1),
-            'mostActiveGenre': most_active_genre,
-        },
-        'listStats': {
-            'totalLists': lists_created,
-            'totalListFollowers': list_followers,
-            'totalItemsInLists': list_items,
-        },
-        'socialStats': {
-            'followerCount': followers_count,
-            'followingCount': following_count,
-            'profileViews': 0,
-        },
-        'engagementReceived': {
-            'totalAwardsReceived': awards_received,
-            'totalCommentsReceived': comments_received,
-            'totalReviewLikes': total_helpful,
-        },
-        'communityRank': {
-            'rank': rank,
-            'engagementScore': engagement_score,
-            'progressToNextRank': min(progress, 100),
-            'nextRankScore': next_rank_score,
-        }
-    })
-
-
 @csrf_exempt
 @require_http_methods(["GET", "PUT", "PATCH", "DELETE"])
 def manage_community_list(request, list_id):
@@ -2280,12 +2014,12 @@ def manage_community_list(request, list_id):
     try:
         lst = UserList.objects.get(id=list_id)
     except UserList.DoesNotExist:
-        return JsonResponse({'error': 'List not found'}, status=404)
+        return error_response('List not found', 'NOT_FOUND', 404)
 
     if request.method == "GET":
         if not lst.is_public:
             if not request.user.is_authenticated or request.user.id != lst.user.id:
-                return JsonResponse({'error': 'Not authorized'}, status=403)
+                return error_response('Not authorized', 'FORBIDDEN', 403)
         items = ListItem.objects.filter(list=lst)
         return JsonResponse({
             'list': {
@@ -2315,9 +2049,9 @@ def manage_community_list(request, list_id):
         })
 
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
     if lst.user != request.user:
-        return JsonResponse({'error': 'Not authorized'}, status=403)
+        return error_response('Not authorized', 'FORBIDDEN', 403)
 
     if request.method == "DELETE":
         lst.delete()
@@ -2337,7 +2071,7 @@ def manage_community_list(request, list_id):
             'list': {'id': lst.id, 'title': lst.title, 'description': lst.description, 'isPublic': lst.is_public}
         })
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @require_GET
@@ -2358,7 +2092,7 @@ def get_user_badge_progress(request, user_id):
         try:
             user = User.objects.get(username=user_id)
         except User.DoesNotExist:
-            return JsonResponse({'error': 'User not found'}, status=404)
+            return error_response('User not found', 'NOT_FOUND', 404)
 
     badges = UserBadge.objects.filter(user=user)
     earned_badge_types = set(b.badge_type for b in badges)
@@ -2407,7 +2141,7 @@ def get_user_impact(request, user_id):
         try:
             user = User.objects.get(username=user_id)
         except User.DoesNotExist:
-            return JsonResponse({'error': 'User not found'}, status=404)
+            return error_response('User not found', 'NOT_FOUND', 404)
 
     reviews_count = UserReview.objects.filter(user=user).count()
     avg_rating = UserReview.objects.filter(user=user).aggregate(avg=Avg('rating'))['avg'] or 0

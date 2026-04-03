@@ -31,6 +31,7 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 │   │   └── pattern_recognition.py    # Viewing pattern analysis
 │   ├── management/commands/
 │   │   └── refresh_pinecone.py      # TMDB→Pinecone refresh pipeline
+│   ├── validation.py         # Input validation & standardized error responses
 │   └── decorators.py         # Auth/ownership decorators
 ├── client/                   # React frontend
 │   ├── src/                  # React source code
@@ -50,6 +51,10 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 - Social features: following, notifications, custom lists
 - YouTube video search for trailers
 - External movie ratings integration
+- Input validation on all mutation endpoints (rating 1-10, string lengths, TMDB ID format)
+- Standardized error responses: `{ "error": "...", "code": "..." }`
+- DRF throttling configured (100 req/min auth, 20 req/min anon)
+- Structured logging (no print statements in API code)
 
 ## Tech Stack
 - **Backend**: Django 5.2, Python 3.11, Gunicorn

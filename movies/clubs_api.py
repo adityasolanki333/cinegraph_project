@@ -1,6 +1,7 @@
 from .decorators import api_auth_required
 import json
 from django.http import JsonResponse
+from .validation import error_response
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
@@ -17,7 +18,7 @@ def clubs_list(request):
     POST: Create a new club — requires auth
     """
     if request.method == "POST" and not request.user.is_authenticated:
-        return JsonResponse({'error': 'Authentication required'}, status=401)
+        return error_response('Authentication required', 'AUTH_REQUIRED', 401)
 
     if request.method == "GET":
         query = request.GET.get('q', '')
@@ -54,7 +55,7 @@ def clubs_list(request):
             cover_image_url = body.get('cover_image_url', '')
 
             if not title:
-                return JsonResponse({'error': 'Title is required'}, status=400)
+                return error_response('Title is required', 'VALIDATION_ERROR', 400)
 
             club = Club.objects.create(
                 title=title,
@@ -77,9 +78,9 @@ def clubs_list(request):
             }, status=201)
 
         except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+            return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
         except Exception as e:
-            return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
+            return error_response(str(e), 'INTERNAL_ERROR', 500)
 
 
 @require_http_methods(["GET"])
@@ -139,7 +140,7 @@ def join_club(request, club_id):
         if ClubMember.objects.filter(club=club, user=request.user).exists():
             # Leave club (unless owner)
             if club.owner == request.user:
-                return JsonResponse({'error': 'Owner cannot leave the club'}, status=400)
+                return error_response('Owner cannot leave the club', 'VALIDATION_ERROR', 400)
 
             ClubMember.objects.filter(club=club, user=request.user).delete()
             club.member_count = max(0, club.member_count - 1)
@@ -153,7 +154,7 @@ def join_club(request, club_id):
             return JsonResponse({'message': 'Joined club successfully', 'joined': True})
 
     except Exception as e:
-        return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
+        return error_response(str(e), 'INTERNAL_ERROR', 500)
 
 
 @require_http_methods(["GET", "POST"])
@@ -190,7 +191,7 @@ def club_threads(request, club_id):
     elif request.method == "POST":
         # Verify membership
         if not ClubMember.objects.filter(club=club, user=request.user).exists():
-            return JsonResponse({'error': 'Must be a member to post threads'}, status=403)
+            return error_response('Must be a member to post threads', 'FORBIDDEN', 403)
 
         try:
             body = json.loads(request.body)
@@ -198,7 +199,7 @@ def club_threads(request, club_id):
             content = body.get('content')
 
             if not title or not content:
-                return JsonResponse({'error': 'Title and content are required'}, status=400)
+                return error_response('Title and content are required', 'VALIDATION_ERROR', 400)
 
             thread = ClubThread.objects.create(
                 club=club,
@@ -215,7 +216,7 @@ def club_threads(request, club_id):
             }, status=201)
 
         except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+            return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @require_http_methods(["GET"])
@@ -268,14 +269,14 @@ def create_post(request, thread_id):
 
     # Verify membership in parent club
     if not ClubMember.objects.filter(club=thread.club, user=request.user).exists():
-        return JsonResponse({'error': 'Must be a member to reply'}, status=403)
+        return error_response('Must be a member to reply', 'FORBIDDEN', 403)
 
     try:
         body = json.loads(request.body)
         content = body.get('content')
 
         if not content:
-            return JsonResponse({'error': 'Content is required'}, status=400)
+            return error_response('Content is required', 'VALIDATION_ERROR', 400)
 
         post = ClubPost.objects.create(
             thread=thread,
@@ -301,4 +302,4 @@ def create_post(request, thread_id):
         }, status=201)
 
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)

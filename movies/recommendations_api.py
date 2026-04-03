@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST, require_GET
 from django.views.decorators.csrf import csrf_exempt
 from .models import UserPreferences, UserReview, UserWatchlist, UserFavorites, ViewingHistory
 from .api import tmdb_request
+from .validation import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -322,23 +323,16 @@ def get_fallback_trending_movies():
 @csrf_exempt
 @require_POST
 def ai_chat(request):
-    from django.contrib.auth.models import User
-
     user = request.user if request.user.is_authenticated else None
-    if not user:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            user = None
-
+    
     try:
         data = json.loads(request.body)
         user_message = data.get('message', '').strip()
         conversation_history = data.get('history', [])
 
         if not user_message:
-            return JsonResponse({'error': 'Please enter a message to get movie recommendations.'}, status=400)
-
+            return error_response('Message is required', 'VALIDATION_ERROR', 400)
+        
         if user:
             user_context = get_user_context(user)
         else:
@@ -408,33 +402,23 @@ def ai_chat(request):
         })
 
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Could not process your request. Please try again.'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
     except Exception as e:
-        logger.error(f"AI chat error: {e}", exc_info=True)
-        return JsonResponse({
-            'error': 'Something went wrong while generating recommendations. Please try again in a moment.'
-        }, status=500)
+        return error_response(str(e), 'INTERNAL_ERROR', 500)
 
 
 @csrf_exempt
 @require_POST
 def ai_chat_stream(request):
-    from django.contrib.auth.models import User
-
     user = request.user if request.user.is_authenticated else None
-    if not user:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            user = None
-
+    
     try:
         data = json.loads(request.body)
         user_message = data.get('message', '').strip()
         conversation_history = data.get('history', [])
 
         if not user_message:
-            return JsonResponse({'error': 'Please enter a message to get movie recommendations.'}, status=400)
+            return error_response('Message is required', 'VALIDATION_ERROR', 400)
 
         if user:
             user_context = get_user_context(user)
@@ -524,19 +508,16 @@ def ai_chat_stream(request):
         return response
 
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Could not process your request. Please try again.'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
     except Exception as e:
-        logger.error(f"AI chat stream error: {e}", exc_info=True)
-        return JsonResponse({
-            'error': 'Something went wrong while generating recommendations. Please try again in a moment.'
-        }, status=500)
+        return error_response(str(e), 'INTERNAL_ERROR', 500)
 
 
 @require_POST
 def save_preferences(request):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
-
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+    
     try:
         data = json.loads(request.body)
 
@@ -566,17 +547,17 @@ def save_preferences(request):
             }
         })
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Could not process your request. Please try again.'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
 
 
 @require_GET
 def get_preferences(request, user_id):
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
-
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+    
     if str(request.user.id) != str(user_id):
-        return JsonResponse({'error': 'Not authorized'}, status=403)
-
+        return error_response('Not authorized', 'FORBIDDEN', 403)
+    
     try:
         prefs = UserPreferences.objects.get(user=request.user)
         return JsonResponse({
@@ -602,19 +583,14 @@ def get_preferences(request, user_id):
 
 @require_GET
 def pattern_analyze(request, user_id):
-    from django.contrib.auth.models import User
-
-    user = request.user if request.user.is_authenticated else None
-    if not user:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({
-                'userId': str(user_id),
-                'analysis': None,
-                'message': 'Login to see viewing patterns'
-            })
-
+    if not request.user.is_authenticated:
+        return JsonResponse({
+            'userId': str(user_id),
+            'analysis': None,
+            'message': 'Login to see viewing patterns'
+        })
+    user = request.user
+    
     try:
         history = ViewingHistory.objects.filter(user=user).order_by('-watched_at')[:50]
         reviews = UserReview.objects.filter(user=user).order_by('-created_at')[:50]
@@ -693,58 +669,46 @@ Write an engaging, personalized insight paragraph (not a list). Focus on pattern
 
 @require_GET
 def pattern_predict(request, user_id):
-    from django.contrib.auth.models import User
-
-    user = request.user if request.user.is_authenticated else None
-    if not user:
+    if not request.user.is_authenticated:
+        return error_response('Authentication required', 'AUTH_REQUIRED', 401)
+    user = request.user
+    
+    history = ViewingHistory.objects.filter(user=user).order_by('-watched_at')[:20]
+    reviews = UserReview.objects.filter(user=user).order_by('-created_at')[:20]
+    
+    avg_rating = 7.5
+    if reviews:
+        avg_rating = sum(r.rating for r in reviews) / len(reviews)
+    
+    avg_rating_val = avg_rating  # already computed above
+    is_binge = history.count() > 15 or (reviews.count() > 10 and avg_rating_val > 7)
+    session_type = 'binge' if is_binge else ('explorer' if history.count() > 5 else 'casual')
+    
+    next_genre = 28
+    if user:
         try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            user = None
+            prefs = UserPreferences.objects.get(user=user)
+            for genre_name in (prefs.preferred_genres or [])[:1]:
+                if genre_name in TMDB_GENRE_MAP:
+                    next_genre = TMDB_GENRE_MAP[genre_name]
+                    break
+        except UserPreferences.DoesNotExist:
+            pass
+    
+    probability = min(0.95, 0.6 + (history.count() * 0.02) + (reviews.count() * 0.01))
+    
+    return JsonResponse({
+        'userId': str(user_id),
+        'prediction': {
+            'nextGenre': next_genre,
+            'nextRating': round(avg_rating, 1),
+            'probability': round(probability, 2),
+            'sessionType': session_type
+        },
+        'basedOn': 'viewing_patterns',
+        'modelVersion': 'v1.0'
+    })
 
-    try:
-        history = ViewingHistory.objects.filter(user=user).order_by('-watched_at')[:20] if user else ViewingHistory.objects.all()[:20]
-        reviews = UserReview.objects.filter(user=user).order_by('-created_at')[:20] if user else UserReview.objects.all()[:20]
-
-        avg_rating = 7.5
-        if reviews:
-            avg_rating = sum(r.rating for r in reviews) / len(reviews)
-
-        is_binge = history.count() > 15 or (reviews.count() > 10 and avg_rating > 7)
-        session_type = 'binge' if is_binge else ('explorer' if history.count() > 5 else 'casual')
-
-        next_genre = 28
-        if user:
-            try:
-                prefs = UserPreferences.objects.get(user=user)
-                for genre_name in (prefs.preferred_genres or [])[:1]:
-                    if genre_name in TMDB_GENRE_MAP:
-                        next_genre = TMDB_GENRE_MAP[genre_name]
-                        break
-            except UserPreferences.DoesNotExist:
-                pass
-
-        probability = min(0.95, 0.6 + (history.count() * 0.02) + (reviews.count() * 0.01))
-
-        return JsonResponse({
-            'userId': str(user_id),
-            'prediction': {
-                'nextGenre': next_genre,
-                'nextRating': round(avg_rating, 1),
-                'probability': round(probability, 2),
-                'sessionType': session_type
-            },
-            'basedOn': 'viewing_patterns',
-            'modelVersion': 'v1.0'
-        })
-
-    except Exception as e:
-        logger.error(f"Pattern prediction error: {e}", exc_info=True)
-        return JsonResponse({
-            'userId': str(user_id),
-            'prediction': None,
-            'message': 'Unable to generate predictions right now. Please try again later.'
-        })
 
 
 @require_GET
@@ -757,8 +721,8 @@ def explain_with_gemini(request):
     recommended_overview = request.GET.get('recommendedOverview', '')
 
     if not all([source_title, recommended_title]):
-        return JsonResponse({'error': 'Missing required parameters'}, status=400)
-
+        return error_response('Missing required parameters', 'VALIDATION_ERROR', 400)
+    
     try:
         explanation = engine.generate_gemini_explanation(
             source_title, source_overview or '',
@@ -779,3 +743,4 @@ def explain_with_gemini(request):
             'geminiExplanation': None,
             'fallback': True
         })
+

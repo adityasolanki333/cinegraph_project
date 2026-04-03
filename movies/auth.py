@@ -1,5 +1,6 @@
 import json
 from django.http import JsonResponse
+from .validation import error_response
 from django.views.decorators.http import require_POST, require_GET
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.contrib.auth import authenticate, login, logout
@@ -23,16 +24,16 @@ def register_view(request):
         last_name = data.get('lastName', '').strip()
         
         if not email or not password:
-            return JsonResponse({'error': 'Email and password are required'}, status=400)
+            return error_response('Email and password are required', 'VALIDATION_ERROR', 400)
         
         if len(password) < 6:
-            return JsonResponse({'error': 'Password must be at least 6 characters'}, status=400)
+            return error_response('Password must be at least 6 characters', 'VALIDATION_ERROR', 400)
         
         if User.objects.filter(email=email).exists():
-            return JsonResponse({'error': 'Email already registered'}, status=400)
+            return error_response('Email already registered', 'VALIDATION_ERROR', 400)
         
         if User.objects.filter(username=email).exists():
-            return JsonResponse({'error': 'Email already registered'}, status=400)
+            return error_response('Email already registered', 'VALIDATION_ERROR', 400)
         
         user = User.objects.create_user(
             username=email,
@@ -56,9 +57,9 @@ def register_view(request):
         })
         
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
     except Exception as e:
-        return JsonResponse({'error': 'Registration failed'}, status=500)
+        return error_response('Registration failed', 'INTERNAL_ERROR', 500)
 
 
 @require_POST
@@ -69,7 +70,7 @@ def login_view(request):
         password = data.get('password', '')
         
         if not email or not password:
-            return JsonResponse({'error': 'Email and password are required'}, status=400)
+            return error_response('Email and password are required', 'VALIDATION_ERROR', 400)
         
         user = authenticate(request, username=email, password=password)
         
@@ -86,12 +87,12 @@ def login_view(request):
                 }
             })
         else:
-            return JsonResponse({'error': 'Invalid email or password'}, status=401)
+            return error_response('Invalid email or password', 'AUTH_REQUIRED', 401)
             
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
     except Exception as e:
-        return JsonResponse({'error': 'Login failed'}, status=500)
+        return error_response('Login failed', 'INTERNAL_ERROR', 500)
 @require_POST
 def logout_view(request):
     logout(request)
@@ -114,7 +115,7 @@ def me_view(request):
             }
         })
     else:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
 @require_POST
 def forgot_password_view(request):
     try:
@@ -122,7 +123,7 @@ def forgot_password_view(request):
         email = data.get('email', '').strip()
         
         if not email:
-            return JsonResponse({'error': 'Email is required'}, status=400)
+            return error_response('Email is required', 'VALIDATION_ERROR', 400)
             
         user = User.objects.filter(email=email).first()
         if not user:
@@ -143,9 +144,9 @@ def forgot_password_view(request):
         })
         
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
     except Exception as e:
-        return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
+        return error_response(str(e), 'INTERNAL_ERROR', 500)
 @require_POST
 def reset_password_view(request):
     try:
@@ -154,10 +155,10 @@ def reset_password_view(request):
         new_password = data.get('password', '')
         
         if not token or not new_password:
-            return JsonResponse({'error': 'Token and new password are required'}, status=400)
+            return error_response('Token and new password are required', 'VALIDATION_ERROR', 400)
             
         if len(new_password) < 6:
-            return JsonResponse({'error': 'Password must be at least 6 characters'}, status=400)
+            return error_response('Password must be at least 6 characters', 'VALIDATION_ERROR', 400)
             
         from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
         signer = TimestampSigner()
@@ -173,13 +174,13 @@ def reset_password_view(request):
             return JsonResponse({'success': True, 'message': 'Password successfully reset'})
             
         except SignatureExpired:
-            return JsonResponse({'error': 'Reset link has expired'}, status=400)
+            return error_response('Reset link has expired', 'VALIDATION_ERROR', 400)
         except BadSignature:
-            return JsonResponse({'error': 'Invalid reset link'}, status=400)
+            return error_response('Invalid reset link', 'VALIDATION_ERROR', 400)
         except User.DoesNotExist:
-            return JsonResponse({'error': 'User not found'}, status=404)
+            return error_response('User not found', 'NOT_FOUND', 404)
             
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
     except Exception as e:
-        return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
+        return error_response(str(e), 'INTERNAL_ERROR', 500)

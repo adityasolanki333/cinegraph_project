@@ -2,6 +2,7 @@ import json
 import requests
 import os
 from django.http import JsonResponse
+from .validation import error_response
 from django.views.decorators.http import require_GET
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
@@ -439,7 +440,7 @@ def rate_movie(request, movie_id):
             data = tmdb_request_post(endpoint, {"value": rating})
             return JsonResponse(data)
         except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON"}, status=400)
+            return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
     elif request.method == 'DELETE':
         session_id = request.GET.get('session_id', '')
         endpoint = f"/movie/{movie_id}/rating"
@@ -449,7 +450,7 @@ def rate_movie(request, movie_id):
         data = tmdb_request_delete(endpoint)
         return JsonResponse(data)
     else:
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
 
 
 @csrf_exempt
@@ -468,7 +469,7 @@ def rate_tv_show(request, tv_id):
             data = tmdb_request_post(endpoint, {"value": rating})
             return JsonResponse(data)
         except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON"}, status=400)
+            return error_response("Invalid JSON", "VALIDATION_ERROR", 400)
     elif request.method == 'DELETE':
         session_id = request.GET.get('session_id', '')
         endpoint = f"/tv/{tv_id}/rating"
@@ -478,7 +479,7 @@ def rate_tv_show(request, tv_id):
         data = tmdb_request_delete(endpoint)
         return JsonResponse(data)
     else:
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return error_response("Method not allowed", "METHOD_NOT_ALLOWED", 405)
 
 
 @require_GET
@@ -492,7 +493,7 @@ def get_guest_session(request):
 def record_interaction(request):
     """Record a search interaction / click feedback for ML training."""
     if request.method != 'POST':
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
+        return error_response('Method not allowed', 'METHOD_NOT_ALLOWED', 405)
     try:
         body = json.loads(request.body)
     except Exception:
