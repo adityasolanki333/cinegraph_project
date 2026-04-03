@@ -2,9 +2,7 @@ import type {
   User, 
   UserRating, 
   UserList, 
-  UserActivityStats,
-  ReviewAward,
-  ReviewComment
+  Notification
 } from './schema';
 
 // Feed item types with discriminator
@@ -45,7 +43,42 @@ export interface FeedList {
   };
 }
 
-export type FeedItem = FeedReview | FeedList;
+export interface FeedWatchlist {
+  type: 'watchlist';
+  id: string;
+  userId: string;
+  createdAt: Date | null;
+  tmdbId: number;
+  mediaType: string;
+  title: string;
+  posterPath: string | null;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    profileImageUrl: string | null;
+  };
+}
+
+export interface FeedAward {
+  type: 'award';
+  id: string;
+  userId: string;
+  createdAt: Date | null;
+  awardType: string;
+  reviewId: number;
+  reviewTitle: string;
+  reviewUserId: string;
+  reviewUserName: string;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    profileImageUrl: string | null;
+  };
+}
+
+export type FeedItem = FeedReview | FeedList | FeedWatchlist | FeedAward;
 
 // Top review type
 export interface TopReview extends UserRating {
@@ -113,10 +146,14 @@ export interface SimilarUser {
   firstName: string;
   lastName: string;
   profileImageUrl: string | null;
-  stats: UserActivityStats;
   matchPercentage: number;
   commonMovies: number;
   matchCount?: number;
+  stats?: {
+    experiencePoints?: number;
+    totalReviews?: number;
+    totalLists?: number;
+  };
 }
 
 // Search results types
@@ -133,38 +170,22 @@ export interface SearchUserResult {
   firstName: string;
   lastName: string;
   profileImageUrl: string | null;
-  stats: UserActivityStats;
-}
-
-// User stats response type
-export interface UserStatsResponse {
-  stats: UserActivityStats;
-  isFollowing: boolean;
-}
-
-// Review with details type
-export interface ReviewWithDetails extends UserRating {
-  user?: {
-    firstName: string;
-    lastName: string;
-    profileImageUrl: string | null;
-  };
-}
-
-// Comment with user type
-export interface CommentWithUser extends ReviewComment {
-  user: {
-    firstName: string;
-    lastName: string;
-    profileImageUrl: string | null;
+  stats?: {
+    totalReviews?: number;
+    totalLists?: number;
+    totalFollowers?: number;
+    totalFollowing?: number;
+    experiencePoints?: number;
   };
 }
 
 // Award with user type
-export interface AwardWithUser extends ReviewAward {
-  user?: {
+export interface AwardWithUser {
+  awardType: string;
+  user: {
     firstName: string;
     lastName: string;
+    profileImageUrl: string | null;
   };
 }
 

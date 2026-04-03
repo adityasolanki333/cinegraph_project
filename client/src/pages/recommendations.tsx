@@ -7,8 +7,8 @@ import { Slider } from "@/components/ui/slider";
 import AIChat from "@/components/ai-chat";
 import { AdvancedRecommendations } from "@/components/advanced-recommendations";
 
-import MovieCard from "@/components/movie-card";
-import MovieCardSkeleton from "@/components/movie-card-skeleton";
+import { MediaCard } from "@/components/media-card";
+import MediaCardSkeleton from "@/components/media-card-skeleton";
 import { tmdbService } from "@/lib/tmdb";
 import { Sparkles, Heart, Brain, Zap, Smile, Loader2, Search, Settings, RefreshCw, Film, Tv, LogIn, Target } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -165,11 +165,11 @@ function PipelineRecommendations({ loading, recommendations }: { loading: boolea
             duration: rec.metadata?.runtime || undefined,
             seasons: undefined,
           };
-          
+
           return (
-            <MovieCard 
+            <MediaCard
               key={rec.tmdbId}
-              movie={movie} 
+              movie={movie}
               showFeedback={true}
               recommendationScore={rec.score}
               recommendationStrategy={rec.strategy}
@@ -204,7 +204,7 @@ function PipelineRecommendations({ loading, recommendations }: { loading: boolea
                 } else {
                   pageNum = currentPage - 2 + i;
                 }
-                
+
                 return (
                   <Button
                     key={pageNum}
@@ -229,7 +229,7 @@ function PipelineRecommendations({ loading, recommendations }: { loading: boolea
               Next
             </Button>
           </div>
-          
+
           <div className="text-center text-sm text-muted-foreground">
             Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} recommendations
           </div>
@@ -243,7 +243,7 @@ export default function Recommendations() {
   const [activeTab, setActiveTab] = useState<string>(() => {
     return sessionStorage.getItem('recommendations_activeTab') || 'chat';
   });
-  
+
   const [selectedMood, setSelectedMood] = useState<string | null>(() => {
     return sessionStorage.getItem('recommendations_selectedMood') || null;
   });
@@ -285,7 +285,7 @@ export default function Recommendations() {
     queryKey: ['/api/tmdb/trending'],
     select: (data: any) => {
       if (!data.results) return [];
-      return data.results.slice(0, 6).map((item: any) => 
+      return data.results.slice(0, 6).map((item: any) =>
         tmdbService.convertToMovie(item, item.media_type || 'movie')
       );
     }
@@ -295,7 +295,7 @@ export default function Recommendations() {
     queryKey: ['/api/tmdb/movies/top-rated'],
     select: (data: any) => {
       if (!data.results) return [];
-      return data.results.slice(0, 4).map((item: any) => 
+      return data.results.slice(0, 4).map((item: any) =>
         tmdbService.convertToMovie(item, 'movie')
       );
     }
@@ -305,7 +305,7 @@ export default function Recommendations() {
     queryKey: ['/api/tmdb/movies/popular'],
     select: (data: any) => {
       if (!data.results) return [];
-      return data.results.slice(0, 12).map((item: any) => 
+      return data.results.slice(0, 12).map((item: any) =>
         tmdbService.convertToMovie(item, 'movie')
       );
     }
@@ -315,7 +315,7 @@ export default function Recommendations() {
     queryKey: ['/api/tmdb/tv/popular'],
     select: (data: any) => {
       if (!data.results) return [];
-      return data.results.slice(0, 12).map((item: any) => 
+      return data.results.slice(0, 12).map((item: any) =>
         tmdbService.convertToMovie(item, 'tv')
       );
     }
@@ -338,37 +338,89 @@ export default function Recommendations() {
     },
     select: (data: any) => {
       if (!data.recommendations) return [];
-      return data.recommendations.slice(0, 8).map((item: any) => 
+      return data.recommendations.slice(0, 8).map((item: any) =>
         tmdbService.convertToMovie(item, mediaType)
       );
     }
   });
 
-  // Unified pipeline recommendations with user-controlled diversity  
+  // Hybrid recommendations from the ML engine
   const [pipelineRefreshKey, setPipelineRefreshKey] = useState(0);
   const [diversityLevel, setDiversityLevel] = useState(0.5); // 0 = focused, 0.5 = balanced, 1 = diverse
   const { data: pipelineRecommendations, isLoading: pipelineLoading } = useQuery({
-    queryKey: ['/api/recommendations/unified', 'pipeline', user?.id, pipelineRefreshKey, Math.round(diversityLevel * 10) / 10],
+    queryKey: ['/api/recommendations/pipeline', user?.id, pipelineRefreshKey, diversityLevel],
     enabled: !!user?.id,
     queryFn: async () => {
-      const response = await fetch('/api/recommendations/unified', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user?.id,
-          context: {
-            requestType: 'personalized',
-            diversityLevel // Pass diversity level to backend
-          },
-          options: {
-            limit: 18,
-            useDiversity: diversityLevel > 0.2, // Only apply diversity if level is significant
-            explainability: true
+      // Step 1: Select recommendation strategy via Contextual Bandit
+      let arm = 'hybrid';
+      let experimentId = null;
+      try {
+        const banditResp = await fetch(`/api/ml/bandit/${user?.id}/select`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mood: selectedMood })
+        });
+        if (banditResp.ok) {
+          const selection = await banditResp.json();
+          arm = selection.arm_chosen || 'hybrid';
+          experimentId = selection.experiment_id;
+        }
+      } catch (e) {
+        console.warn("Bandit selection failed, fallback to hybrid strategy");
+      }
+
+      // Step 2: Fetch Base Recommendations based on the chosen arm
+      let recs: any[] = [];
+      const fetchBaseUrl = arm === 'collaborative' ? `/api/recommendations/collaborative/${user?.id}` : `/api/recommendations/hybrid/${user?.id}`;
+      
+      const baseResp = await fetch(`${fetchBaseUrl}?limit=24`);
+      if (baseResp.ok) {
+        const data = await baseResp.json();
+        recs = data.recommendations || [];
+        
+        // Map scores correctly if collaborative is chosen, as it uses 'predicted_rating' vs 'score'
+        if (arm === 'collaborative') {
+          recs = recs.map(r => ({
+            ...r,
+            score: r.predicted_rating ? r.predicted_rating / 5 : 0.8
+          }));
+        }
+      } else {
+        throw new Error('Failed to fetch pipeline recommendations');
+      }
+
+      // Step 3: Apply Diversity Engine based on the diversity slider level
+      if (recs.length > 0) {
+        try {
+          const divResp = await fetch(`/api/ml/diversity/apply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              candidates: recs,
+              config: {
+                epsilon_exploration: diversityLevel * 0.3, // mapped to slider
+                serendipity_rate: diversityLevel * 0.5,
+                diversity_metric: diversityLevel > 0.5 ? 'distance' : 'mmr'
+              }
+            })
+          });
+          if (divResp.ok) {
+            const divData = await divResp.json();
+            recs = divData.diversified_results || recs;
           }
-        })
-      });
-      if (!response.ok) throw new Error('Failed to fetch unified recommendations');
-      return response.json();
+        } catch (e) {
+          console.warn("Diversity engine failed, using base recommendations");
+        }
+      }
+
+      // Attach context to all recommendations for the tracker in MediaCard
+      return { 
+        recommendations: recs.map((r: any) => ({
+          ...r, 
+          strategy: arm.charAt(0).toUpperCase() + arm.slice(1), 
+          experimentId: experimentId 
+        }))
+      };
     },
     staleTime: 10 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
@@ -380,24 +432,24 @@ export default function Recommendations() {
   const getMoodBasedRecommendations = () => {
     // If no mood selected, use trending as default
     if (!selectedMood) return trendingData?.slice(0, 8) || [];
-    
+
     // Start with mood recommendations if available
     const moodItems = moodRecommendations || [];
-    
+
     // If we have enough mood recommendations, return 8 of them
     if (moodItems.length >= 8) {
       return moodItems.slice(0, 8);
     }
-    
+
     // Otherwise, fill in with popular content of the same media type
-    const fallbackItems = mediaType === 'tv' 
+    const fallbackItems = mediaType === 'tv'
       ? (popularTVShows || [])
       : (popularMovies || []);
-    
+
     // Combine mood recommendations with fallback, ensuring no duplicates
     const combined = [...moodItems];
     const usedIds = new Set(moodItems.map((item: any) => item.id));
-    
+
     for (const item of fallbackItems) {
       if (combined.length >= 8) break;
       if (!usedIds.has(item.id)) {
@@ -405,7 +457,7 @@ export default function Recommendations() {
         usedIds.add(item.id);
       }
     }
-    
+
     return combined.slice(0, 8);
   };
 
@@ -427,42 +479,34 @@ export default function Recommendations() {
       return 0;
     };
 
-    // Add pipeline recommendations
+    // Add hybrid recommendations
     if (pipelineRecommendations?.recommendations) {
       for (const rec of pipelineRecommendations.recommendations) {
-        if (!seenIds.has(rec.tmdbId)) {
-          seenIds.add(rec.tmdbId);
-          
-          // Convert backend recommendation to TMDB format first
-          const tmdbFormat = {
-            id: rec.tmdbId,
-            title: rec.title,
-            name: rec.title,
-            overview: rec.metadata?.overview || '',
-            poster_path: rec.posterPath?.replace('https://image.tmdb.org/t/p/w500', '') || null,
-            backdrop_path: rec.metadata?.backdrop_path || null,
-            release_date: rec.metadata?.release_date || rec.metadata?.releaseDate || '',
-            first_air_date: rec.metadata?.first_air_date || '',
-            vote_average: rec.metadata?.vote_average || rec.metadata?.voteAverage || 0,
-            genre_ids: [],
-            genres: rec.metadata?.genres || [],
-            runtime: rec.metadata?.runtime,
-            number_of_seasons: rec.metadata?.number_of_seasons
-          };
-          
-          // Now convert to Movie format using the service
-          const movie = tmdbService.convertToMovie(tmdbFormat, rec.mediaType);
-          
-          combined.push({
-            ...movie,
-            score: normalizeScore(rec.score),
-            diversityScore: normalizeScore(rec.diversityScore),
-            strategy: rec.strategy,
-            reasons: rec.reasons,
-            source: 'pipeline',
-            explanation: rec.explanation,
-          });
-        }
+        const tmdbId = rec.tmdb_id || rec.tmdbId;
+        if (!tmdbId || seenIds.has(tmdbId)) continue;
+        seenIds.add(tmdbId);
+
+        // Convert to Movie format
+        const movie: any = {
+          id: tmdbId.toString(),
+          type: rec.media_type || rec.mediaType || 'movie',
+          title: rec.title,
+          posterUrl: rec.poster_path ? `https://image.tmdb.org/t/p/w500${rec.poster_path}` : undefined,
+          rating: rec.vote_average || 0,
+          year: rec.year || (rec.release_date ? new Date(rec.release_date).getFullYear() : 0),
+          genre: '',
+          synopsis: rec.overview || undefined,
+          director: undefined,
+          cast: undefined,
+          duration: undefined,
+          seasons: undefined,
+          score: normalizeScore(rec.score),
+          strategy: rec.type || 'Hybrid',
+          reason: rec.reason || 'Based on your viewing history',
+          source: 'hybrid'
+        };
+
+        combined.push(movie);
       }
     }
 
@@ -534,161 +578,163 @@ export default function Recommendations() {
             <AIChat className="w-full h-[calc(100vh-7rem)]" />
           </TabsContent>
 
-        <TabsContent value="advanced">
-          <AdvancedRecommendations />
-        </TabsContent>
+          <TabsContent value="advanced">
+            <AdvancedRecommendations />
+          </TabsContent>
 
 
-        <TabsContent value="why" className="space-y-8">
-          {/* Diversity Controls */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Settings className="h-5 w-5 text-primary" />
-                Recommendation Style
-              </CardTitle>
-              <CardDescription>
-                Control how adventurous your recommendations are
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <Slider
-                  value={[diversityLevel]}
-                  onValueChange={([value]) => setDiversityLevel(value)}
-                  min={0}
-                  max={1}
-                  step={0.1}
-                  className="w-full"
-                  data-testid="slider-diversity"
-                />
-                <div className="flex justify-between text-xs sm:text-sm text-muted-foreground">
-                  <span className="text-left max-w-[30%]">More of what I love</span>
-                  <span className="text-center">Balanced</span>
-                  <span className="text-right max-w-[30%]">Surprise me!</span>
-                </div>
-              </div>
-
-              {/* Current diversity level indicator */}
-              <div className="pt-4 border-t">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Current Level:</span>
-                  <Badge variant={
-                    diversityLevel >= 0.7 ? "default" : 
-                    diversityLevel >= 0.3 ? "secondary" : 
-                    "outline"
-                  } data-testid="badge-diversity-level">
-                    {diversityLevel >= 0.7 ? "High Diversity" : 
-                     diversityLevel >= 0.3 ? "Balanced" : 
-                     "Focused"}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {diversityLevel >= 0.7 ? 
-                    "High variety across genres and themes. Great for discovering new content outside your usual preferences." : 
-                   diversityLevel >= 0.3 ? 
-                    "Mix of familiar favorites and new discoveries. Balanced approach to keep things interesting." : 
-                    "Recommendations closely match your proven tastes. Deep dive into what you already love."}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Unified AI Recommendations */}
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
-                <div className="flex-1">
-                  <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
-                    <Brain className="h-5 w-5 text-accent" />
-                    <span>AI-Powered Recommendations</span>
-                  </CardTitle>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setPipelineRefreshKey(prev => prev + 1);
-                  }}
-                  disabled={pipelineLoading}
-                  className="w-full sm:w-auto"
-                  data-testid="button-refresh-unified"
-                >
-                  <RefreshCw className={cn("h-4 w-4", pipelineLoading && "animate-spin")} />
-                  <span className="sm:hidden ml-2">Refresh</span>
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {pipelineLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-accent" data-testid="loader-unified-recommendations" />
-                  <span className="ml-2 text-muted-foreground">Finding your perfect matches...</span>
-                </div>
-              ) : unifiedRecommendations.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {unifiedRecommendations.map((rec: any) => {
-                    // Defensive guard: ensure we have a valid ID
-                    const rawId = rec.tmdbId ?? rec.id ?? rec.movieId;
-                    if (!rawId) {
-                      console.warn('[Recommendations] Skipping item without valid ID:', rec);
-                      return null;
-                    }
-                    
-                    const movie: Movie = {
-                      id: rawId.toString(),
-                      type: rec.type || rec.mediaType || 'movie',
-                      title: rec.title,
-                      posterUrl: rec.posterUrl || (rec.posterPath ? tmdbService.getImageUrl(rec.posterPath, 'poster') : undefined),
-                      rating: rec.rating || rec.metadata?.vote_average || 0,
-                      year: rec.year || (rec.metadata?.release_date ? new Date(rec.metadata.release_date).getFullYear() : 0) || (rec.metadata?.first_air_date ? new Date(rec.metadata.first_air_date).getFullYear() : 0),
-                      genre: rec.genre || rec.metadata?.genres?.[0]?.name || '',
-                      synopsis: rec.synopsis || rec.metadata?.overview || undefined,
-                      director: undefined,
-                      cast: undefined,
-                      duration: rec.duration || rec.metadata?.runtime || undefined,
-                      seasons: rec.seasons || rec.metadata?.number_of_seasons || undefined,
-                    };
-                    
-                    return (
-                      <MovieCard 
-                        key={rawId}
-                        movie={movie} 
-                        showFeedback={true}
-                        recommendationScore={rec.score}
-                        recommendationStrategy={rec.strategy}
-                        experimentId={rec.experimentId}
-                      />
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="py-12 text-center">
-                  <Brain className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold mb-2">No Recommendations Yet</h3>
-                  <p className="text-muted-foreground mb-6">
-                    Rate some movies or add titles to your watchlist to get personalized AI-powered recommendations
-                  </p>
-                  <div className="flex gap-3 justify-center">
-                    <Link href="/movies">
-                      <Button data-testid="button-browse-movies">
-                        <Film className="h-4 w-4 mr-2" />
-                        Browse Movies
-                      </Button>
-                    </Link>
-                    <Link href="/tv-shows">
-                      <Button variant="outline" data-testid="button-browse-tv">
-                        <Tv className="h-4 w-4 mr-2" />
-                        Browse TV Shows
-                      </Button>
-                    </Link>
+          <TabsContent value="why" className="space-y-8">
+            {/* Diversity Controls */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Settings className="h-5 w-5 text-primary" />
+                  Recommendation Style
+                </CardTitle>
+                <CardDescription>
+                  Control how adventurous your recommendations are
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <Slider
+                    value={[diversityLevel]}
+                    onValueChange={([value]) => setDiversityLevel(value)}
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    className="w-full"
+                    data-testid="slider-diversity"
+                  />
+                  <div className="flex justify-between text-xs sm:text-sm text-muted-foreground">
+                    <span className="text-left max-w-[30%]">More of what I love</span>
+                    <span className="text-center">Balanced</span>
+                    <span className="text-right max-w-[30%]">Surprise me!</span>
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+
+                {/* Current diversity level indicator */}
+                <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Current Level:</span>
+                    <Badge variant={
+                      diversityLevel >= 0.7 ? "default" :
+                        diversityLevel >= 0.3 ? "secondary" :
+                          "outline"
+                    } data-testid="badge-diversity-level">
+                      {diversityLevel >= 0.7 ? "High Diversity" :
+                        diversityLevel >= 0.3 ? "Balanced" :
+                          "Focused"}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {diversityLevel >= 0.7 ?
+                      "High variety across genres and themes. Great for discovering new content outside your usual preferences." :
+                      diversityLevel >= 0.3 ?
+                        "Mix of familiar favorites and new discoveries. Balanced approach to keep things interesting." :
+                        "Recommendations closely match your proven tastes. Deep dive into what you already love."}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Unified AI Recommendations */}
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+                  <div className="flex-1">
+                    <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+                      <Brain className="h-5 w-5 text-accent" />
+                      <span>AI-Powered Recommendations</span>
+                    </CardTitle>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setPipelineRefreshKey(prev => prev + 1);
+                    }}
+                    disabled={pipelineLoading}
+                    className="w-full sm:w-auto"
+                    data-testid="button-refresh-unified"
+                  >
+                    <RefreshCw className={cn("h-4 w-4", pipelineLoading && "animate-spin")} />
+                    <span className="sm:hidden ml-2">Refresh</span>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {pipelineLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-accent" data-testid="loader-unified-recommendations" />
+                    <span className="ml-2 text-muted-foreground">Finding your perfect matches...</span>
+                  </div>
+                ) : unifiedRecommendations.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {unifiedRecommendations.map((rec: any) => {
+                      // Defensive guard: ensure we have a valid ID
+                      const rawId = rec.tmdbId ?? rec.id ?? rec.movieId;
+                      if (!rawId) {
+                        console.warn('[Recommendations] Skipping item without valid ID:', rec);
+                        return null;
+                      }
+
+                      const movie: Movie = {
+                        id: rawId.toString(),
+                        type: rec.type || rec.mediaType || 'movie',
+                        title: rec.title,
+                        posterUrl: rec.posterUrl || (rec.posterPath ? tmdbService.getImageUrl(rec.posterPath, 'poster') : undefined),
+                        rating: rec.rating || rec.metadata?.vote_average || 0,
+                        year: rec.year || (rec.metadata?.release_date ? new Date(rec.metadata.release_date).getFullYear() : 0) || (rec.metadata?.first_air_date ? new Date(rec.metadata.first_air_date).getFullYear() : 0),
+                        genre: rec.genre || rec.metadata?.genres?.[0]?.name || '',
+                        synopsis: rec.synopsis || rec.metadata?.overview || undefined,
+                        director: undefined,
+                        cast: undefined,
+                        duration: rec.duration || rec.metadata?.runtime || undefined,
+                        seasons: rec.seasons || rec.metadata?.number_of_seasons || undefined,
+                      };
+
+                      return (
+                        <MediaCard
+                          key={rawId}
+                          movie={movie}
+                          showFeedback={true}
+                          recommendationScore={rec.score}
+                          recommendationStrategy={rec.strategy}
+                          recommendationReason={rec.reason}
+                          experimentId={rec.experimentId}
+                          showExplanation={true}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-12 text-center">
+                    <Brain className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">No Recommendations Yet</h3>
+                    <p className="text-muted-foreground mb-6">
+                      Rate some movies or add titles to your watchlist to get personalized AI-powered recommendations
+                    </p>
+                    <div className="flex gap-3 justify-center">
+                      <Link href="/movies">
+                        <Button data-testid="button-browse-movies">
+                          <Film className="h-4 w-4 mr-2" />
+                          Browse Movies
+                        </Button>
+                      </Link>
+                      <Link href="/tv-shows">
+                        <Button variant="outline" data-testid="button-browse-tv">
+                          <Tv className="h-4 w-4 mr-2" />
+                          Browse TV Shows
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

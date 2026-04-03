@@ -617,6 +617,113 @@ class ItemEmbedding(models.Model):
     def __str__(self):
         return f"Item embedding for {self.tmdb_id} ({self.media_type})"
 
+class TmdbMovieCache(models.Model):
+    tmdb_id = models.IntegerField()
+    media_type = models.CharField(max_length=10, default='movie')
+    title = models.CharField(max_length=255)
+    overview = models.TextField(blank=True, null=True)
+    poster_path = models.CharField(max_length=255, blank=True, null=True)
+    backdrop_path = models.CharField(max_length=255, blank=True, null=True)
+    release_date = models.CharField(max_length=20, blank=True, null=True)
+    genres = models.JSONField(default=list)
+    vote_average = models.FloatField(default=0)
+    vote_count = models.IntegerField(default=0)
+    popularity = models.FloatField(default=0)
+    original_language = models.CharField(max_length=10, blank=True, null=True)
+    adult = models.BooleanField(default=False)
+    cast = models.JSONField(default=list)
+    crew = models.JSONField(default=list)
+    keywords = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['tmdb_id', 'media_type']
+        indexes = [
+            models.Index(fields=['tmdb_id']),
+            models.Index(fields=['media_type']),
+            models.Index(fields=['popularity']),
+        ]
+    
+    def __str__(self):
+        return f"TMDB Cache: {self.title} ({self.tmdb_id})"
+
+class SearchInteraction(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    query = models.CharField(max_length=255) # Normalized lowercase
+    tmdb_id = models.IntegerField()
+    media_type = models.CharField(max_length=10, default='movie')
+    action = models.CharField(max_length=20, choices=[('click', 'Click'), ('watch', 'Watch')])
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['query']),
+            models.Index(fields=['tmdb_id']),
+        ]
+
+    def __str__(self):
+        return f"{self.query} -> {self.tmdb_id} ({self.action})"
+
+class Club(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default='')
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='owned_clubs')
+    cover_image_url = models.URLField(max_length=500, blank=True, null=True)
+    is_public = models.BooleanField(default=True)
+    member_count = models.IntegerField(default=1) # Start with owner
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.title
+
+class ClubMember(models.Model):
+    ROLE_CHOICES = [
+        ('member', 'Member'),
+        ('moderator', 'Moderator'),
+        ('admin', 'Admin'),
+    ]
+    
+    club = models.ForeignKey(Club, on_delete=models.CASCADE, related_name='members')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='club_memberships')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['club', 'user']
+
+    def __str__(self):
+        return f"{self.user.username} in {self.club.title}"
+
+class ClubThread(models.Model):
+    club = models.ForeignKey(Club, on_delete=models.CASCADE, related_name='threads')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='club_threads')
+    title = models.CharField(max_length=255)
+    content = models.TextField()
+    view_count = models.IntegerField(default=0)
+    pinned = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-pinned', '-updated_at']
+
+    def __str__(self):
+        return self.title
+
+class ClubPost(models.Model):
+    thread = models.ForeignKey(ClubThread, on_delete=models.CASCADE, related_name='posts')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='club_posts')
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Post by {self.author.username} in {self.thread.title}"
 
 class SemanticEmbedding(models.Model):
     tmdb_id = models.IntegerField()
@@ -630,7 +737,6 @@ class SemanticEmbedding(models.Model):
     
     def __str__(self):
         return f"Semantic embedding for {self.tmdb_id} ({self.media_type})"
-
 
 class BanditExperiment(models.Model):
     EXPERIMENT_TYPES = [
@@ -648,8 +754,7 @@ class BanditExperiment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
-        return f"Bandit experiment for {self.user.email}: {self.experiment_type} - {self.arm_chosen}"
-
+        return f"{self.user.email} - {self.experiment_type} - {self.arm_chosen}"
 
 class TmdbTrainingData(models.Model):
     tmdb_id = models.IntegerField(primary_key=True)
@@ -680,43 +785,13 @@ class TmdbTrainingData(models.Model):
     imdb_rating = models.FloatField(blank=True, null=True)
     imdb_votes = models.FloatField(blank=True, null=True)
     poster_path = models.CharField(max_length=255, blank=True, null=True)
-    
+
     class Meta:
         indexes = [
             models.Index(fields=['genres']),
             models.Index(fields=['popularity']),
             models.Index(fields=['release_date']),
         ]
-    
-    def __str__(self):
-        return f"Training data: {self.title} ({self.tmdb_id})"
 
-
-class TmdbMovieCache(models.Model):
-    tmdb_id = models.IntegerField()
-    media_type = models.CharField(max_length=10)
-    title = models.CharField(max_length=500)
-    overview = models.TextField(blank=True, null=True)
-    poster_path = models.CharField(max_length=255, blank=True, null=True)
-    backdrop_path = models.CharField(max_length=255, blank=True, null=True)
-    release_date = models.CharField(max_length=20, blank=True, null=True)
-    vote_average = models.FloatField(blank=True, null=True)
-    vote_count = models.IntegerField(blank=True, null=True)
-    popularity = models.FloatField(blank=True, null=True)
-    genre_ids = models.JSONField(blank=True, null=True)
-    original_language = models.CharField(max_length=10, blank=True, null=True)
-    adult = models.BooleanField(default=False)
-    raw_data = models.JSONField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        unique_together = ['tmdb_id', 'media_type']
-        indexes = [
-            models.Index(fields=['tmdb_id']),
-            models.Index(fields=['media_type']),
-            models.Index(fields=['popularity']),
-        ]
-    
     def __str__(self):
-        return f"TMDB Cache: {self.title} ({self.tmdb_id})"
+        return f"{self.title} ({self.tmdb_id})"

@@ -33,11 +33,12 @@ export function CreateListDialog({ onSuccess, trigger }: CreateListDialogProps) 
 
   const createListMutation = useMutation({
     mutationFn: async () => {
-      if (!isAuthenticated) {
+      if (!isAuthenticated || !user?.id) {
         throw new Error("Must be logged in to create a list");
       }
 
       const response = await apiRequest('POST', '/api/community/lists', {
+        userId: user.id,
         title: title.trim(),
         description: description.trim() || null,
         isPublic,
@@ -48,7 +49,9 @@ export function CreateListDialog({ onSuccess, trigger }: CreateListDialogProps) 
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists'] });
       if (user?.id) {
         queryClient.invalidateQueries({ queryKey: ['/api/community/users', user.id, 'lists'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/community/users', user.id, 'lists'] });
         queryClient.invalidateQueries({ queryKey: ['/api/community', user.id, 'stats'] });
+        queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
       }
       // Invalidate community feed to show new list
       queryClient.invalidateQueries({ queryKey: ['/api/community/feed'] });
@@ -75,7 +78,7 @@ export function CreateListDialog({ onSuccess, trigger }: CreateListDialogProps) 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!title.trim()) {
       toast({
         title: "Title required",

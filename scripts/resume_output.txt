@@ -1,0 +1,36 @@
+Aditya Solanki
++91 9009375592 • adityasolankidld@gmail.com • linkedin adityasolankidld • https://github.com/adityasolanki333
+SUMMARY
+Motivated professional with a strong foundation in programming and problem solving. Eager to learn and grow in data science and other technology roles. Building foundational skills in data analysis, statistics, and machine learning, with a passion for data-driven decision making and continuous learning. technical challenges with a passion for data-driven decision making and software engineering.
+EDUCATION
+B. Tech CSE                                                                                                                                        	    Graduating 2026
+Sage University Indore                                                                                                                                       8.1 CGPA
+Relevant coursework: Object-Oriented Programming (OOP), Data Structures and Algorithms (DSA), Software Engi- nearing, Computer Networks, Operating System, Database Management System, Machine Learning and AI.
+TECHNICAL SKILLS
+Programming Languages: Python, C, C++
+Data Analysis: Pandas, NumPy
+Data Visualization: Matplotlib, Seaborn
+Machine Learning: Scikit-learn
+Databases: MySQL
+Tools & Technologies: Jupyter Notebook, Git, AWS, Django
+Problem Solving: Data Structures, Algorithms, Object-Oriented Programming (OOP))
+PROFESSIONAL EXPERIENCE
+AWS Cloud Foundations Internship 	July 2025 - July 2025
+Completed a 15-day internship on AWS Cloud Foundations organized by IAC and IET, Sage University, Indore
+Gained foundational knowledge of AWS cloud services, infrastructure, and deployment.
+Developed practical skills in cloud computing concepts and applications.
+ACADEMIC PROJECTS
+Movie Recommendation System                                                                                                 Oct 2025 – Present Developed CineGraph, an AI-powered full-stack movie recommendation system providing personalized suggestions based on user preferences and viewing history.
+Implemented frontend using React 18, TypeScript, and Tailwind CSS; backend with Django and PostgreSQL
+Integrated an AI chat feature using Gemini AI to recommend movies based on user intent.
+Added a gamification system where users recommend movies to others, who then rank them using a like/dislike voting system.
+Incorporated a video review system and a "Why We Recommended" explanation feature to enhance transparency and user engagement.
+ACTIVITIES ACHIEVEMENTS
+Solved 200+ questions on LeetCode and CodingNinja covering various DSA topics.
+Won second prize in college science exhibition for creating a Home Security Laser alarm.
+Program Coordinator for Maths Day in college, organizing various activities.
+CERTIFICATE
+AWS Certified Cloud Practitioner LInk
+AWS Cloud Foundations Internship Certificate Link
+Data Science & AI Masters Certificate – Udemy Link
+Python Certificate – HackerRank Link

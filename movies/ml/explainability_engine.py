@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 import json
 import os
 import logging
+import hashlib
+from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +98,18 @@ class ExplainabilityEngine:
         """Generate comprehensive explanation for a recommendation"""
         
         try:
+            # Check cache first
+            cache_key = f"explanation_{user_id}_{tmdb_id}_{media_type}"
+            cached_explanation = cache.get(cache_key)
+            if cached_explanation:
+                # Reconstruct Explanation object from dict
+                # Note: This assumes simplified serialization/deserialization logic or storing raw dicts if acceptable
+                # For robust object caching, pickle is used by default in Django cache, so entire object might be returned.
+                # If using JSON cache (like Redis with JSON), we might need manual reconstruction. 
+                # Assuming local memory/locmem or pickle-compatible, we can return directly if it's the object.
+                if isinstance(cached_explanation, Explanation):
+                    return cached_explanation
+            
             # Gather context if not provided
             if context is None:
                 context = self._create_default_context(user_id, tmdb_id, media_type)
@@ -121,6 +135,39 @@ class ExplainabilityEngine:
             # Generate human-readable explanation
             explanation_text = self._generate_explanation_text(context, feature_importance)
             
+            # Enhancing with Gemini if possible (Level 3 Explanation)
+            try:
+                # Only use Gemini if we have a basic reason to start with, to avoid hallucination on empty context
+                if feature_importance:
+                    source_title = context.item_details.get('title', '')
+                    source_overview = context.item_details.get('overview', '')
+                    # For comparison, we need a source movie (the user liked).
+                    # 'context.similar_movies' has titles, but we might need more details.
+                    # As a fallback, we can ask Gemini to explain why this movie fits the USER profile generally.
+                    
+                    # If similar_movies is populated (from UserReview high ratings), use the first one as anchor
+                    anchor_movie = context.similar_movies[0] if context.similar_movies else None
+                    
+                    if anchor_movie:
+                         # We don't have anchor overview easily here without another fetch, 
+                         # but we can try with just title or modify generate_gemini_explanation to handle "User Context"
+                         pass
+                    
+                    # For now, let's inject a "Smart Summary" using Gemini if we have the movie details
+                    # calling a new method or overloading the existing one
+                    if source_title:
+                        gemini_text = self.generate_gemini_explanation(
+                            source_title="User Preferences", 
+                            source_overview="User likes " + ", ".join(context.user_preferences.get('preferred_genres', []) if context.user_preferences else []),
+                            recommended_title=source_title, 
+                            recommended_overview=source_overview
+                        )
+                        if gemini_text:
+                            explanation_text = gemini_text
+            except Exception as e:
+                pass 
+                # Fallback to template explanation
+            
             # Create visual breakdown
             visual_breakdown = self._create_visual_breakdown(feature_importance)
             
@@ -134,7 +181,7 @@ class ExplainabilityEngine:
             # Calculate confidence
             confidence_score = self._calculate_confidence(feature_importance)
             
-            return Explanation(
+            explanation = Explanation(
                 recommendation_id=recommendation_id,
                 user_id=user_id,
                 tmdb_id=tmdb_id,
@@ -146,6 +193,11 @@ class ExplainabilityEngine:
                 confidence_score=confidence_score,
                 explanation_text=explanation_text
             )
+            
+            # Cache for 1 hour (3600s)
+            cache.set(cache_key, explanation, 3600)
+            
+            return explanation
         
         except Exception as e:
             return Explanation(
@@ -491,6 +543,14 @@ class ExplainabilityEngine:
             if not gemini_key:
                 return None
             
+            # Create deterministic cache key
+            key_str = f"{source_title}:{source_overview[:50]}:{recommended_title}:{recommended_overview[:50]}"
+            cache_key = f"gemini_expl_{hashlib.md5(key_str.encode()).hexdigest()}"
+            
+            cached_result = cache.get(cache_key)
+            if cached_result:
+                return cached_result
+            
             client = genai.Client(api_key=gemini_key)
             
             prompt = f"""You are a movie recommendation expert. A user liked "{source_title}" and we're recommending "{recommended_title}".
@@ -511,7 +571,12 @@ Write ONE compelling sentence (max 150 characters) explaining why someone who li
             if response and response.text:
                 explanation = response.text.strip()
                 if explanation:
-                    return explanation[:200]
+                    result = explanation[:200]
+                    # Cache for 24 hours
+                    cache.set(cache_key, result, 86400)
+                    return result
+            else:
+                return None
                     
         except ImportError:
             logger.warning("google-genai not installed")
@@ -532,8 +597,15 @@ Write ONE compelling sentence (max 150 characters) explaining why someone who li
         Returns:
             Dictionary with feature importance scores and statistics
         """
+
         from movies.models import FeatureWeight, FeatureContribution
         from django.db.models import Avg, Count, Sum
+        
+        # Check cache
+        cache_key = f"global_feat_imp_{user_id if user_id else 'all'}"
+        cached = cache.get(cache_key)
+        if cached:
+            return cached
         
         try:
             if user_id:
@@ -610,7 +682,7 @@ Write ONE compelling sentence (max 150 characters) explaining why someone who li
                 reverse=True
             )
             
-            return {
+            result = {
                 'user_id': user_id,
                 'scope': 'user' if user_id else 'global',
                 'features': dict(sorted_features),
@@ -625,6 +697,11 @@ Write ONE compelling sentence (max 150 characters) explaining why someone who li
                 ],
                 'total_features': len(importance_scores)
             }
+            
+            # Cache for 1 hour
+            cache.set(cache_key, result, 3600)
+            
+            return result
             
         except Exception as e:
             return {

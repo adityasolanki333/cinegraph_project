@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import MovieCard from "@/components/movie-card";
-import MovieCardSkeleton from "@/components/movie-card-skeleton";
+import { MediaCard } from "@/components/media-card";
+import MediaCardSkeleton from "@/components/media-card-skeleton";
 import { tmdbService } from "@/lib/tmdb";
 import { Play, Info, ChevronRight, ChevronLeft, Heart, Smile, Zap, Brain, Sparkles, RefreshCw, Film, Tv } from "lucide-react";
 import { Link } from "wouter";
@@ -16,6 +16,8 @@ import { TrailerDialog } from "@/components/trailer-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { ContinueWatching } from "@/components/continue-watching";
 import { useAuth } from "@/hooks/useAuth";
+import { WithTMDBFallback } from "@/components/tmdb-error-boundary";
+
 
 const moodOptions = [
   {
@@ -87,7 +89,7 @@ export default function Home() {
   const { isInWatchlist } = useWatchlist();
   const { toast } = useToast();
   const { user } = useAuth();
-  
+
   // Fetch data from TMDB API
   const { data: trendingData, isLoading: trendingLoading, error: trendingError } = useQuery({
     queryKey: ['/api/tmdb/trending'],
@@ -140,9 +142,37 @@ export default function Home() {
     },
     select: (data: any) => {
       if (!data.recommendations) return [];
-      return data.recommendations.slice(0, 8).map((item: any) => 
-        tmdbService.convertToMovie(item, mediaType)
-      );
+      return data.recommendations.slice(0, 8).map((item: any) => ({
+        ...tmdbService.convertToMovie(item, mediaType),
+        recommendationReason: `Matches your selected mood`,
+        recommendationScore: 0.85
+      }));
+    }
+  });
+
+  // Hybrid Personal Recommendations
+  const { data: hybridData, isLoading: hybridLoading } = useQuery({
+    queryKey: ['/api/recommendations/hybrid', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const response = await fetch(`/api/recommendations/hybrid/${user?.id}`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      return (data.recommendations || []).map((item: any) => ({
+        id: item.tmdb_id,
+        title: item.title,
+        year: item.year || new Date().getFullYear(),
+        genre: "Recommended",
+        rating: item.vote_average || (typeof item.score === 'number' ? (item.score > 1 ? item.score : item.score * 10) : 0),
+        synopsis: item.overview || "Recommended for you",
+        posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
+        type: item.media_type || 'movie',
+        seasons: null,
+        // Recommendation metadata
+        recommendationScore: item.score,
+        recommendationStrategy: item.type || 'Hybrid',
+        recommendationReason: item.reason || "Based on your viewing history"
+      }));
     }
   });
 
@@ -157,20 +187,20 @@ export default function Home() {
 
   const getMoodBasedRecommendations = () => {
     if (!selectedMood) return [];
-    
+
     const moodItems = moodRecommendations || [];
-    
+
     if (moodItems.length >= 8) {
       return moodItems.slice(0, 8);
     }
-    
-    const fallbackItems = mediaType === 'tv' 
+
+    const fallbackItems = mediaType === 'tv'
       ? (popularTVData || [])
       : (popularMoviesData || []);
-    
+
     const combined = [...moodItems];
     const usedIds = new Set(moodItems.map((item: any) => item.id));
-    
+
     for (const item of fallbackItems) {
       if (combined.length >= 8) break;
       if (!usedIds.has(item.id)) {
@@ -178,7 +208,7 @@ export default function Home() {
         usedIds.add(item.id);
       }
     }
-    
+
     return combined.slice(0, 8);
   };
 
@@ -204,18 +234,18 @@ export default function Home() {
 
   const handleTouchEnd = () => {
     if (touchStart === null || touchEnd === null) return;
-    
+
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > 30; // Swipe left to go to next
     const isRightSwipe = distance < -30; // Swipe right to go to previous
-    
+
     if (isLeftSwipe && featuredMovies.length > 1) {
       nextSlide();
     }
     if (isRightSwipe && featuredMovies.length > 1) {
       prevSlide();
     }
-    
+
     // Reset values
     setTouchStart(null);
     setTouchEnd(null);
@@ -230,7 +260,7 @@ export default function Home() {
     queryKey: ['/api/tmdb', trailerInfo?.type || 'movie', trailerInfo?.id, 'videos'],
     queryFn: async () => {
       if (!trailerInfo?.id) return null;
-      const endpoint = trailerInfo.type === 'tv' 
+      const endpoint = trailerInfo.type === 'tv'
         ? `/api/tmdb/tv/${trailerInfo.id}/videos`
         : `/api/tmdb/movie/${trailerInfo.id}/videos`;
       const response = await fetch(endpoint);
@@ -240,7 +270,7 @@ export default function Home() {
     enabled: !!trailerInfo?.id && shouldFetchTrailer
   });
 
-  const trailers = trailerData?.results?.filter((video: any) => 
+  const trailers = trailerData?.results?.filter((video: any) =>
     video.type === 'Trailer' && video.site === 'YouTube'
   ) || [];
 
@@ -262,8 +292,8 @@ export default function Home() {
 
   const handlePlayTrailer = () => {
     if (!currentMovie?.id) return;
-    setTrailerInfo({ 
-      id: currentMovie.id, 
+    setTrailerInfo({
+      id: currentMovie.id,
       type: currentMovie.type || 'movie',
       title: currentMovie.title || currentMovie.name || 'Unknown'
     });
@@ -327,14 +357,18 @@ export default function Home() {
           {isLoading ? (
             Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="flex-none w-36 sm:w-40 md:w-48">
-                <MovieCardSkeleton />
+                <MediaCardSkeleton />
               </div>
             ))
           ) : (
-            movies.map((movie) => (
+            movies.map((movie: any) => (
               <div key={movie.id} className="flex-none w-36 sm:w-40 md:w-48" data-testid={`movie-card-${movie.id}`}>
-                <MovieCard
+                <MediaCard
                   movie={movie}
+                  recommendationScore={movie.recommendationScore}
+                  recommendationStrategy={movie.recommendationStrategy}
+                  recommendationReason={movie.recommendationReason}
+                  showExplanation={true}
                 />
               </div>
             ))
@@ -378,8 +412,8 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       {/* Hero Section with Slider */}
       {currentMovie && (
-        <div 
-          className="relative h-[150vw] max-h-[100vh] sm:h-[70vh] lg:h-[80vh] overflow-hidden bg-black" 
+        <div
+          className="relative h-[150vw] max-h-[100vh] sm:h-[70vh] lg:h-[80vh] overflow-hidden bg-black"
           data-testid="hero-section"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
@@ -405,6 +439,7 @@ export default function Home() {
             <img
               src={currentMovie.backdropUrl || currentMovie.posterUrl || "https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?ixlib=rb-4.0.3&w=1920&h=1080&fit=crop"}
               alt={currentMovie.title || "Featured Movie"}
+              fetchpriority="high"
               className="hidden sm:block w-full h-full object-cover transition-all duration-1000"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent pointer-events-none" />
@@ -425,7 +460,7 @@ export default function Home() {
                   <ChevronLeft className="h-10 w-10 sm:h-12 sm:w-12 text-white drop-shadow-2xl" />
                 </div>
               </button>
-              
+
               {/* Right clickable area for next slide */}
               <button
                 className="absolute right-0 top-0 bottom-0 w-[40%] z-[40] cursor-pointer group"
@@ -440,14 +475,14 @@ export default function Home() {
 
               {/* Slide indicators */}
               <div className="absolute bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-[40] flex items-center gap-2">
-                {featuredMovies.map((_movie, index) => (
+                {featuredMovies.map((_movie: any, index: number) => (
                   <button
                     key={index}
                     onClick={() => setCurrentSlide(index)}
                     className={cn(
                       "w-2 h-2 rounded-full transition-all duration-300",
-                      currentSlide === index 
-                        ? "bg-white w-8" 
+                      currentSlide === index
+                        ? "bg-white w-8"
                         : "bg-white/50 hover:bg-white/75"
                     )}
                     data-testid={`indicator-slide-${index}`}
@@ -457,7 +492,7 @@ export default function Home() {
               </div>
             </>
           )}
-          
+
           <div className="relative z-[40] flex items-center h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pointer-events-none">
             <div className="max-w-2xl pointer-events-auto">
               <Badge variant="secondary" className="mb-2 sm:mb-4" data-testid="badge-featured-type">
@@ -486,9 +521,9 @@ export default function Home() {
                 )}
               </div>
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                <Button 
-                  size="lg" 
-                  className="bg-white text-black hover:bg-gray-200 w-full sm:w-auto" 
+                <Button
+                  size="lg"
+                  className="bg-white text-black hover:bg-gray-200 w-full sm:w-auto"
                   data-testid="button-play"
                   onClick={handlePlayTrailer}
                 >
@@ -515,6 +550,16 @@ export default function Home() {
           <div className="mb-8" data-testid="section-continue-watching">
             <ContinueWatching />
           </div>
+        )}
+
+        {/* Recommended for You - Hybrid Engine */}
+        {user && hybridData && hybridData.length > 0 && (
+          <MovieRow
+            title="Recommended for You"
+            movies={hybridData}
+            showMore={false}
+            isLoading={hybridLoading}
+          />
         )}
 
         {/* Mood-Based Suggestions */}
@@ -554,7 +599,7 @@ export default function Home() {
               {moodOptions.map((mood) => {
                 const Icon = mood.icon;
                 const isSelected = selectedMood === mood.id;
-                
+
                 return (
                   <Button
                     key={mood.id}
@@ -596,15 +641,18 @@ export default function Home() {
                 {moodLoading ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
                     {Array.from({ length: 8 }, (_, i) => (
-                      <MovieCardSkeleton key={i} />
+                      <MediaCardSkeleton key={i} />
                     ))}
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
                     {getMoodBasedRecommendations().map((movie: any) => (
-                      <MovieCard
+                      <MediaCard
                         key={movie.id}
                         movie={movie}
+                        recommendationReason={movie.recommendationReason}
+                        recommendationScore={movie.recommendationScore}
+                        showExplanation={true}
                       />
                     ))}
                   </div>
@@ -615,13 +663,19 @@ export default function Home() {
         </Card>
 
         {/* Popular Movies */}
-        <MovieRow title="Popular Movies" movies={popularMovies} showMore={true} isLoading={popularLoading} />
+        <WithTMDBFallback section="Popular Movies">
+          <MovieRow title="Popular Movies" movies={popularMovies} showMore={true} isLoading={popularLoading} />
+        </WithTMDBFallback>
 
         {/* Top Rated */}
-        <MovieRow title="Top Rated" movies={topRatedContent} showMore={true} isLoading={topRatedLoading} />
+        <WithTMDBFallback section="Top Rated">
+          <MovieRow title="Top Rated" movies={topRatedContent} showMore={true} isLoading={topRatedLoading} />
+        </WithTMDBFallback>
 
         {/* Trending TV Shows */}
-        <MovieRow title="Trending TV Shows" movies={trendingTVShows} showMore={true} showMoreLink="/tv-shows" isLoading={tvLoading} />
+        <WithTMDBFallback section="Trending TV Shows">
+          <MovieRow title="Trending TV Shows" movies={trendingTVShows} showMore={true} showMoreLink="/tv-shows" isLoading={tvLoading} />
+        </WithTMDBFallback>
 
         {/* Browse by Genre */}
         <div className="mb-6 sm:mb-8" data-testid="section-genres">

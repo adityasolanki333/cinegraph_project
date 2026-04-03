@@ -49,7 +49,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SimilarLists } from "@/components/similar-lists";
 import { ListCollaboratorManager } from "@/components/ListCollaboratorManager";
-import MovieCard from "@/components/movie-card";
+import { MediaCard } from "@/components/media-card";
 import type { Movie } from "@shared/schema";
 import { tmdbService } from "@/lib/tmdb";
 
@@ -91,7 +91,7 @@ function ListItemCard({ item, isOwnList, onRemove }: { item: any; isOwnList: boo
     };
 
     return (
-      <MovieCard
+      <MediaCard
         movie={fallbackMovie}
         showRemoveButton={isOwnList}
         onRemoveFromWatchlist={onRemove}
@@ -103,7 +103,7 @@ function ListItemCard({ item, isOwnList, onRemove }: { item: any; isOwnList: boo
   const movie = tmdbService.convertToMovie(tmdbData as any, item.mediaType);
 
   return (
-    <MovieCard
+    <MediaCard
       movie={movie}
       showRemoveButton={isOwnList}
       onRemoveFromWatchlist={onRemove}
@@ -167,13 +167,13 @@ export default function ListDetail() {
     onMutate: async () => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['/api/community/lists', listId, 'is-following'] });
-      
+
       // Snapshot the previous value
       const previousValue = queryClient.getQueryData(['/api/community/lists', listId, 'is-following']);
-      
+
       // Optimistically update to the new value
       queryClient.setQueryData(['/api/community/lists', listId, 'is-following'], true);
-      
+
       // Return a context object with the snapshotted value
       return { previousValue };
     },
@@ -204,13 +204,13 @@ export default function ListDetail() {
     onMutate: async () => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['/api/community/lists', listId, 'is-following'] });
-      
+
       // Snapshot the previous value
       const previousValue = queryClient.getQueryData(['/api/community/lists', listId, 'is-following']);
-      
+
       // Optimistically update to the new value
       queryClient.setQueryData(['/api/community/lists', listId, 'is-following'], false);
-      
+
       // Return a context object with the snapshotted value
       return { previousValue };
     },
@@ -280,15 +280,15 @@ export default function ListDetail() {
     onError: (error: any) => {
       const errorMessage = error?.message || "Failed to update list. Please try again.";
       const isNotFound = errorMessage.includes("not found") || errorMessage.includes("404");
-      
+
       toast({
         title: isNotFound ? "List Not Found" : "Error",
-        description: isNotFound 
-          ? "This list has been deleted and can no longer be edited." 
+        description: isNotFound
+          ? "This list has been deleted and can no longer be edited."
           : errorMessage,
         variant: "destructive",
       });
-      
+
       // If list not found, close dialog and refresh
       if (isNotFound) {
         setShowEditDialog(false);
@@ -514,8 +514,8 @@ export default function ListDetail() {
           {list.items.map((item: any) => {
             return (
               <div key={item.id} className="space-y-2" data-testid={`list-item-${item.id}`}>
-                <ListItemCard 
-                  item={item} 
+                <ListItemCard
+                  item={item}
                   isOwnList={isOwnList}
                   onRemove={() => removeItemMutation.mutate(item.id)}
                 />
@@ -581,8 +581,8 @@ export default function ListDetail() {
               <List className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-muted-foreground/50 mb-4 sm:mb-6 animate-pulse" />
               <h3 className="text-lg sm:text-xl font-semibold mb-2">This list is empty</h3>
               <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6 px-4 sm:px-0">
-                {isOwnList 
-                  ? "Start adding movies and TV shows to build your collection!" 
+                {isOwnList
+                  ? "Start adding movies and TV shows to build your collection!"
                   : "The creator hasn't added any items yet."}
               </p>
               {isOwnList && (

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { 
-  Star, Calendar, Clock, Users, ArrowLeft, 
+import {
+  Star, Calendar, Clock, Users, ArrowLeft,
   Play, Heart, Bookmark, Share, MessageSquare, TrendingUp, CheckCircle, Sparkles,
   ThumbsUp, ThumbsDown, Send, Layers, Trash2
 } from "lucide-react";
@@ -31,7 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import MediaCard from "@/components/media-card";
+import { MediaCard } from "@/components/media-card";
 import MovieDetailsSkeleton from "@/components/movie-details-skeleton";
 import { ExpandableText } from "@/components/expandable-text";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -39,6 +39,7 @@ import { TrailerDialog } from "@/components/trailer-dialog";
 import { AddToListButton } from "@/components/add-to-list-button";
 import { ListCard } from "@/components/list-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToastAction } from "@/components/ui/toast";
 
 interface MovieDetails {
   id: number;
@@ -109,6 +110,7 @@ interface MovieDetails {
 export default function MovieDetailsPage() {
   const params = useParams();
   const movieId = params.id;
+  const [activeTab, setActiveTab] = useState("details");
   const { isAuthenticated, user } = useAuth();
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlist();
   const { toast } = useToast();
@@ -132,7 +134,7 @@ export default function MovieDetailsPage() {
   });
 
   // Get current user's existing rating
-  const userExistingRating = userReviews?.find((review: any) => review.userId === user?.id);
+  const userExistingRating = userReviews?.find((review: any) => String(review.userId) === String(user?.id));
 
   // Fetch sentiment analysis for this movie
   const { data: sentimentData } = useQuery({
@@ -190,7 +192,7 @@ export default function MovieDetailsPage() {
   const favoritesMutation = useMutation({
     mutationFn: async ({ action }: { action: 'add' | 'remove' }) => {
       if (action === 'add') {
-        return apiRequest('POST', `/api/users/${user?.id}/favorites`, {
+        return apiRequest('POST', `/api/users/${user?.id}/favorites/add`, {
           tmdbId: parseInt(movieId || '0'),
           mediaType: 'movie',
           title: movie?.title || '',
@@ -202,6 +204,9 @@ export default function MovieDetailsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'favorites'] });
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
+      }
     }
   });
 
@@ -209,7 +214,7 @@ export default function MovieDetailsPage() {
   const watchedMutation = useMutation({
     mutationFn: async ({ action }: { action: 'add' | 'remove' }) => {
       if (action === 'add') {
-        return apiRequest('POST', `/api/users/${user?.id}/watched`, {
+        return apiRequest('POST', `/api/users/${user?.id}/watched/add`, {
           tmdbId: parseInt(movieId || '0'),
           mediaType: 'movie',
           title: movie?.title || '',
@@ -221,6 +226,9 @@ export default function MovieDetailsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'watched'] });
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
+      }
     }
   });
 
@@ -246,7 +254,7 @@ export default function MovieDetailsPage() {
   }
 
   const mainCast = movie.credits?.cast?.slice(0, 6) || [];
-  const trailers = movie.videos?.results?.filter(video => 
+  const trailers = movie.videos?.results?.filter(video =>
     video.type === 'Trailer' && video.site === 'YouTube'
   ) || [];
 
@@ -259,12 +267,12 @@ export default function MovieDetailsPage() {
       genre: movie.genres[0]?.name || 'Drama',
       rating: movie.vote_average,
       synopsis: movie.overview,
-      posterUrl: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
+      posterUrl: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : undefined,
       director: movie.credits?.crew?.find(member => member.job === 'Director')?.name || 'Unknown',
       cast: movie.credits?.cast?.slice(0, 5).map(actor => actor.name) || [],
-      duration: movie.runtime || null,
+      duration: movie.runtime || undefined,
       type: 'movie',
-      seasons: null,
+      seasons: undefined,
     };
   };
 
@@ -344,6 +352,15 @@ export default function MovieDetailsPage() {
           toast({
             title: "Marked as watched",
             description: `${movie.title} has been marked as watched.`,
+            action: (
+              <ToastAction altText="Write a review" onClick={() => {
+                setActiveTab("reviews");
+                // Scroll to the tabs area smoothly
+                window.scrollTo({ top: 500, behavior: "smooth" });
+              }}>
+                Write Review
+              </ToastAction>
+            ),
           });
         }
       });
@@ -355,7 +372,7 @@ export default function MovieDetailsPage() {
       {/* Hero Section */}
       <div className="relative min-h-[400px] sm:min-h-[500px] md:h-96 bg-gradient-to-r from-black/70 to-black/30">
         {movie.backdrop_path && (
-          <div 
+          <div
             className="absolute inset-0 bg-cover bg-center"
             style={{
               backgroundImage: `url(https://image.tmdb.org/t/p/w1280${movie.backdrop_path})`,
@@ -394,9 +411,9 @@ export default function MovieDetailsPage() {
 
             {/* Details */}
             <div className="flex-1 text-white w-full md:w-auto">
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 className="mb-2 md:mb-4 text-white hover:text-white hover:bg-white/20"
                 onClick={() => window.history.back()}
               >
@@ -405,7 +422,7 @@ export default function MovieDetailsPage() {
               </Button>
 
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">{movie.title}</h1>
-              
+
               <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-3 md:mb-4">
                 <div className="flex items-center gap-2">
                   <Star className="h-4 w-4 md:h-5 md:w-5 fill-yellow-400 text-yellow-400" />
@@ -416,9 +433,9 @@ export default function MovieDetailsPage() {
                     ({movie.vote_count.toLocaleString()} votes)
                   </span>
                 </div>
-                
+
                 <Separator orientation="vertical" className="h-4 md:h-6 hidden sm:block" />
-                
+
                 <div className="flex items-center gap-2">
                   <Calendar className="h-3 w-3 md:h-4 md:w-4" />
                   <span className="text-sm md:text-base">{movie.release_date}</span>
@@ -444,15 +461,15 @@ export default function MovieDetailsPage() {
               </div>
 
               <div className="mb-3 md:mb-6 max-w-2xl">
-                <ExpandableText 
-                  text={movie.overview} 
+                <ExpandableText
+                  text={movie.overview}
                   className="text-sm md:text-lg opacity-90"
                   maxLines={2}
                 />
               </div>
 
               <div className="space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:gap-2 md:gap-3">
-                <Button 
+                <Button
                   size="sm"
                   className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
                   onClick={() => {
@@ -472,10 +489,10 @@ export default function MovieDetailsPage() {
                   <span className="hidden sm:inline">Watch Trailer</span>
                   <span className="sm:hidden">Trailer</span>
                 </Button>
-                
+
                 <div className="grid grid-cols-2 gap-2 sm:contents">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={handleFavoritesToggle}
                     disabled={favoritesMutation.isPending}
@@ -486,9 +503,9 @@ export default function MovieDetailsPage() {
                     <span className="hidden md:inline">{isInFavorites ? 'Remove from Favorites' : 'Add to Favorites'}</span>
                     <span className="md:hidden">{isInFavorites ? 'Unfavorite' : 'Favorite'}</span>
                   </Button>
-                  
-                  <Button 
-                    variant="outline" 
+
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={handleWatchlistToggle}
                     data-testid="button-watchlist"
@@ -498,9 +515,9 @@ export default function MovieDetailsPage() {
                     <span className="hidden md:inline">{isInUserWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}</span>
                     <span className="md:hidden">{isInUserWatchlist ? 'Remove' : 'Watchlist'}</span>
                   </Button>
-                  
-                  <Button 
-                    variant="outline" 
+
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={handleWatchedToggle}
                     disabled={watchedMutation.isPending}
@@ -511,7 +528,7 @@ export default function MovieDetailsPage() {
                     <span className="hidden md:inline">{isWatched ? 'Mark as Unwatched' : 'Mark as Watched'}</span>
                     <span className="md:hidden">{isWatched ? 'Unwatched' : 'Watched'}</span>
                   </Button>
-                  
+
                   <AddToListButton
                     tmdbId={movie.id}
                     mediaType="movie"
@@ -529,7 +546,7 @@ export default function MovieDetailsPage() {
 
       {/* Content Tabs */}
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
-        <Tabs defaultValue="details" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid grid-cols-3 sm:grid-cols-5 w-full gap-1 sm:gap-1 mb-4 sm:mb-6 h-auto">
             <TabsTrigger value="details" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Details</TabsTrigger>
             <TabsTrigger value="cast" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Cast</TabsTrigger>
@@ -554,26 +571,26 @@ export default function MovieDetailsPage() {
                       <h4 className="font-semibold">Status</h4>
                       <p className="text-muted-foreground">{movie.status}</p>
                     </div>
-                    
+
                     <div>
                       <h4 className="font-semibold">Release Date</h4>
                       <p className="text-muted-foreground">{movie.release_date}</p>
                     </div>
-                    
+
                     {movie.runtime && (
                       <div>
                         <h4 className="font-semibold">Runtime</h4>
                         <p className="text-muted-foreground">{movie.runtime} minutes</p>
                       </div>
                     )}
-                    
+
                     {movie.budget > 0 && (
                       <div>
                         <h4 className="font-semibold">Budget</h4>
                         <p className="text-muted-foreground">${movie.budget.toLocaleString()}</p>
                       </div>
                     )}
-                    
+
                     {movie.revenue > 0 && (
                       <div>
                         <h4 className="font-semibold">Revenue</h4>
@@ -596,7 +613,7 @@ export default function MovieDetailsPage() {
                         </p>
                       </div>
                     )}
-                    
+
                     {movie.production_countries.length > 0 && (
                       <div>
                         <h4 className="font-semibold">Countries</h4>
@@ -605,7 +622,7 @@ export default function MovieDetailsPage() {
                         </p>
                       </div>
                     )}
-                    
+
                     {movie.spoken_languages.length > 0 && (
                       <div>
                         <h4 className="font-semibold">Languages</h4>
@@ -698,11 +715,11 @@ export default function MovieDetailsPage() {
                             <span className="text-sm font-medium">Overall Sentiment</span>
                             <span className="text-sm">{sentimentData.summary.avgScore.toFixed(2)}</span>
                           </div>
-                          <Progress 
-                            value={(sentimentData.summary.avgScore + 1) * 50} 
+                          <Progress
+                            value={(sentimentData.summary.avgScore + 1) * 50}
                             className="w-full"
                           />
-                          
+
                           <div className="grid grid-cols-3 gap-4 text-center">
                             <div className="space-y-1">
                               <div className="text-green-600 font-medium text-2xl">
@@ -723,7 +740,7 @@ export default function MovieDetailsPage() {
                               <div className="text-xs text-muted-foreground">Negative</div>
                             </div>
                           </div>
-                          
+
                           {sentimentData.insights && Array.isArray(sentimentData.insights) && sentimentData.insights.length > 0 && (
                             <div className="mt-4 p-4 bg-muted rounded-lg">
                               <div className="space-y-2">
@@ -743,7 +760,7 @@ export default function MovieDetailsPage() {
 
                   {/* Review Form */}
                   {isAuthenticated && movie && (
-                    <ReviewForm 
+                    <ReviewForm
                       tmdbId={parseInt(movieId || '0')}
                       mediaType="movie"
                       title={movie.title}
@@ -759,7 +776,7 @@ export default function MovieDetailsPage() {
                       }}
                     />
                   )}
-                  
+
                   {!isAuthenticated && (
                     <Card>
                       <CardContent className="py-8 text-center">
@@ -772,9 +789,9 @@ export default function MovieDetailsPage() {
                       </CardContent>
                     </Card>
                   )}
-                  
+
                   {/* Review List */}
-                  <ReviewList 
+                  <ReviewList
                     tmdbId={parseInt(movieId || '0')}
                     mediaType="movie"
                     currentUserId={user?.id}
@@ -786,7 +803,7 @@ export default function MovieDetailsPage() {
               <TabsContent value="video-reviews" className="mt-6">
                 <div className="space-y-6">
                   {movie && (
-                    <VideoReviews 
+                    <VideoReviews
                       title={movie.title}
                       mediaType="movie"
                     />
@@ -798,7 +815,7 @@ export default function MovieDetailsPage() {
 
           {/* User Recommendations Tab */}
           <TabsContent value="recommendations" className="mt-6">
-            <UserRecommendationsSection 
+            <UserRecommendationsSection
               forTmdbId={parseInt(movieId || '0')}
               forMediaType="movie"
               currentUserId={user?.id}
@@ -814,7 +831,7 @@ export default function MovieDetailsPage() {
                 <TabsTrigger value="lists" data-testid="tab-similar-lists">Lists</TabsTrigger>
                 <TabsTrigger value="ai-similar" data-testid="tab-ai-similar"><Sparkles className="h-4 w-4 mr-1 inline" />AI Similar</TabsTrigger>
               </TabsList>
-              
+
               {/* TMDB Similar Movies */}
               <TabsContent value="tmdb" className="mt-6">
                 {movie.similar?.results && movie.similar.results.length > 0 ? (
@@ -839,7 +856,7 @@ export default function MovieDetailsPage() {
                   </div>
                 )}
               </TabsContent>
-              
+
               {/* Lists Tab */}
               <TabsContent value="lists" className="mt-6">
                 <div className="flex items-center gap-2 mb-6">
@@ -866,10 +883,10 @@ export default function MovieDetailsPage() {
                   </div>
                 )}
               </TabsContent>
-              
+
               {/* AI Similar */}
               <TabsContent value="ai-similar" className="mt-6">
-                <SemanticSimilarMovies 
+                <SemanticSimilarMovies
                   movieTitle={movie.title}
                   movieOverview={movie.overview}
                   currentMovieId={movie.id}
@@ -897,16 +914,17 @@ export default function MovieDetailsPage() {
 }
 
 // Semantic Similar Movies Component
-function SemanticSimilarMovies({ 
-  movieTitle, 
-  movieOverview, 
+// Semantic Similar Movies Component
+function SemanticSimilarMovies({
+  movieTitle,
+  movieOverview,
   currentMovieId,
   genres,
   cast,
   tagline,
   collection
-}: { 
-  movieTitle: string; 
+}: {
+  movieTitle: string;
   movieOverview: string;
   currentMovieId: number;
   genres?: Array<{ id: number; name: string }>;
@@ -917,231 +935,120 @@ function SemanticSimilarMovies({
   const [currentPage, setCurrentPage] = useState(1);
   const moviesPerPage = 12;
 
+  // Utilize the new ChromaDB Nearest Neighbor endpoint
   const { data: semanticResults, isLoading: semanticLoading } = useQuery({
-    queryKey: ['/api/recommendations/semantic-search', movieTitle, genres, cast, collection],
+    queryKey: ['/api/ml/similar/semantic', currentMovieId],
     queryFn: async () => {
-      // PRIORITY ORDER: Franchise > Cast > Genres > Title > Other factors
-      const queryParts: string[] = [];
-      
-      // 1. FRANCHISE - Highest priority for series/sequels
-      if (collection?.name) {
-        // Use collection name for franchise-based similarity
-        queryParts.push(`${collection.name} franchise`);
-        queryParts.push(`movies like ${movieTitle} from ${collection.name}`);
-      } else {
-        // Detect franchise patterns in title (e.g., "Title 2", "Title: Part 1")
-        const franchisePattern = /(\d+|Part|Chapter|Vol\.?|Episode|II|III|IV|V|VI|VII|VIII|IX|X)/i;
-        if (franchisePattern.test(movieTitle)) {
-          // Extract base title without numbers/parts
-          const baseTitle = movieTitle.replace(/[:\-–—]\s*(Part|Chapter|Vol\.?|Episode)?\s*\d+/gi, '')
-                                      .replace(/\s+\d+$/g, '')
-                                      .replace(/\s+(II|III|IV|V|VI|VII|VIII|IX|X)$/i, '')
-                                      .trim();
-          queryParts.push(`${baseTitle} series`);
-          queryParts.push(`movies like ${movieTitle}`);
-        } else {
-          queryParts.push(`movies like ${movieTitle}`);
-        }
-      }
-      
-      // 2. CAST - High priority for actor-based similarity
-      if (cast && cast.length > 0) {
-        // Top 5 cast members for better actor matching
-        const topCast = cast.slice(0, 5).map(c => c.name).join(', ');
-        queryParts.push(`starring ${topCast}`);
-        
-        // Lead actor emphasis
-        if (cast[0]) {
-          queryParts.push(`${cast[0].name} movies`);
-        }
-      }
-      
-      // 3. GENRES - Already in filters, but add to query for emphasis
-      const genreNames = genres?.map(g => g.name) || [];
-      if (genreNames.length > 0) {
-        queryParts.push(`${genreNames.join(' ')} film`);
-      }
-      
-      // 4. TITLE - Explicit title matching
-      queryParts.push(`similar to ${movieTitle}`);
-      
-      // 5. OTHER FACTORS - Lower priority
-      // Tagline for tone/mood
-      if (tagline && tagline.length < 100) {
-        queryParts.push(tagline);
-      }
-      
-      // Plot summary - brief version for themes
-      if (movieOverview) {
-        // Take first 150 characters for key themes
-        const plotSummary = movieOverview.substring(0, 150).trim();
-        queryParts.push(plotSummary);
-      }
-      
-      // Build semantic query with priority order
-      const query = queryParts.join(' ');
-      
-      // Use POST endpoint with filters for better results
-      const response = await fetch('/api/recommendations/semantic-search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query,
-          limit: 48,
-          filters: {
-            // Strong genre filtering for genre-based similarity
-            genres: genreNames.length > 0 ? genreNames : undefined,
-            mediaType: ['movies']
-          }
-        })
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch semantic similar movies');
+      const response = await fetch(`/api/ml/similar/semantic/${currentMovieId}`);
+      if (!response.ok) return { results: [], count: 0 };
       return response.json();
     },
-    enabled: !!movieTitle,
+    enabled: !!currentMovieId
   });
 
-  // Fetch TMDB details for all similar movies
-  const similarMovieIds = semanticResults?.results?.filter((r: any) => r.tmdbId !== currentMovieId).map((r: any) => r.tmdbId) || [];
-  
-  const { data: movieDetails, isLoading: detailsLoading } = useQuery({
-    queryKey: ['/api/tmdb/movies/details', similarMovieIds],
-    queryFn: async () => {
-      const promises = similarMovieIds.map(async (id: number) => {
-        try {
-          const response = await fetch(`/api/tmdb/movie/${id}`);
-          if (!response.ok) return null;
-          return response.json();
-        } catch {
-          return null;
-        }
-      });
-      const results = await Promise.all(promises);
-      return results.filter(Boolean);
-    },
-    enabled: similarMovieIds.length > 0,
-  });
+  const allMovies = semanticResults?.results || [];
 
-  if (semanticLoading || detailsLoading) {
+  // Pagination logic
+  const indexOfLastMovie = currentPage * moviesPerPage;
+  const indexOfFirstMovie = indexOfLastMovie - moviesPerPage;
+  const currentMovies = allMovies.slice(indexOfFirstMovie, indexOfLastMovie);
+  const totalPages = Math.ceil(allMovies.length / moviesPerPage);
+
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+
+  if (semanticLoading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" data-testid="loading-semantic-similar">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-          <Skeleton key={i} className="h-80" />
+          <Skeleton key={i} className="h-[400px] w-full rounded-xl" />
         ))}
       </div>
     );
   }
 
-  // Pagination logic
-  const totalMovies = movieDetails?.length || 0;
-  const totalPages = Math.ceil(totalMovies / moviesPerPage);
-  const startIndex = (currentPage - 1) * moviesPerPage;
-  const endIndex = startIndex + moviesPerPage;
-  const currentMovies = movieDetails?.slice(startIndex, endIndex) || [];
+  if (allMovies.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Sparkles className="h-12 w-12 text-primary mx-auto mb-4 opacity-50" />
+        <h3 className="text-xl font-medium mb-2">No AI Matches Found</h3>
+        <p className="text-muted-foreground mb-6">
+          Our AI couldn't find semantically similar movies in the vector database yet.
+          Ensure the database is ingested.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-accent" />
-            AI-Powered Semantic Similarity
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Movies with similar themes and storylines using TensorFlow.js
-          </p>
-        </div>
-        {semanticResults?.duration && (
-          <Badge variant="secondary" className="text-xs">
-            {semanticResults.duration}
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-primary border-primary/30">
+            <Sparkles className="w-3 h-3 mr-1" />
+            Vector Embeddings
           </Badge>
-        )}
+          <span className="text-sm text-muted-foreground">
+            Based on visual and thematic analysis
+          </span>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {allMovies.length} matches found
+        </span>
       </div>
 
-      {currentMovies.length > 0 ? (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" data-testid="grid-semantic-similar">
-            {currentMovies.map((movie: any) => {
-              const semanticResult = semanticResults?.results?.find((r: any) => r.tmdbId === movie.id);
-              return (
-                <div key={movie.id} className="space-y-2" data-testid={`semantic-result-${movie.id}`}>
-                  <MediaCard
-                    item={{
-                      id: movie.id,
-                      title: movie.title,
-                      vote_average: movie.vote_average,
-                      poster_path: movie.poster_path,
-                      type: 'movie'
-                    }}
-                    mediaType="movie"
-                  />
-                  {semanticResult && (
-                    <div className="px-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-muted-foreground">Similarity</span>
-                        <Badge variant="outline" className="text-xs">
-                          {(semanticResult.similarity * 100).toFixed(0)}%
-                        </Badge>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-6">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                data-testid="button-prev-page"
-              >
-                Previous
-              </Button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <Button
-                    key={page}
-                    variant={currentPage === page ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCurrentPage(page)}
-                    className="min-w-[40px]"
-                    data-testid={`button-page-${page}`}
-                  >
-                    {page}
-                  </Button>
-                ))}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {currentMovies.map((movie: any) => (
+          <div key={movie.id} className="group relative">
+            <MediaCard
+              item={{
+                id: movie.id,
+                title: movie.title,
+                vote_average: movie.vote_average,
+                poster_path: movie.poster_path,
+                type: 'movie',
+                release_date: movie.release_date
+              }}
+              mediaType="movie"
+            />
+            {movie.similarity && (
+              <div className="absolute top-2 right-2 z-10">
+                <Badge className="bg-primary/90 hover:bg-primary text-primary-foreground shadow-sm backdrop-blur-sm">
+                  {Math.round(movie.similarity * 100)}% Match
+                </Badge>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                data-testid="button-next-page"
-              >
-                Next
-              </Button>
-            </div>
-          )}
-
-          <div className="text-center text-sm text-muted-foreground">
-            Showing {startIndex + 1}-{Math.min(endIndex, totalMovies)} of {totalMovies} similar movies
+            )}
+            {movie.explanation && (
+              <div className="mt-2 text-xs text-muted-foreground line-clamp-2 italic px-1">
+                "{movie.explanation}"
+              </div>
+            )}
           </div>
-        </>
-      ) : (
-        <div className="text-center py-12" data-testid="empty-semantic-similar">
-          <Sparkles className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-xl font-semibold mb-2">No Semantic Matches Found</h3>
-          <p className="text-muted-foreground">
-            Try browsing other movies or check back later
-          </p>
+        ))}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-8 gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => paginate(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <div className="flex items-center gap-1 mx-2">
+            <span className="text-sm text-muted-foreground">
+              Page {currentPage} of {totalPages}
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => paginate(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
         </div>
       )}
     </div>
@@ -1172,6 +1079,7 @@ function RecommendationComments({ recommendationId, currentUserId, reason }: { r
       toast({ title: "Comment added! 💬" });
       setCommentText("");
       queryClient.invalidateQueries({ queryKey: ['/api/users/recommendations/comments', recommendationId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/users/recommendations/for'] }); // Update comment count
     }
   });
 
@@ -1219,8 +1127,8 @@ function RecommendationComments({ recommendationId, currentUserId, reason }: { r
             <div key={comment.id} className="bg-muted/50 rounded-md p-2 animate-in slide-in-from-left-1 duration-150" data-testid={`comment-${comment.id}`}>
               <p className="text-xs font-medium flex items-center gap-1">
                 <span>👤</span>
-                {comment.userFirstName && comment.userLastName 
-                  ? `${comment.userFirstName} ${comment.userLastName}` 
+                {comment.userFirstName && comment.userLastName
+                  ? `${comment.userFirstName} ${comment.userLastName}`
                   : comment.userEmail || 'Anonymous'}
               </p>
               <p className="text-sm mt-1">{comment.comment}</p>
@@ -1251,7 +1159,7 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
   const { data: recommendations, isLoading: recommendationsLoading } = useQuery({
     queryKey: ['/api/users/recommendations/for', forTmdbId, forMediaType],
     queryFn: async () => {
-      const url = currentUserId 
+      const url = currentUserId
         ? `/api/users/recommendations/for/${forTmdbId}/${forMediaType}?userId=${currentUserId}`
         : `/api/users/recommendations/for/${forTmdbId}/${forMediaType}`;
       const response = await fetch(url);
@@ -1277,7 +1185,7 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
   const submitRecommendationMutation = useMutation({
     mutationFn: async (data: any) => {
       if (!currentUserId) throw new Error("User not authenticated");
-      
+
       return apiRequest('POST', `/api/users/${currentUserId}/recommendations`, {
         forTmdbId,
         forMediaType,
@@ -1299,11 +1207,11 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
     onError: (error: any) => {
       const errorMessage = error.message || "Failed to submit recommendation";
       const isAlreadyRecommended = errorMessage.includes("already recommended");
-      
-      toast({ 
-        title: isAlreadyRecommended ? "Already Recommended" : "Error", 
-        description: isAlreadyRecommended 
-          ? "You've already recommended this movie/show here" 
+
+      toast({
+        title: isAlreadyRecommended ? "Already Recommended" : "Error",
+        description: isAlreadyRecommended
+          ? "You've already recommended this movie/show here"
           : errorMessage,
         variant: isAlreadyRecommended ? undefined : "destructive"
       });
@@ -1323,11 +1231,11 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
     onError: (error: any) => {
       const errorMessage = error.message || "Failed to delete recommendation";
       const cannotDelete = errorMessage.includes("Cannot delete") || errorMessage.includes("likes");
-      
-      toast({ 
-        title: cannotDelete ? "Cannot Delete" : "Error", 
-        description: cannotDelete 
-          ? "This recommendation has likes from others and cannot be deleted" 
+
+      toast({
+        title: cannotDelete ? "Cannot Delete" : "Error",
+        description: cannotDelete
+          ? "This recommendation has likes from others and cannot be deleted"
           : errorMessage,
         variant: "destructive"
       });
@@ -1344,8 +1252,8 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
       queryClient.invalidateQueries({ queryKey: ['/api/users/recommendations/for', forTmdbId, forMediaType] });
     },
     onError: (error: any) => {
-      toast({ 
-        title: "Error", 
+      toast({
+        title: "Error",
         description: error.message || "Failed to vote",
         variant: "destructive"
       });
@@ -1396,9 +1304,9 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                     className="w-full px-3 py-2 border rounded-md bg-background text-foreground"
                     data-testid="input-search-recommendation"
                   />
-                  
+
                   {searchLoading && <p className="text-sm text-muted-foreground mt-2">Searching...</p>}
-                  
+
                   {searchResults?.results && searchResults.results.length > 0 && (
                     <div className="mt-2 max-h-48 overflow-y-auto border rounded-md">
                       {searchResults.results.slice(0, 5).map((item: any) => (
@@ -1412,7 +1320,7 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                           data-testid={`search-result-${item.id}`}
                         >
                           {item.poster_path && (
-                            <img 
+                            <img
                               src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
                               alt={item.title || item.name}
                               className="w-12 h-18 object-cover rounded"
@@ -1503,7 +1411,7 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                     <div className="flex gap-4">
                       {rec.recommendedPosterPath && (
                         <Link href={`/${rec.recommendedMediaType}/${rec.recommendedTmdbId}`}>
-                          <img 
+                          <img
                             src={`https://image.tmdb.org/t/p/w185${rec.recommendedPosterPath}`}
                             alt={rec.recommendedTitle}
                             className="w-24 h-36 object-cover rounded cursor-pointer hover:opacity-80 hover:scale-105 transition-transform duration-200"
@@ -1521,8 +1429,8 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                             </Link>
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <span>👤</span>
-                              Recommended by {rec.userFirstName && rec.userLastName 
-                                ? `${rec.userFirstName} ${rec.userLastName}` 
+                              Recommended by {rec.userFirstName && rec.userLastName
+                                ? `${rec.userFirstName} ${rec.userLastName}`
                                 : rec.userEmail || 'Anonymous'}
                             </p>
                           </div>
@@ -1551,7 +1459,7 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                             </span>
                           )}
                         </div>
-                        
+
                         {/* Voting and Comments Section */}
                         <div className="mt-3 pt-3 border-t">
                           <div className="flex items-center gap-4">
@@ -1606,11 +1514,11 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                               </div>
                             )}
                           </div>
-                          
+
                           {/* Comments Display */}
                           {showComments[rec.id] && (
-                            <RecommendationComments 
-                              recommendationId={rec.id} 
+                            <RecommendationComments
+                              recommendationId={rec.id}
                               currentUserId={currentUserId}
                               reason={rec.reason}
                             />

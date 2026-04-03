@@ -8,7 +8,7 @@ import { RatingStars } from "./rating-stars";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import type { InsertUserRating } from "@shared/schema";
+import type { InsertRating } from "@shared/schema";
 
 interface ReviewFormProps {
   tmdbId: number;
@@ -23,13 +23,13 @@ interface ReviewFormProps {
   onSuccess?: () => void;
 }
 
-export function ReviewForm({ 
-  tmdbId, 
-  mediaType, 
-  title, 
+export function ReviewForm({
+  tmdbId,
+  mediaType,
+  title,
   posterPath,
   existingRating,
-  onSuccess 
+  onSuccess
 }: ReviewFormProps) {
   const [rating, setRating] = useState(existingRating?.rating || 0);
   const [review, setReview] = useState(existingRating?.review || "");
@@ -49,7 +49,7 @@ export function ReviewForm({
   }, [existingRating?.id, existingRating?.rating, existingRating?.review]);
 
   const createMutation = useMutation({
-    mutationFn: async (data: InsertUserRating) => {
+    mutationFn: async (data: InsertRating) => {
       const response = await fetch("/api/ratings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -62,8 +62,8 @@ export function ReviewForm({
       return response.json();
     },
     onSuccess: () => {
-      toast({ 
-        title: "Review submitted!", 
+      toast({
+        title: "Review submitted!",
         description: "Your rating and review have been saved."
       });
       // Reset isDeleted flag after successful create
@@ -74,6 +74,7 @@ export function ReviewForm({
       if (user?.id) {
         queryClient.invalidateQueries({ queryKey: ['/api/users', user.id, 'ratings'] });
         queryClient.invalidateQueries({ queryKey: ['/api/community', user.id, 'stats'] });
+        queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
       }
       // Invalidate community queries to update feed, top reviews, and leaderboards
       queryClient.invalidateQueries({ queryKey: ['/api/community/feed'] });
@@ -84,8 +85,8 @@ export function ReviewForm({
     },
     onError: (error) => {
       console.error("Create rating error:", error);
-      toast({ 
-        title: "Error", 
+      toast({
+        title: "Error",
         description: "Failed to submit your review. Please try again.",
         variant: "destructive"
       });
@@ -96,7 +97,7 @@ export function ReviewForm({
     mutationFn: async (data: { rating: number; review: string }) => {
       const response = await fetch(`/api/ratings/${existingRating!.id}`, {
         method: "PUT",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "x-user-id": user?.id || ""
         },
@@ -109,8 +110,8 @@ export function ReviewForm({
       return response.json();
     },
     onSuccess: () => {
-      toast({ 
-        title: "Review updated!", 
+      toast({
+        title: "Review updated!",
         description: "Your rating and review have been updated."
       });
       queryClient.invalidateQueries({ queryKey: ['/api/ratings'] });
@@ -118,6 +119,7 @@ export function ReviewForm({
       if (user?.id) {
         queryClient.invalidateQueries({ queryKey: ['/api/users', user.id, 'ratings'] });
         queryClient.invalidateQueries({ queryKey: ['/api/community', user.id, 'stats'] });
+        queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
       }
       // Invalidate community queries to update feed, top reviews, and leaderboards
       queryClient.invalidateQueries({ queryKey: ['/api/community/feed'] });
@@ -128,8 +130,8 @@ export function ReviewForm({
     },
     onError: (error) => {
       console.error("Update rating error:", error);
-      toast({ 
-        title: "Error", 
+      toast({
+        title: "Error",
         description: "Failed to update your review. Please try again.",
         variant: "destructive"
       });
@@ -155,8 +157,8 @@ export function ReviewForm({
       return response.json();
     },
     onSuccess: () => {
-      toast({ 
-        title: "Review deleted", 
+      toast({
+        title: "Review deleted",
         description: "Your rating and review have been removed."
       });
       queryClient.invalidateQueries({ queryKey: ['/api/ratings'] });
@@ -164,6 +166,7 @@ export function ReviewForm({
       if (user?.id) {
         queryClient.invalidateQueries({ queryKey: ['/api/users', user.id, 'ratings'] });
         queryClient.invalidateQueries({ queryKey: ['/api/community', user.id, 'stats'] });
+        queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
       }
       // Invalidate community queries to update feed, top reviews, and leaderboards
       queryClient.invalidateQueries({ queryKey: ['/api/community/feed'] });
@@ -177,8 +180,8 @@ export function ReviewForm({
     },
     onError: (error) => {
       console.error("Delete rating error:", error);
-      toast({ 
-        title: "Error", 
+      toast({
+        title: "Error",
         description: "Failed to delete your review. Please try again.",
         variant: "destructive"
       });
@@ -187,10 +190,10 @@ export function ReviewForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (rating === 0) {
-      toast({ 
-        title: "Rating required", 
+      toast({
+        title: "Rating required",
         description: "Please select a rating before submitting.",
         variant: "destructive"
       });
@@ -210,13 +213,12 @@ export function ReviewForm({
       updateMutation.mutate({ rating, review });
     } else {
       createMutation.mutate({
-        userId: user.id,
         tmdbId,
         mediaType,
         title,
-        posterPath,
+        posterPath: posterPath ?? undefined,
         rating,
-        review: review.trim() || null
+        review: review.trim() || undefined
       });
     }
   };
@@ -258,27 +260,30 @@ export function ReviewForm({
                 Your Review (Optional)
               </label>
               <Textarea
+                id="review-content"
+                name="review"
                 data-testid="review-textarea"
                 value={review}
                 onChange={(e) => setReview(e.target.value)}
                 placeholder="Share your thoughts about this movie/show..."
                 rows={4}
                 className="resize-none"
+                autoComplete="off"
               />
             </div>
 
             <div className="flex justify-between">
               <div className="flex gap-2">
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={isLoading || rating === 0}
                   data-testid="submit-review-button"
                 >
                   {isLoading ? "Saving..." : (existingRating && !isDeleted) ? "Update Review" : "Submit Review"}
                 </Button>
-                
+
                 {existingRating && !isDeleted && (
-                  <Button 
+                  <Button
                     type="button"
                     variant="destructive"
                     onClick={handleDelete}
@@ -304,7 +309,7 @@ export function ReviewForm({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="cancel-delete-button">Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={confirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="confirm-delete-button"

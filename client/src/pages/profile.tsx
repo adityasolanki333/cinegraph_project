@@ -9,9 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import MovieCard from "@/components/movie-card";
+import { MediaCard } from "@/components/media-card";
 import { tmdbService } from "@/lib/tmdb";
-import { User, Heart, Star, Calendar, TrendingUp, Eye, Film, Tv, Settings, Edit3, BookOpen, Clock, ListChecks, Database, Key, Plus, Loader2, Users as UsersIcon, Trophy, List as ListIcon, UserPlus, UserMinus, Sparkles } from "lucide-react";
+import { User, Heart, Star, Calendar, TrendingUp, Eye, Film, Tv, Settings, Edit3, BookOpen, Clock, ListChecks, Database, Key, Plus, Loader2, Users as UsersIcon, Trophy, List as ListIcon, UserPlus, UserMinus, Sparkles, Trash2 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Movie } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,18 +27,18 @@ import { getLevelBadge, getLevelProgress, userIdToUsername } from "@shared/helpe
 
 export default function Profile() {
   const [, setLocation] = useLocation();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, refetchUser } = useAuth();
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [bio, setBio] = useState("");
   const { toast } = useToast();
-  
+
   // Get username from route params (if viewing another user's profile)
   const [match, params] = useRoute("/profile/:username");
   const username = params?.username;
-  
+
   // Redirect if not authenticated (in useEffect to avoid render-time side effects)
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -80,19 +80,19 @@ export default function Profile() {
     }
     return "User";
   };
-  
+
   const displayName = getDisplayName();
-  
+
   const initials = displayUser?.firstName && displayUser?.lastName
     ? `${displayUser.firstName[0]}${displayUser.lastName[0]}`
     : displayUser?.email?.[0]?.toUpperCase() || "U";
 
   // Fetch user's real ratings from the database
   const { data: userRatings, isLoading: ratingsLoading } = useQuery({
-    queryKey: ['/api/users', profileUserId, 'ratings'],
+    queryKey: ['/api/users', profileUserId, 'reviews'],
     queryFn: async () => {
       if (!profileUserId) return [];
-      const response = await fetch(`/api/users/${profileUserId}/ratings`);
+      const response = await fetch(`/api/users/${profileUserId}/reviews`);
       if (!response.ok) return [];
       const data = await response.json();
       return data.ratings || data.reviews || (Array.isArray(data) ? data : []);
@@ -151,13 +151,26 @@ export default function Profile() {
     totalAwardsGiven: number;
     totalAwardsReceived: number;
   }>({
-    queryKey: ['/api/community', profileUserId, 'stats'],
+    queryKey: ['/api/users', profileUserId, 'stats'],
     enabled: !!profileUserId,
+    queryFn: async () => {
+      if (!profileUserId) return null;
+      const response = await fetch(`/api/users/${profileUserId}/stats`);
+      if (!response.ok) return null;
+      return response.json();
+    }
   });
 
   // Fetch user's lists
   const { data: userLists, isLoading: listsLoading } = useQuery({
     queryKey: ['/api/community/users', profileUserId, 'lists'],
+    queryFn: async () => {
+      if (!profileUserId) return [];
+      const response = await fetch(`/api/community/users/${profileUserId}/lists`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.lists || (Array.isArray(data) ? data : []);
+    },
     enabled: !!profileUserId,
   });
 
@@ -187,7 +200,11 @@ export default function Profile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/community/following', profileUserId] });
       queryClient.invalidateQueries({ queryKey: ['/api/community', profileUserId, 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/community', profileUserId, 'stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/community', user?.id, 'stats'] });
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
+      }
     },
   });
 
@@ -196,7 +213,7 @@ export default function Profile() {
     queryKey: ['/api/tmdb/trending'],
     select: (data: any) => {
       if (!data.results) return [];
-      return data.results.slice(0, 6).map((item: any) => 
+      return data.results.slice(0, 6).map((item: any) =>
         tmdbService.convertToMovie(item, item.media_type || 'movie')
       );
     }
@@ -208,16 +225,16 @@ export default function Profile() {
     const favoriteItems = userFavorites || [];
     const watchedItems = userWatched || [];
     const watchlistItems = userWatchlist || [];
-    
+
     // Calculate average rating
     const avgRating = ratings.length > 0
       ? ratings.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / ratings.length
       : 0;
-    
+
     // Separate movies and TV shows from ratings
     const ratedMovies = ratings.filter((r: any) => r.mediaType === 'movie');
     const ratedTVShows = ratings.filter((r: any) => r.mediaType === 'tv');
-    
+
     return {
       totalWatched: watchedItems.length,
       totalHours: watchedItems.length * 2, // Estimate 2 hours per item
@@ -233,7 +250,7 @@ export default function Profile() {
   // Get user's favorite genres based on ratings
   const favoriteGenres = useMemo(() => {
     if (!userRatings || userRatings.length === 0) return [];
-    
+
     // This would ideally fetch genre data from TMDB for each rated item
     // For now, return placeholder genres
     return ["Action", "Sci-Fi", "Drama", "Comedy"];
@@ -255,22 +272,35 @@ export default function Profile() {
       return response.json();
     },
     onSuccess: async (updatedUser) => {
-      // Update localStorage with the new user data
+      // Force refresh auth state
+      await refetchUser();
+
+      // Update localStorage with the new user data (for demo mode persistence)
+      const demoUserStr = localStorage.getItem('demo-user');
+      if (demoUserStr) {
+        const currentUser = JSON.parse(demoUserStr);
+        const newUser = { ...currentUser, ...updatedUser };
+        localStorage.setItem('demo-user', JSON.stringify(newUser));
+      }
+
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
         const currentUser = JSON.parse(storedUser);
         const newUser = { ...currentUser, ...updatedUser };
         localStorage.setItem('user', JSON.stringify(newUser));
-        
-        // Trigger a storage event to update other components
-        window.dispatchEvent(new Event('storage'));
       }
-      
+
+      // Trigger a storage event to update other components
+      window.dispatchEvent(new Event('storage'));
+
       // Invalidate queries to refetch fresh data
       await queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'ratings'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'favorites'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'watched'] });
-      
+      if (user?.id) {
+        await queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
+      }
+
       // Close dialog and show success message
       setIsEditDialogOpen(false);
       toast({
@@ -309,6 +339,35 @@ export default function Profile() {
     updateProfileMutation.mutate({ firstName, lastName, bio });
   };
 
+  // Mutation for deleting a review
+  const deleteReviewMutation = useMutation({
+    mutationFn: async (reviewId: number) => {
+      if (!user?.id) throw new Error("User not found");
+      const response = await fetch(`/api/users/${user.id}/reviews/${reviewId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to delete review');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'ratings'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/community', user?.id, 'stats'] });
+      toast({
+        title: "Review deleted",
+        description: "Your review has been deleted successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete review",
+        variant: "destructive",
+      });
+    },
+  });
+
+
   const levelInfo = getLevelBadge(userStats?.experiencePoints || 0);
 
   // Show loading state
@@ -332,21 +391,21 @@ export default function Profile() {
                 <AvatarImage src={displayUser?.profileImageUrl || undefined} alt={displayName} />
                 <AvatarFallback className="text-xl sm:text-2xl">{initials}</AvatarFallback>
               </Avatar>
-              
+
               <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-1" data-testid="text-user-name">{displayName}</h1>
               <p className="text-sm text-muted-foreground mb-2" data-testid="text-user-email">{displayUser?.email || ""}</p>
-              
+
               {displayUser?.bio && (
                 <p className="text-sm text-muted-foreground mb-3 max-w-md text-center" data-testid="text-user-bio">
                   {displayUser.bio}
                 </p>
               )}
-              
+
               <Badge className={`${levelInfo.color} text-white mb-3 shadow-lg animate-in fade-in-50 slide-in-from-bottom-2`} data-testid="badge-user-level">
                 <Trophy className="h-3 w-3 mr-1 animate-pulse" />
                 {levelInfo.name}
               </Badge>
-              
+
               {/* XP Progress Bar */}
               <div className="w-full max-w-xs mb-3">
                 <div className="flex justify-between text-xs text-muted-foreground mb-1">
@@ -354,15 +413,15 @@ export default function Profile() {
                   <span>{levelInfo.max === Infinity ? 'Max Level!' : `${levelInfo.max} XP`}</span>
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className={`h-full ${levelInfo.color} transition-all duration-500`}
-                    style={{ 
-                      width: `${getLevelProgress(userStats?.experiencePoints || 0)}%` 
+                    style={{
+                      width: `${getLevelProgress(userStats?.experiencePoints || 0)}%`
                     }}
                   />
                 </div>
               </div>
-              
+
               <div className="flex items-center text-sm text-muted-foreground mb-4">
                 <Calendar className="h-4 w-4 mr-2" />
                 <span>Joined {displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently'}</span>
@@ -398,9 +457,9 @@ export default function Profile() {
                 </div>
               ) : (
                 <div className="flex gap-2 w-full max-w-sm">
-                  <Button 
-                    size="sm" 
-                    className="flex-1" 
+                  <Button
+                    size="sm"
+                    className="flex-1"
                     data-testid="button-follow"
                     onClick={() => followMutation.mutate(followStatus?.isFollowing ? 'unfollow' : 'follow')}
                     disabled={followMutation.isPending}
@@ -435,7 +494,7 @@ export default function Profile() {
               <div className="text-xs sm:text-sm text-muted-foreground">Watchlist</div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-3 sm:p-4 text-center">
               <Film className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
@@ -443,7 +502,7 @@ export default function Profile() {
               <div className="text-xs sm:text-sm text-muted-foreground">Watched</div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-3 sm:p-4 text-center">
               <Star className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
@@ -451,7 +510,7 @@ export default function Profile() {
               <div className="text-xs sm:text-sm text-muted-foreground">Avg Rating</div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-3 sm:p-4 text-center">
               <Star className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
@@ -459,7 +518,7 @@ export default function Profile() {
               <div className="text-xs sm:text-sm text-muted-foreground">Total Rated</div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-3 sm:p-4 text-center">
               <Heart className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
@@ -467,7 +526,7 @@ export default function Profile() {
               <div className="text-xs sm:text-sm text-muted-foreground">Favorites</div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-3 sm:p-4 text-center">
               <User className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
@@ -562,20 +621,40 @@ export default function Profile() {
               {userRatings && userRatings.length > 0 ? (
                 <div className="space-y-2">
                   {userRatings.map((item: any) => (
-                    <Link 
-                      key={item.id} 
+                    <Link
+                      key={item.id}
                       href={item.mediaType === 'movie' ? `/movie/${item.tmdbId}` : `/tv/${item.tmdbId}`}
                       data-testid={`link-rated-item-${item.id}`}
+                      className="block"
                     >
-                      <div className="p-3 border rounded hover:bg-accent transition-colors cursor-pointer" data-testid={`rated-item-${item.id}`}>
+                      <div className="p-3 border rounded hover:bg-accent transition-colors cursor-pointer relative group" data-testid={`rated-item-${item.id}`}>
+                        {/* Delete button for own reviews */}
+                        {isOwnProfile && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (window.confirm('Are you sure you want to delete this review?')) {
+                                deleteReviewMutation.mutate(item.id);
+                              }
+                            }}
+                            disabled={deleteReviewMutation.isPending}
+                            data-testid={`button-delete-review-${item.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm font-medium flex-1" data-testid={`rated-title-${item.id}`}>
+                          <p className="text-sm font-medium flex-1 pr-8" data-testid={`rated-title-${item.id}`}>
                             {item.title || item.name}
                           </p>
                           <div className="flex items-center gap-1" data-testid={`rated-stars-${item.id}`}>
                             {[...Array(5)].map((_, i) => (
-                              <Star 
-                                key={i} 
+                              <Star
+                                key={i}
                                 className={`h-4 w-4 ${i < (item.rating || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
                               />
                             ))}

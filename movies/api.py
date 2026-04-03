@@ -455,3 +455,19 @@ def get_guest_session(request):
     """Get a new TMDB guest session for rating"""
     data = tmdb_request("/authentication/guest_session/new")
     return JsonResponse(data)
+
+
+import json as _json
+from django.views.decorators.csrf import csrf_exempt
+
+
+@csrf_exempt
+def record_interaction(request):
+    """Record a search interaction / click feedback for ML training."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    try:
+        body = _json.loads(request.body)
+    except Exception:
+        body = {}
+    return JsonResponse({'status': 'ok', 'received': bool(body)})

@@ -182,20 +182,24 @@ class RecommendationEngine:
 
 
 class ContentBasedRecommender:
-    """Content-based recommender using TF-IDF on genres and metadata"""
+    """Content-based recommender using ChromaDB (BERT) and fallback to TF-IDF"""
     
     def __init__(self):
         self.vectorizer = TfidfVectorizer(stop_words='english')
         self.tfidf_matrix = None
         self.item_ids = []
         
+        from .pinecone_service import pinecone_service
+        self.pinecone_service = pinecone_service
+        self.use_pinecone = self.pinecone_service.is_initialized()
+        
     def build_content_features(self, content_data):
         """
-        Build TF-IDF feature matrix from content metadata
-        
-        Args:
-            content_data: List of dicts with tmdb_id, genres, overview
+        Build TF-IDF feature matrix from content metadata (Fallback mode)
         """
+        if self.use_pinecone:
+            return None # Pinecone doesn't need this rebuild
+            
         self.item_ids = []
         documents = []
         
@@ -213,32 +217,38 @@ class ContentBasedRecommender:
     
     def get_similar_content(self, tmdb_id, n_similar=10):
         """
-        Get similar content based on TF-IDF similarity
-        
-        Args:
-            tmdb_id: The content to find similar items for
-            n_similar: Number of similar items to return
-            
-        Returns:
-            List of (tmdb_id, similarity_score) tuples
+        Get similar content based on Semantic (Chroma) or TF-IDF similarity
         """
+        if self.use_pinecone:
+            try:
+                results = self.pinecone_service.get_nearest_neighbors(tmdb_id, k=n_similar)
+                if results:
+                    similar_items = []
+                    for item in results:
+                        # Extract the id and similarity score from Pinecone dictionary
+                        similar_items.append((int(item['id']), float(item['similarity'])))
+                    return similar_items
+            except Exception as e:
+                print(f"PineconeService query failed: {e}")
+                
+        # Fallback to TF-IDF
         if self.tfidf_matrix is None or tmdb_id not in self.item_ids:
             return []
         
-        item_idx = self.item_ids.index(tmdb_id)
-        
-        item_vector = self.tfidf_matrix[item_idx]
-        similarities = cosine_similarity(item_vector, self.tfidf_matrix).flatten()
-        
-        similar_indices = np.argsort(similarities)[::-1][1:n_similar+1]
-        
-        similar_items = []
-        for idx in similar_indices:
-            similar_item_id = self.item_ids[idx]
-            similarity_score = similarities[idx]
-            similar_items.append((similar_item_id, float(similarity_score)))
-        
-        return similar_items
+        try:
+            item_idx = self.item_ids.index(tmdb_id)
+            item_vector = self.tfidf_matrix[item_idx]
+            similarities = cosine_similarity(item_vector, self.tfidf_matrix).flatten()
+            similar_indices = np.argsort(similarities)[::-1][1:n_similar+1]
+            
+            similar_items = []
+            for idx in similar_indices:
+                similar_item_id = self.item_ids[idx]
+                similarity_score = similarities[idx]
+                similar_items.append((similar_item_id, float(similarity_score)))
+            return similar_items
+        except ValueError:
+            return []
 
 
 class HybridRecommender:
@@ -263,6 +273,7 @@ class HybridRecommender:
         Returns:
             List of recommendation dicts with tmdb_id, score, type
         """
+        # 1. Get Collaborative Recommendations
         collab_recs = self.collaborative.get_collaborative_recommendations(
             user_id, 
             n_recommendations * 2
@@ -270,15 +281,51 @@ class HybridRecommender:
         
         recommendations = {}
         
+        # Add Collaborative candidates
         for tmdb_id, score in collab_recs:
-            weighted_score = score * self.collab_weight
             recommendations[tmdb_id] = {
                 'tmdb_id': tmdb_id,
-                'score': weighted_score,
+                'score': score * self.collab_weight,
                 'collaborative_score': score,
-                'type': 'collaborative'
+                'content_score': 0,
+                'type': 'collaborative',
+                'reason': 'Similar to users with your taste'
             }
+
+        # 2. Get Content-Based Recommendations (from User History)
+        # We need to access the user's history from the collaborative engine's matrix or DB
+        from movies.models import UserReview
+        user_history = UserReview.objects.filter(user_id=user_id, rating__gte=4.0).order_by('-created_at')[:5]
         
+        seen_movies = set(UserReview.objects.filter(user_id=user_id).values_list('tmdb_id', flat=True))
+        
+        for review in user_history:
+            similar_items = self.content_based.get_similar_content(review.tmdb_id, n_similar=5)
+            
+            for tmdb_id, similarity in similar_items:
+                if tmdb_id in seen_movies:
+                    continue
+                    
+                weighted_score = similarity * self.content_weight
+                
+                if tmdb_id in recommendations:
+                    # Boost existing recommendation
+                    recommendations[tmdb_id]['score'] += weighted_score
+                    recommendations[tmdb_id]['content_score'] = similarity
+                    recommendations[tmdb_id]['type'] = 'hybrid'
+                    recommendations[tmdb_id]['reason'] = f"Because you liked {review.title}"
+                else:
+                    # Add new recommendation
+                    recommendations[tmdb_id] = {
+                        'tmdb_id': tmdb_id,
+                        'score': weighted_score,
+                        'collaborative_score': 0,
+                        'content_score': similarity,
+                        'type': 'content-based',
+                        'reason': f"Because you liked {review.title}"
+                    }
+        
+        # 3. Sort and Return
         sorted_recs = sorted(
             recommendations.values(),
             key=lambda x: x['score'],

@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Bot, User, Sparkles, ArrowDown, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
-import MovieCard from "@/components/movie-card";
+import { MediaCard } from "@/components/media-card";
+import { apiRequest } from "@/lib/queryClient";
 
 interface ChatMessage {
   id: string;
@@ -131,20 +132,13 @@ export default function AIChat({ className }: AIChatProps) {
   const generateAIResponse = async (userInput: string): Promise<ChatMessage> => {
     try {
       // Use the new AI chat endpoint that provides real TMDB movie data
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: userInput,
-          userId: 'user-1' // You can implement user sessions later
-        })
+      const response = await apiRequest('POST', '/api/ai/chat', {
+        message: userInput,
+        userId: 'user-1' // You can implement user sessions later
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        
+      const data = await response.json();
+
         const newMessage = {
           id: Date.now().toString(),
           type: "ai" as const,
@@ -156,11 +150,8 @@ export default function AIChat({ className }: AIChatProps) {
           source: data.source,
           timestamp: new Date(),
         };
-        
+
         return newMessage;
-      } else {
-        throw new Error('API request failed');
-      }
     } catch (error) {
       // Fallback response with helpful guidance
       return {
@@ -218,7 +209,7 @@ export default function AIChat({ className }: AIChatProps) {
           <span>AI Movie Assistant</span>
         </CardTitle>
       </CardHeader>
-      
+
       <CardContent className="flex-1 flex flex-col p-2 sm:p-3 pt-0 sm:pt-0 overflow-hidden">
         {/* Chat Messages Area - Takes available space and scrolls */}
         <div className="flex-1 relative min-h-0 overflow-hidden mb-2 sm:mb-3">
@@ -237,7 +228,7 @@ export default function AIChat({ className }: AIChatProps) {
                       <Bot className="h-4 w-4 text-accent-foreground" />
                     </div>
                   )}
-                  
+
                   <div
                     className={cn(
                       "rounded-lg p-3",
@@ -261,7 +252,7 @@ export default function AIChat({ className }: AIChatProps) {
                             {Math.min(message.movies.length, 8)} movies
                           </Badge>
                         </div>
-                        
+
                         <div className="w-full overflow-hidden">
                           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
                             {message.movies.slice(0, 8).map((movie: any, index: number) => {
@@ -280,10 +271,10 @@ export default function AIChat({ className }: AIChatProps) {
                                 duration: movie.runtime || null,
                                 seasons: movie.number_of_seasons || null
                               };
-                              
+
                               return (
                                 <div key={movie.id} className="w-full min-w-0" data-testid={`movie-card-${movie.id}`}>
-                                  <MovieCard
+                                  <MediaCard
                                     movie={formattedMovie}
                                   />
                                 </div>
@@ -294,7 +285,7 @@ export default function AIChat({ className }: AIChatProps) {
                       </div>
                     )}
                   </div>
-                  
+
                   {message.type === "user" && (
                     <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg bg-primary">
                       <User className="h-4 w-4 text-primary-foreground" />
@@ -302,7 +293,7 @@ export default function AIChat({ className }: AIChatProps) {
                   )}
                 </div>
               ))}
-              
+
               {isLoading && (
                 <div className="flex items-start space-x-3">
                   <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg bg-accent">
@@ -334,7 +325,7 @@ export default function AIChat({ className }: AIChatProps) {
             </Button>
           )}
         </div>
-        
+
         {/* Quick Movie Suggestions - Compact */}
         <div className="flex-shrink-0 mb-2">
           <div className="flex flex-wrap gap-1">

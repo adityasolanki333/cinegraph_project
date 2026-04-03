@@ -8,6 +8,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
@@ -37,6 +47,10 @@ export function AddToListButton({
   size = "default",
 }: AddToListButtonProps) {
   const [open, setOpen] = useState(false);
+  // Add state for delete confirmation
+  const [deleteListId, setDeleteListId] = useState<string | null>(null);
+  const [deleteListTitle, setDeleteListTitle] = useState<string>("");
+
   const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -67,8 +81,8 @@ export function AddToListButton({
       const errorMessage = error?.message || "Failed to add to list";
       toast({
         title: "Error",
-        description: errorMessage.includes("already exists") 
-          ? "This item is already in that list." 
+        description: errorMessage.includes("already exists")
+          ? "This item is already in that list."
           : errorMessage,
         variant: "destructive",
       });
@@ -108,6 +122,7 @@ export function AddToListButton({
         title: "List deleted",
         description: "Your list has been deleted successfully.",
       });
+      setDeleteListId(null);
     },
     onError: () => {
       toast({
@@ -115,6 +130,7 @@ export function AddToListButton({
         description: "Failed to delete list. Please try again.",
         variant: "destructive",
       });
+      setDeleteListId(null);
     },
   });
 
@@ -155,103 +171,140 @@ export function AddToListButton({
     addToListMutation.mutate(listId);
   };
 
-  const handleDeleteList = (e: React.MouseEvent, listId: string, listTitle: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, listId: string, listTitle: string) => {
     e.stopPropagation(); // Prevent checkbox toggle
-    
-    if (confirm(`Are you sure you want to delete "${listTitle}"? This action cannot be undone.`)) {
-      deleteListMutation.mutate(listId);
+    setDeleteListId(listId);
+    setDeleteListTitle(listTitle);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteListId) {
+      deleteListMutation.mutate(deleteListId);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant={variant} size={size} data-testid="button-add-to-list">
-          <ListPlus className="h-4 w-4 mr-2" />
-          Add to List
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto" data-testid="dialog-add-to-list">
-        <DialogHeader>
-          <DialogTitle>Add to List</DialogTitle>
-          <DialogDescription>
-            Choose which lists to add "{title}" to
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogTrigger asChild>
+          <Button variant={variant} size={size} data-testid="button-add-to-list">
+            <ListPlus className="h-4 w-4 mr-2" />
+            Add to List
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto" data-testid="dialog-add-to-list">
+          <DialogHeader>
+            <DialogTitle>Add to List</DialogTitle>
+            <DialogDescription>
+              Choose which lists to add "{title}" to
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-4">
-          <CreateListDialog 
-            onSuccess={handleCreateList}
-            trigger={
-              <Button variant="outline" className="w-full" data-testid="button-create-new-list">
-                <Plus className="h-4 w-4 mr-2" />
-                Create New List
-              </Button>
-            }
-          />
+          <div className="space-y-4">
+            <CreateListDialog
+              onSuccess={handleCreateList}
+              trigger={
+                <Button variant="outline" className="w-full" data-testid="button-create-new-list">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create New List
+                </Button>
+              }
+            />
 
-          <Separator />
+            <Separator />
 
-          {listsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : Array.isArray(userLists) && userLists.length > 0 ? (
-            <ScrollArea className="h-[300px] pr-4">
-              <div className="space-y-3">
-                {userLists.map((list: any) => {
-                  const inList = isInList(list);
-                  const isUpdating = 
-                    (addToListMutation.isPending || removeFromListMutation.isPending);
-                  
-                  return (
-                    <div
-                      key={list.id}
-                      className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted/50 transition-colors group"
-                      data-testid={`list-option-${list.id}`}
-                    >
-                      <Checkbox
-                        checked={inList}
-                        disabled={isUpdating}
-                        onCheckedChange={() => handleToggleList(list)}
-                        data-testid={`checkbox-list-${list.id}`}
-                      />
-                      <div 
-                        className="flex-1 min-w-0 cursor-pointer"
-                        onClick={() => !isUpdating && handleToggleList(list)}
-                      >
-                        <p className="font-medium truncate" data-testid={`text-list-title-${list.id}`}>
-                          {list.title}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {list.itemCount || 0} items
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => handleDeleteList(e, list.id, list.title)}
-                        disabled={deleteListMutation.isPending}
-                        data-testid={`button-delete-list-${list.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  );
-                })}
+            {listsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            </ScrollArea>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">You don't have any lists yet</p>
-              <p className="text-sm text-muted-foreground">
-                Create your first list to get started!
-              </p>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+            ) : Array.isArray(userLists) && userLists.length > 0 ? (
+              <ScrollArea className="h-[300px] pr-4">
+                <div className="space-y-3">
+                  {userLists.map((list: any) => {
+                    const inList = isInList(list);
+                    const isUpdating =
+                      (addToListMutation.isPending || removeFromListMutation.isPending);
+
+                    return (
+                      <div
+                        key={list.id}
+                        className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted/50 transition-colors group"
+                        data-testid={`list-option-${list.id}`}
+                      >
+                        <Checkbox
+                          checked={inList}
+                          disabled={isUpdating}
+                          onCheckedChange={() => handleToggleList(list)}
+                          data-testid={`checkbox-list-${list.id}`}
+                        />
+                        <div
+                          className="flex-1 min-w-0 cursor-pointer"
+                          onClick={() => !isUpdating && handleToggleList(list)}
+                        >
+                          <p className="font-medium truncate" data-testid={`text-list-title-${list.id}`}>
+                            {list.title}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {list.itemCount || 0} items
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => handleDeleteClick(e, list.id, list.title)}
+                          disabled={deleteListMutation.isPending}
+                          data-testid={`button-delete-list-${list.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">You don't have any lists yet</p>
+                <p className="text-sm text-muted-foreground">
+                  Create your first list to get started!
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteListId} onOpenChange={(open) => !open && setDeleteListId(null)}>
+        <AlertDialogContent className="z-[100]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the list "{deleteListTitle}". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteListMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault(); // Prevent auto-close
+                handleConfirmDelete();
+              }}
+              disabled={deleteListMutation.isPending}
+            >
+              {deleteListMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

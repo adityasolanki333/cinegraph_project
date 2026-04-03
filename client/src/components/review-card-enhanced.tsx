@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RatingStars } from "./rating-stars";
 import { formatDistanceToNow } from "date-fns";
-import { 
+import {
   MessageSquare, Send, Trash2, ChevronDown, ChevronUp, Loader2, List, Users
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -42,8 +42,8 @@ interface ReviewCardEnhancedProps {
   mediaType?: string;
 }
 
-export function ReviewCardEnhanced({ 
-  review, 
+export function ReviewCardEnhanced({
+  review,
   currentUserId,
   posterPath,
   title,
@@ -72,6 +72,9 @@ export function ReviewCardEnhanced({
   const { data: comments = [], isLoading: commentsLoading, error: commentsError } = useQuery({
     queryKey: ['/api/community/reviews', review.id, 'comments'],
     enabled: showComments,
+    select: (data: any) => data?.comments || [], // Extract comments array from response
+    gcTime: 0, // Don't cache - force fresh fetch (gcTime replaces cacheTime in v5)
+    staleTime: 0, // Always treat as stale
   });
 
   // Fetch related lists containing this media item
@@ -138,13 +141,15 @@ export function ReviewCardEnhanced({
   // Comment mutations
   const addCommentMutation = useMutation({
     mutationFn: async (content: string) => {
-      return apiRequest('POST', `/api/community/reviews/${review.id}/comments`, {
+      return apiRequest('POST', `/api/community/reviews/${review.id}/comments/add`, {
         content
       });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       setCommentText("");
-      queryClient.invalidateQueries({ queryKey: ['/api/community/reviews', review.id, 'comments'] });
+      setShowComments(true); // Auto-expand comments to show the new comment
+      // Force immediate refetch instead of just invalidating
+      await queryClient.refetchQueries({ queryKey: ['/api/community/reviews', review.id, 'comments'] });
       queryClient.invalidateQueries({ queryKey: ['/api/community/feed'] });
       queryClient.invalidateQueries({ queryKey: ['/api/community/top-reviews'] });
       toast({
@@ -215,12 +220,21 @@ export function ReviewCardEnhanced({
       return;
     }
 
+    if (String(review.userId) === String(user?.id)) {
+      toast({
+        title: "Nice try!",
+        description: "You cannot give awards to your own review.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     // Trigger animation with haptic feedback
     setAnimatingAward(awardType);
     setTimeout(() => setAnimatingAward(null), 600);
 
     const userAward = Array.isArray(userAwards) ? userAwards.find((a: any) => a.awardType === awardType) : null;
-    
+
     if (userAward) {
       removeAwardMutation.mutate({ awardId: userAward.id, awardType });
     } else {
@@ -279,8 +293,8 @@ export function ReviewCardEnhanced({
             <div className="flex items-center justify-between mb-2">
               <div>
                 <p className="font-medium" data-testid={`text-user-name-${review.id}`}>
-                  {review.user?.firstName && review.user?.lastName 
-                    ? `${review.user.firstName} ${review.user.lastName}` 
+                  {review.user?.firstName && review.user?.lastName
+                    ? `${review.user.firstName} ${review.user.lastName}`
                     : review.userId === currentUserId ? "Your Review" : "Anonymous User"}
                 </p>
                 <p className="text-sm text-muted-foreground">
@@ -288,9 +302,9 @@ export function ReviewCardEnhanced({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <RatingStars 
-                  rating={review.rating} 
-                  readonly 
+                <RatingStars
+                  rating={review.rating}
+                  readonly
                   size="sm"
                   showValue={false}
                 />
@@ -334,7 +348,7 @@ export function ReviewCardEnhanced({
                   const hasAwarded = hasUserAward(award.type);
                   const isThisAwardMutating = mutatingAward === award.type;
                   const isAnimating = animatingAward === award.type;
-                  
+
                   return (
                     <div key={award.type} className="flex flex-col items-center gap-1">
                       <Button
@@ -342,11 +356,10 @@ export function ReviewCardEnhanced({
                         size="sm"
                         onClick={() => handleAwardClick(award.type)}
                         disabled={isThisAwardMutating}
-                        className={`${hasAwarded ? 'bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary dark:bg-primary/15 dark:hover:bg-primary/25' : award.color} transition-all duration-200 transform ${
-                          isAnimating
-                            ? 'scale-110 shadow-md' 
-                            : 'hover:scale-105 hover:shadow-sm active:scale-95'
-                        } ${hasAwarded ? 'ring-1 ring-primary/20' : ''} flex-col h-auto py-2 px-3`}
+                        className={`${hasAwarded ? 'bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary dark:bg-primary/15 dark:hover:bg-primary/25' : award.color} transition-all duration-200 transform ${isAnimating
+                          ? 'scale-110 shadow-md'
+                          : 'hover:scale-105 hover:shadow-sm active:scale-95'
+                          } ${hasAwarded ? 'ring-1 ring-primary/20' : ''} flex-col h-auto py-2 px-3`}
                         data-testid={`button-award-${award.type}-${review.id}`}
                       >
                         {isThisAwardMutating ? (
@@ -357,11 +370,10 @@ export function ReviewCardEnhanced({
                         <span className="text-xs mt-1 font-medium">{award.label}</span>
                       </Button>
                       {count > 0 && (
-                        <Badge 
-                          variant="secondary" 
-                          className={`h-5 min-w-[20px] px-1.5 text-xs font-bold transition-all duration-200 ${
-                            isAnimating ? 'scale-125 shadow-md' : ''
-                          } ${hasAwarded ? 'bg-primary/30 text-primary dark:bg-primary/20 border-primary/50' : 'bg-muted'}`}
+                        <Badge
+                          variant="secondary"
+                          className={`h-5 min-w-[20px] px-1.5 text-xs font-bold transition-all duration-200 ${isAnimating ? 'scale-125 shadow-md' : ''
+                            } ${hasAwarded ? 'bg-primary/30 text-primary dark:bg-primary/20 border-primary/50' : 'bg-muted'}`}
                           data-testid={`badge-award-count-${award.type}-${review.id}`}
                         >
                           {count}
@@ -396,7 +408,7 @@ export function ReviewCardEnhanced({
             {showComments && (
               <div className="mt-4 space-y-4">
                 <Separator />
-                
+
                 {/* Comment Input */}
                 {isAuthenticated && (
                   <div className="flex gap-2">
@@ -406,12 +418,15 @@ export function ReviewCardEnhanced({
                     </Avatar>
                     <div className="flex-1 flex gap-2">
                       <Textarea
+                        id={`comment-input-${review.id}`}
+                        name="comment"
                         value={commentText}
                         onChange={(e) => setCommentText(e.target.value)}
                         placeholder="Add a comment..."
                         className="resize-none min-h-[60px]"
                         disabled={addCommentMutation.isPending}
                         data-testid={`textarea-comment-${review.id}`}
+                        autoComplete="off"
                       />
                       <Button
                         size="sm"
@@ -504,8 +519,8 @@ export function ReviewCardEnhanced({
                 </h4>
                 <div className="space-y-2">
                   {relatedLists.slice(0, 5).map((list: any) => (
-                    <Link 
-                      key={list.id} 
+                    <Link
+                      key={list.id}
                       href={`/lists/${list.id}`}
                       data-testid={`link-list-${list.id}-${review.id}`}
                     >

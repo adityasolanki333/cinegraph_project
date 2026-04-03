@@ -187,9 +187,6 @@ def get_popular_content(request):
         
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
-
-
-@csrf_exempt
 def track_event(request):
     """Track a user analytics event"""
     if request.method != 'POST':

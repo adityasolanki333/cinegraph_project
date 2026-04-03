@@ -126,7 +126,6 @@ class Command(BaseCommand):
                 'disliked_genres': ['Horror', 'Musical'],
                 'preferred_decades': ['2010s', '2000s', '1990s'],
                 'language_preferences': ['en'],
-                'min_rating_threshold': 7.0
             }
         )
         if created:

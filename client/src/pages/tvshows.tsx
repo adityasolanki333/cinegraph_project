@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { 
+import {
   Filter, TrendingUp, Clock, Tv, Star, Calendar,
   Loader2
 } from "lucide-react";
@@ -31,7 +31,7 @@ interface TMDBResponse<T> {
   total_results: number;
 }
 
-import MediaCard from "@/components/media-card";
+import { MediaCard } from "@/components/media-card";
 import MediaCardSkeleton from "@/components/media-card-skeleton";
 import { useWatchlist } from "@/hooks/useWatchlist";
 
@@ -77,7 +77,7 @@ export default function TVShowsPage() {
   // Fetch TV genres first
   const { data: genresData = [] } = useQuery({
     queryKey: ['/api/tmdb/genres/tv'],
-    select: (data: {genres: Array<{id: number, name: string}>}) => data.genres || []
+    select: (data: { genres: Array<{ id: number, name: string }> }) => data.genres || []
   });
 
   // Fetch popular TV shows for discover tab with pagination
@@ -85,14 +85,14 @@ export default function TVShowsPage() {
     queryKey: ['/api/tmdb/tv/popular', currentPage, selectedGenre, selectedYear, searchQuery],
     queryFn: async () => {
       const params: any = { page: currentPage };
-      
+
       if (searchQuery) {
         // Use search API for TV shows when there's a search query
         const response = await fetch(`/api/tmdb/search/tv?query=${encodeURIComponent(searchQuery)}&page=${currentPage}`);
         if (!response.ok) throw new Error('Failed to search TV shows');
         return response.json();
       }
-      
+
       // Use discover API for filtered results
       if (selectedGenre !== "all") {
         const genreId = genresData?.find((g: any) => g.name === selectedGenre)?.id;
@@ -101,11 +101,11 @@ export default function TVShowsPage() {
       if (selectedYear !== "all") {
         params.first_air_date_year = selectedYear;
       }
-      
+
       const queryString = new URLSearchParams(params).toString();
       // Always use discover API for consistent pagination support
       const endpoint = `/api/tmdb/discover/tv?${queryString}`;
-      
+
       const response = await fetch(endpoint);
       if (!response.ok) throw new Error('Failed to fetch TV shows');
       return response.json();
@@ -206,7 +206,7 @@ export default function TVShowsPage() {
 
     const renderPageNumbers = () => {
       const pageNumbers = [];
-      
+
       if (totalPages <= 7) {
         for (let i = 1; i <= totalPages; i++) {
           pageNumbers.push(
@@ -270,7 +270,7 @@ export default function TVShowsPage() {
           pageNumbers.push(<span key="ellipsis2" className="px-2">...</span>);
         }
       }
-      
+
       return pageNumbers;
     };
 
@@ -302,12 +302,12 @@ export default function TVShowsPage() {
           >
             Previous
           </Button>
-          
+
           {/* Show page numbers on all devices */}
           <div className="flex items-center gap-1 sm:gap-2">
             {renderPageNumbers()}
           </div>
-          
+
           <Button
             variant="outline"
             size="sm"
@@ -328,7 +328,7 @@ export default function TVShowsPage() {
             Last
           </Button>
         </div>
-        
+
         {/* Jump to page */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Jump to page:</span>
@@ -358,7 +358,7 @@ export default function TVShowsPage() {
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold mb-4">TV Shows & Series Discovery</h1>
-        
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-5 gap-0.5 sm:gap-1">
             <TabsTrigger value="discover" data-testid="tab-discover" className="text-xs sm:text-sm px-1 sm:px-3">
@@ -399,7 +399,7 @@ export default function TVShowsPage() {
                   data-testid="input-discover-search"
                 />
               </div>
-              
+
               <div className="flex gap-3 sm:gap-4">
                 <Select value={selectedGenre} onValueChange={setSelectedGenre}>
                   <SelectTrigger className="w-full sm:w-[180px]">
@@ -446,15 +446,16 @@ export default function TVShowsPage() {
             ) : (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                  {popularData.map((show: TVShow) => (
+                  {popularData.map((show: TVShow, index: number) => (
                     <MediaCard
                       key={show.id}
                       item={show}
                       mediaType="tv"
+                      priority={index < 4}
                     />
                   ))}
                 </div>
-                
+
                 {renderPagination(
                   currentPage,
                   totalPages,
@@ -488,7 +489,7 @@ export default function TVShowsPage() {
                     />
                   ))}
                 </div>
-                
+
                 {renderPagination(
                   trendingPage,
                   trendingTotalPages,
@@ -526,7 +527,7 @@ export default function TVShowsPage() {
                     />
                   ))}
                 </div>
-                
+
                 {renderPagination(
                   topRatedPage,
                   topRatedTotalPages,
@@ -564,7 +565,7 @@ export default function TVShowsPage() {
                     />
                   ))}
                 </div>
-                
+
                 {renderPagination(
                   airingTodayPage,
                   airingTodayTotalPages,
@@ -602,7 +603,7 @@ export default function TVShowsPage() {
                     />
                   ))}
                 </div>
-                
+
                 {renderPagination(
                   onTheAirPage,
                   onTheAirTotalPages,

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams } from "wouter";
-import { 
-  Star, Calendar, Clock, Users, ArrowLeft, 
+import {
+  Star, Calendar, Clock, Users, ArrowLeft,
   Play, Heart, Bookmark, Share, MessageSquare, TrendingUp, CheckCircle, Sparkles,
   ThumbsUp, ThumbsDown, Send, Layers
 } from "lucide-react";
@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import MediaCard from "@/components/media-card";
+import { MediaCard } from "@/components/media-card";
 import TVShowDetailsSkeleton from "@/components/tv-show-details-skeleton";
 import { ExpandableText } from "@/components/expandable-text";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -30,6 +30,7 @@ import { TrailerDialog } from "@/components/trailer-dialog";
 import { AddToListButton } from "@/components/add-to-list-button";
 import { ListCard } from "@/components/list-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToastAction } from "@/components/ui/toast";
 import { SimilarContent } from "@/components/similar-content";
 
 interface TVShowDetails {
@@ -127,6 +128,7 @@ interface SeasonDetails {
 export default function TVShowDetailsPage() {
   const params = useParams();
   const tvId = params.id;
+  const [activeTab, setActiveTab] = useState("details");
   const [selectedSeason, setSelectedSeason] = useState<number>(1);
   const { isAuthenticated, user } = useAuth();
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlist();
@@ -215,7 +217,7 @@ export default function TVShowDetailsPage() {
   const favoritesMutation = useMutation({
     mutationFn: async ({ action }: { action: 'add' | 'remove' }) => {
       if (action === 'add') {
-        return apiRequest('POST', `/api/users/${user?.id}/favorites`, {
+        return apiRequest('POST', `/api/users/${user?.id}/favorites/add`, {
           tmdbId: parseInt(tvId || '0'),
           mediaType: 'tv',
           title: tvShow?.name || '',
@@ -234,7 +236,7 @@ export default function TVShowDetailsPage() {
   const watchedMutation = useMutation({
     mutationFn: async ({ action }: { action: 'add' | 'remove' }) => {
       if (action === 'add') {
-        return apiRequest('POST', `/api/users/${user?.id}/watched`, {
+        return apiRequest('POST', `/api/users/${user?.id}/watched/add`, {
           tmdbId: parseInt(tvId || '0'),
           mediaType: 'tv',
           title: tvShow?.name || '',
@@ -271,7 +273,7 @@ export default function TVShowDetailsPage() {
   }
 
   const mainCast = tvShow.credits?.cast?.slice(0, 6) || [];
-  const trailers = tvShow.videos?.results?.filter(video => 
+  const trailers = tvShow.videos?.results?.filter(video =>
     video.type === 'Trailer' && video.site === 'YouTube'
   ) || [];
 
@@ -284,10 +286,10 @@ export default function TVShowDetailsPage() {
       genre: tvShow.genres[0]?.name || 'Drama',
       rating: tvShow.vote_average,
       synopsis: tvShow.overview,
-      posterUrl: tvShow.poster_path ? `https://image.tmdb.org/t/p/w500${tvShow.poster_path}` : null,
+      posterUrl: tvShow.poster_path ? `https://image.tmdb.org/t/p/w500${tvShow.poster_path}` : undefined,
       director: tvShow.created_by[0]?.name || 'Unknown',
       cast: tvShow.credits?.cast?.slice(0, 5).map(actor => actor.name) || [],
-      duration: tvShow.episode_run_time[0] || null,
+      duration: tvShow.episode_run_time[0] || undefined,
       type: 'tv',
       seasons: tvShow.number_of_seasons,
     };
@@ -369,6 +371,15 @@ export default function TVShowDetailsPage() {
           toast({
             title: "Marked as watched",
             description: `${tvShow.name} has been marked as watched.`,
+            action: (
+              <ToastAction altText="Write a review" onClick={() => {
+                setActiveTab("reviews");
+                // Scroll to the tabs area smoothly
+                window.scrollTo({ top: 500, behavior: "smooth" });
+              }}>
+                Write Review
+              </ToastAction>
+            ),
           });
         }
       });
@@ -380,7 +391,7 @@ export default function TVShowDetailsPage() {
       {/* Hero Section */}
       <div className="relative bg-gradient-to-r from-black/70 to-black/30 pb-4 sm:pb-6 md:pb-8">
         {tvShow.backdrop_path && (
-          <div 
+          <div
             className="absolute inset-0 bg-cover bg-center"
             style={{
               backgroundImage: `url(https://image.tmdb.org/t/p/w1280${tvShow.backdrop_path})`,
@@ -419,9 +430,9 @@ export default function TVShowDetailsPage() {
 
             {/* Details */}
             <div className="flex-1 text-white w-full md:w-auto">
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 className="mb-2 md:mb-4 text-white hover:text-white hover:bg-white/20"
                 onClick={() => window.history.back()}
               >
@@ -430,7 +441,7 @@ export default function TVShowDetailsPage() {
               </Button>
 
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">{tvShow.name}</h1>
-              
+
               <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-3 md:mb-4">
                 <div className="flex items-center gap-2">
                   <Star className="h-4 w-4 md:h-5 md:w-5 fill-yellow-400 text-yellow-400" />
@@ -441,16 +452,16 @@ export default function TVShowDetailsPage() {
                     ({tvShow.vote_count.toLocaleString()} votes)
                   </span>
                 </div>
-                
+
                 <Separator orientation="vertical" className="h-4 md:h-6 hidden sm:block" />
-                
+
                 <div className="flex items-center gap-2">
                   <Calendar className="h-3 w-3 md:h-4 md:w-4" />
                   <span className="text-sm md:text-base">{tvShow.first_air_date}</span>
                 </div>
 
                 <Separator orientation="vertical" className="h-4 md:h-6 hidden sm:block" />
-                
+
                 <div className="flex items-center gap-2">
                   <Clock className="h-3 w-3 md:h-4 md:w-4" />
                   <span className="text-sm md:text-base">{tvShow.number_of_seasons} seasons</span>
@@ -466,17 +477,17 @@ export default function TVShowDetailsPage() {
               </div>
 
               <div className="mb-3 md:mb-6 max-w-2xl">
-                <ExpandableText 
-                  text={tvShow.overview} 
+                <ExpandableText
+                  text={tvShow.overview}
                   className="text-sm md:text-lg opacity-90"
                   maxLines={2}
                 />
               </div>
 
               <div className="space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:gap-2 md:gap-3">
-                <Button 
+                <Button
                   size="sm"
-                  className="bg-red-600 hover:bg-red-700 w-full sm:w-auto" 
+                  className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
                   onClick={() => {
                     if (trailers.length > 0) {
                       setIsTrailerOpen(true);
@@ -494,10 +505,10 @@ export default function TVShowDetailsPage() {
                   <span className="hidden sm:inline">Watch Trailer</span>
                   <span className="sm:hidden">Trailer</span>
                 </Button>
-                
+
                 <div className="grid grid-cols-2 gap-2 sm:contents">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={handleFavoritesToggle}
                     disabled={favoritesMutation.isPending}
@@ -508,9 +519,9 @@ export default function TVShowDetailsPage() {
                     <span className="hidden md:inline">{isInFavorites ? 'Remove from Favorites' : 'Add to Favorites'}</span>
                     <span className="md:hidden">{isInFavorites ? 'Unfavorite' : 'Favorite'}</span>
                   </Button>
-                  
-                  <Button 
-                    variant="outline" 
+
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={handleWatchlistToggle}
                     data-testid="button-watchlist"
@@ -520,9 +531,9 @@ export default function TVShowDetailsPage() {
                     <span className="hidden md:inline">{isInUserWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}</span>
                     <span className="md:hidden">{isInUserWatchlist ? 'Remove' : 'Watchlist'}</span>
                   </Button>
-                  
-                  <Button 
-                    variant="outline" 
+
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={handleWatchedToggle}
                     disabled={watchedMutation.isPending}
@@ -533,7 +544,7 @@ export default function TVShowDetailsPage() {
                     <span className="hidden md:inline">{isWatched ? 'Mark as Unwatched' : 'Mark as Watched'}</span>
                     <span className="md:hidden">{isWatched ? 'Unwatched' : 'Watched'}</span>
                   </Button>
-                  
+
                   <AddToListButton
                     tmdbId={tvShow.id}
                     mediaType="tv"
@@ -551,7 +562,7 @@ export default function TVShowDetailsPage() {
 
       {/* Content Tabs */}
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
-        <Tabs defaultValue="details" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full gap-1 sm:gap-1 mb-4 sm:mb-6 h-auto" data-testid="tabs-navigation">
             <TabsTrigger value="details" data-testid="tab-details" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Details</TabsTrigger>
             <TabsTrigger value="cast" data-testid="tab-cast" className="text-xs sm:text-sm px-2 sm:px-3 py-2">Cast</TabsTrigger>
@@ -568,94 +579,94 @@ export default function TVShowDetailsPage() {
           <TabsContent value="details" className="mt-4 sm:mt-6">
             <div className="space-y-4 sm:space-y-6 md:space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Show Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <h4 className="font-semibold">Status</h4>
-                    <p className="text-muted-foreground">{tvShow.status}</p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold">Type</h4>
-                    <p className="text-muted-foreground">{tvShow.type}</p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold">First Air Date</h4>
-                    <p className="text-muted-foreground">{tvShow.first_air_date}</p>
-                  </div>
-                  
-                  {tvShow.last_air_date && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Show Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
                     <div>
-                      <h4 className="font-semibold">Last Air Date</h4>
-                      <p className="text-muted-foreground">{tvShow.last_air_date}</p>
+                      <h4 className="font-semibold">Status</h4>
+                      <p className="text-muted-foreground">{tvShow.status}</p>
                     </div>
-                  )}
-                  
-                  <div>
-                    <h4 className="font-semibold">Seasons</h4>
-                    <p className="text-muted-foreground">{tvShow.number_of_seasons}</p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold">Episodes</h4>
-                    <p className="text-muted-foreground">{tvShow.number_of_episodes}</p>
-                  </div>
-                  
-                  {tvShow.episode_run_time.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold">Episode Runtime</h4>
-                      <p className="text-muted-foreground">
-                        {tvShow.episode_run_time.join(', ')} minutes
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Production</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {tvShow.created_by.length > 0 && (
                     <div>
-                      <h4 className="font-semibold">Created By</h4>
+                      <h4 className="font-semibold">Type</h4>
+                      <p className="text-muted-foreground">{tvShow.type}</p>
+                    </div>
+
+                    <div>
+                      <h4 className="font-semibold">First Air Date</h4>
+                      <p className="text-muted-foreground">{tvShow.first_air_date}</p>
+                    </div>
+
+                    {tvShow.last_air_date && (
+                      <div>
+                        <h4 className="font-semibold">Last Air Date</h4>
+                        <p className="text-muted-foreground">{tvShow.last_air_date}</p>
+                      </div>
+                    )}
+
+                    <div>
+                      <h4 className="font-semibold">Seasons</h4>
+                      <p className="text-muted-foreground">{tvShow.number_of_seasons}</p>
+                    </div>
+
+                    <div>
+                      <h4 className="font-semibold">Episodes</h4>
+                      <p className="text-muted-foreground">{tvShow.number_of_episodes}</p>
+                    </div>
+
+                    {tvShow.episode_run_time.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold">Episode Runtime</h4>
+                        <p className="text-muted-foreground">
+                          {tvShow.episode_run_time.join(', ')} minutes
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Production</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {tvShow.created_by.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold">Created By</h4>
+                        <p className="text-muted-foreground">
+                          {tvShow.created_by.map(creator => creator.name).join(', ')}
+                        </p>
+                      </div>
+                    )}
+
+                    {tvShow.networks.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold">Networks</h4>
+                        <p className="text-muted-foreground">
+                          {tvShow.networks.map(network => network.name).join(', ')}
+                        </p>
+                      </div>
+                    )}
+
+                    {tvShow.production_companies.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold">Production Companies</h4>
+                        <p className="text-muted-foreground">
+                          {tvShow.production_companies.map(company => company.name).join(', ')}
+                        </p>
+                      </div>
+                    )}
+
+                    <div>
+                      <h4 className="font-semibold">In Production</h4>
                       <p className="text-muted-foreground">
-                        {tvShow.created_by.map(creator => creator.name).join(', ')}
+                        {tvShow.in_production ? 'Yes' : 'No'}
                       </p>
                     </div>
-                  )}
-                  
-                  {tvShow.networks.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold">Networks</h4>
-                      <p className="text-muted-foreground">
-                        {tvShow.networks.map(network => network.name).join(', ')}
-                      </p>
-                    </div>
-                  )}
-                  
-                  {tvShow.production_companies.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold">Production Companies</h4>
-                      <p className="text-muted-foreground">
-                        {tvShow.production_companies.map(company => company.name).join(', ')}
-                      </p>
-                    </div>
-                  )}
-                  
-                  <div>
-                    <h4 className="font-semibold">In Production</h4>
-                    <p className="text-muted-foreground">
-                      {tvShow.in_production ? 'Yes' : 'No'}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
               </div>
 
               {/* Watch Providers */}
@@ -744,7 +755,7 @@ export default function TVShowDetailsPage() {
                               <Play className="h-8 w-8 text-muted-foreground" />
                             )}
                           </div>
-                          
+
                           {/* Episode Info */}
                           <div className="md:col-span-3 space-y-2">
                             <div className="flex items-start justify-between">
@@ -761,7 +772,7 @@ export default function TVShowDetailsPage() {
                                 <span className="text-sm">{episode.vote_average.toFixed(1)}</span>
                               </div>
                             </div>
-                            
+
                             <p className="text-muted-foreground text-sm leading-relaxed">
                               {episode.overview || "No description available."}
                             </p>
@@ -830,11 +841,11 @@ export default function TVShowDetailsPage() {
                             <span className="text-sm font-medium">Overall Sentiment</span>
                             <span className="text-sm">{sentimentData.summary.avgScore.toFixed(2)}</span>
                           </div>
-                          <Progress 
-                            value={(sentimentData.summary.avgScore + 1) * 50} 
+                          <Progress
+                            value={(sentimentData.summary.avgScore + 1) * 50}
                             className="w-full"
                           />
-                          
+
                           <div className="grid grid-cols-3 gap-4 text-center">
                             <div className="space-y-1">
                               <div className="text-green-600 font-medium text-2xl">
@@ -855,7 +866,7 @@ export default function TVShowDetailsPage() {
                               <div className="text-xs text-muted-foreground">Negative</div>
                             </div>
                           </div>
-                          
+
                           {sentimentData.insights && Array.isArray(sentimentData.insights) && sentimentData.insights.length > 0 && (
                             <div className="mt-4 p-4 bg-muted rounded-lg">
                               <div className="space-y-2">
@@ -875,7 +886,7 @@ export default function TVShowDetailsPage() {
 
                   {/* Review Form */}
                   {isAuthenticated && tvShow && (
-                    <ReviewForm 
+                    <ReviewForm
                       tmdbId={parseInt(tvId || '0')}
                       mediaType="tv"
                       title={tvShow.name}
@@ -891,7 +902,7 @@ export default function TVShowDetailsPage() {
                       }}
                     />
                   )}
-                  
+
                   {!isAuthenticated && (
                     <Card>
                       <CardContent className="py-8 text-center">
@@ -904,9 +915,9 @@ export default function TVShowDetailsPage() {
                       </CardContent>
                     </Card>
                   )}
-                  
+
                   {/* Review List */}
-                  <ReviewList 
+                  <ReviewList
                     tmdbId={parseInt(tvId || '0')}
                     mediaType="tv"
                     currentUserId={user?.id}
@@ -918,7 +929,7 @@ export default function TVShowDetailsPage() {
               <TabsContent value="video-reviews" className="mt-6">
                 <div className="space-y-6">
                   {tvShow && (
-                    <VideoReviews 
+                    <VideoReviews
                       title={tvShow.name}
                       mediaType="tv"
                     />
@@ -930,7 +941,7 @@ export default function TVShowDetailsPage() {
 
           {/* User Recommendations Tab */}
           <TabsContent value="recommendations" className="mt-6">
-            <UserRecommendationsSection 
+            <UserRecommendationsSection
               forTmdbId={parseInt(tvId || '0')}
               forMediaType="tv"
               currentUserId={user?.id}
@@ -946,7 +957,7 @@ export default function TVShowDetailsPage() {
                 <TabsTrigger value="lists" data-testid="tab-similar-lists">Lists</TabsTrigger>
                 <TabsTrigger value="ai-similar" data-testid="tab-ai-similar"><Sparkles className="h-4 w-4 mr-1" />AI Similar</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="shows" className="mt-6">
                 {tvShow.similar?.results && tvShow.similar.results.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" data-testid="grid-similar-shows">
@@ -970,7 +981,7 @@ export default function TVShowDetailsPage() {
                   </div>
                 )}
               </TabsContent>
-              
+
               <TabsContent value="lists" className="mt-6">
                 <div className="flex items-center gap-2 mb-6">
                   <Layers className="h-5 w-5 text-primary" />
@@ -996,9 +1007,9 @@ export default function TVShowDetailsPage() {
                   </div>
                 )}
               </TabsContent>
-              
+
               <TabsContent value="ai-similar" className="mt-6">
-                <SimilarContent 
+                <SimilarContent
                   title={tvShow.name}
                   overview={tvShow.overview}
                   mediaType="tv"
@@ -1096,8 +1107,8 @@ function RecommendationComments({ recommendationId, currentUserId, reason }: { r
             <div key={comment.id} className="bg-muted/50 rounded-md p-2 animate-in slide-in-from-left-1 duration-150" data-testid={`comment-${comment.id}`}>
               <p className="text-xs font-medium flex items-center gap-1">
                 <span>👤</span>
-                {comment.userFirstName && comment.userLastName 
-                  ? `${comment.userFirstName} ${comment.userLastName}` 
+                {comment.userFirstName && comment.userLastName
+                  ? `${comment.userFirstName} ${comment.userLastName}`
                   : comment.userEmail || 'Anonymous'}
               </p>
               <p className="text-sm mt-1">{comment.comment}</p>
@@ -1126,7 +1137,7 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
   const { data: recommendations, isLoading: recommendationsLoading } = useQuery({
     queryKey: ['/api/users/recommendations/for', forTmdbId, forMediaType],
     queryFn: async () => {
-      const url = currentUserId 
+      const url = currentUserId
         ? `/api/users/recommendations/for/${forTmdbId}/${forMediaType}?userId=${currentUserId}`
         : `/api/users/recommendations/for/${forTmdbId}/${forMediaType}`;
       const response = await fetch(url);
@@ -1152,7 +1163,7 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
   const submitRecommendationMutation = useMutation({
     mutationFn: async (data: any) => {
       if (!currentUserId) throw new Error("User not authenticated");
-      
+
       return apiRequest('POST', `/api/users/${currentUserId}/recommendations`, {
         forTmdbId,
         forMediaType,
@@ -1174,11 +1185,11 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
     onError: (error: any) => {
       const errorMessage = error.message || "Failed to submit recommendation";
       const isAlreadyRecommended = errorMessage.includes("already recommended");
-      
-      toast({ 
-        title: isAlreadyRecommended ? "Already Recommended" : "Error", 
-        description: isAlreadyRecommended 
-          ? "You've already recommended this movie/show here" 
+
+      toast({
+        title: isAlreadyRecommended ? "Already Recommended" : "Error",
+        description: isAlreadyRecommended
+          ? "You've already recommended this movie/show here"
           : errorMessage,
         variant: isAlreadyRecommended ? undefined : "destructive"
       });
@@ -1198,11 +1209,11 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
     onError: (error: any) => {
       const errorMessage = error.message || "Failed to delete recommendation";
       const cannotDelete = errorMessage.includes("Cannot delete") || errorMessage.includes("likes");
-      
-      toast({ 
-        title: cannotDelete ? "Cannot Delete" : "Error", 
-        description: cannotDelete 
-          ? "This recommendation has likes from others and cannot be deleted" 
+
+      toast({
+        title: cannotDelete ? "Cannot Delete" : "Error",
+        description: cannotDelete
+          ? "This recommendation has likes from others and cannot be deleted"
           : errorMessage,
         variant: "destructive"
       });
@@ -1219,8 +1230,8 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
       queryClient.invalidateQueries({ queryKey: ['/api/users/recommendations/for', forTmdbId, forMediaType] });
     },
     onError: (error: any) => {
-      toast({ 
-        title: "Error", 
+      toast({
+        title: "Error",
         description: error.message || "Failed to vote",
         variant: "destructive"
       });
@@ -1271,9 +1282,9 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                     className="w-full px-3 py-2 border rounded-md bg-background text-foreground"
                     data-testid="input-search-recommendation"
                   />
-                  
+
                   {searchLoading && <p className="text-sm text-muted-foreground mt-2">Searching...</p>}
-                  
+
                   {searchResults?.results && searchResults.results.length > 0 && !selectedMedia && (
                     <div className="mt-2 max-h-48 overflow-y-auto border rounded-md">
                       {searchResults.results.slice(0, 5).map((item: any) => (
@@ -1287,7 +1298,7 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                           data-testid={`search-result-${item.id}`}
                         >
                           {item.poster_path && (
-                            <img 
+                            <img
                               src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
                               alt={item.title || item.name}
                               className="w-12 h-18 object-cover rounded"
@@ -1374,7 +1385,7 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                     <div className="flex gap-4">
                       {rec.recommendedPosterPath && (
                         <Link href={`/${rec.recommendedMediaType}/${rec.recommendedTmdbId}`}>
-                          <img 
+                          <img
                             src={`https://image.tmdb.org/t/p/w185${rec.recommendedPosterPath}`}
                             alt={rec.recommendedTitle}
                             className="w-24 h-36 object-cover rounded cursor-pointer hover:opacity-80 hover:scale-105 transition-transform duration-200"
@@ -1392,8 +1403,8 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                             </Link>
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <span>👤</span>
-                              Recommended by {rec.userFirstName && rec.userLastName 
-                                ? `${rec.userFirstName} ${rec.userLastName}` 
+                              Recommended by {rec.userFirstName && rec.userLastName
+                                ? `${rec.userFirstName} ${rec.userLastName}`
                                 : rec.userEmail || 'Anonymous'}
                             </p>
                           </div>
@@ -1422,7 +1433,7 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                             </span>
                           )}
                         </div>
-                        
+
                         {/* Voting and Comments Section */}
                         <div className="mt-3 pt-3 border-t">
                           <div className="flex items-center gap-4">
@@ -1477,11 +1488,11 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                               </div>
                             )}
                           </div>
-                          
+
                           {/* Comments Display */}
                           {showComments[rec.id] && (
-                            <RecommendationComments 
-                              recommendationId={rec.id} 
+                            <RecommendationComments
+                              recommendationId={rec.id}
                               currentUserId={currentUserId}
                               reason={rec.reason}
                             />

@@ -36,13 +36,13 @@ export default function Navbar() {
   const mobileSearchRef = useRef<HTMLDivElement>(null);
   const mobileSearchButtonRef = useRef<HTMLButtonElement>(null);
   const { user, isAuthenticated, isLoading } = useAuth();
-  
+
   // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery);
     }, 300);
-    
+
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
@@ -61,19 +61,19 @@ export default function Navbar() {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       const target = event.target as HTMLElement;
-      
+
       // Don't close if clicking on a suggestion button or the mobile search button
-      if (target.closest('button[data-testid^="suggestion-"]') || 
-          target.closest('button[data-testid^="mobile-suggestion-"]') ||
-          target.closest('button[data-testid="button-mobile-search"]')) {
+      if (target.closest('button[data-testid^="suggestion-"]') ||
+        target.closest('button[data-testid^="mobile-suggestion-"]') ||
+        target.closest('button[data-testid="button-mobile-search"]')) {
         return;
       }
-      
+
       // Close desktop search suggestions if clicking outside
       if (searchRef.current && !searchRef.current.contains(target)) {
         setShowSuggestions(false);
       }
-      
+
       // Close mobile search panel if clicking outside
       if (mobileSearchRef.current && !mobileSearchRef.current.contains(target)) {
         if (mobileSearchButtonRef.current && !mobileSearchButtonRef.current.contains(target)) {
@@ -89,11 +89,11 @@ export default function Navbar() {
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, []);
-  
+
   const handleLogin = () => {
     setLocation('/login');
   };
-  
+
   const handleLogout = () => {
     logout();
   };
@@ -157,13 +157,15 @@ export default function Navbar() {
 
           {/* Search and Profile */}
           <div className="flex items-center space-x-2 sm:space-x-4">
-            
+
             {/* Desktop Search */}
             <div ref={searchRef} className="relative hidden sm:block">
               <form onSubmit={handleSearch}>
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
+                  id="navbar-search"
+                  name="search"
                   placeholder="Search movies, TV shows..."
                   className="w-48 lg:w-64 pl-10 pr-8"
                   value={searchQuery}
@@ -173,6 +175,7 @@ export default function Navbar() {
                   }}
                   onFocus={() => searchQuery.length >= 2 && setShowSuggestions(true)}
                   data-testid="input-search"
+                  autoComplete="off"
                 />
                 {searchQuery && (
                   <button
@@ -201,9 +204,9 @@ export default function Navbar() {
                       {searchResults.map((result: any) => {
                         const type = result.media_type || (result.title ? 'movie' : 'tv');
                         const title = result.title || result.name;
-                        const year = result.release_date ? new Date(result.release_date).getFullYear() : 
-                                    result.first_air_date ? new Date(result.first_air_date).getFullYear() : null;
-                        const imageUrl = result.poster_path ? 
+                        const year = result.release_date ? new Date(result.release_date).getFullYear() :
+                          result.first_air_date ? new Date(result.first_air_date).getFullYear() : null;
+                        const imageUrl = result.poster_path ?
                           `https://image.tmdb.org/t/p/w92${result.poster_path}` : null;
 
                         return (
@@ -298,8 +301,8 @@ export default function Navbar() {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      className="flex items-center text-red-600" 
+                    <DropdownMenuItem
+                      className="flex items-center text-red-600"
                       onClick={handleLogout}
                       data-testid="button-logout"
                     >
@@ -308,8 +311,8 @@ export default function Navbar() {
                     </DropdownMenuItem>
                   </>
                 ) : (
-                  <DropdownMenuItem 
-                    className="flex items-center" 
+                  <DropdownMenuItem
+                    className="flex items-center"
                     onClick={handleLogin}
                     data-testid="button-login"
                   >
@@ -319,7 +322,7 @@ export default function Navbar() {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            
+
             {/* Mobile menu button */}
             <Button
               variant="ghost"
@@ -368,6 +371,8 @@ export default function Navbar() {
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
+                  id="mobile-navbar-search"
+                  name="search"
                   placeholder="Search movies, TV shows..."
                   className="w-full pl-10 pr-8"
                   value={searchQuery}
@@ -377,6 +382,7 @@ export default function Navbar() {
                   }}
                   onFocus={() => searchQuery.length >= 2 && setShowSuggestions(true)}
                   data-testid="input-mobile-search"
+                  autoComplete="off"
                   autoFocus
                 />
                 {searchQuery && (
@@ -406,9 +412,9 @@ export default function Navbar() {
                       {searchResults.map((result: any) => {
                         const type = result.media_type || (result.title ? 'movie' : 'tv');
                         const title = result.title || result.name;
-                        const year = result.release_date ? new Date(result.release_date).getFullYear() : 
-                                    result.first_air_date ? new Date(result.first_air_date).getFullYear() : null;
-                        const imageUrl = result.poster_path ? 
+                        const year = result.release_date ? new Date(result.release_date).getFullYear() :
+                          result.first_air_date ? new Date(result.first_air_date).getFullYear() : null;
+                        const imageUrl = result.poster_path ?
                           `https://image.tmdb.org/t/p/w92${result.poster_path}` : null;
 
                         return (

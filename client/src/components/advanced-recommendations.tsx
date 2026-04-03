@@ -7,8 +7,30 @@ import { Progress } from '@/components/ui/progress';
 import { Sparkles, Search, Star, TrendingUp, Brain, ExternalLink, Lightbulb, ChevronDown, ChevronUp, Tag, Film } from 'lucide-react';
 import { PreferenceWizard } from './preference-wizard';
 import { useQuery } from '@tanstack/react-query';
-import MediaCard from '@/components/media-card';
+import { MediaCard } from '@/components/media-card';
 import MediaCardSkeleton from '@/components/media-card-skeleton';
+import { ExplanationVisualizer, ExplanationData } from './explanation-visualizer';
+import { useAuth } from '@/hooks/useAuth';
+
+function ExplanationLoader({ movieId, mediaType, initialReason }: { movieId: number, mediaType: string, initialReason: string }) {
+  const { user } = useAuth();
+  const userId = user?.id || 'demo_user';
+
+  const { data: explanation, isLoading } = useQuery({
+    queryKey: ['explanation', userId, movieId],
+    queryFn: async () => {
+      const res = await fetch(`/api/recommendations/explain/${userId}/${movieId}?media_type=${mediaType}`);
+      if (!res.ok) throw new Error('Failed to load explanation');
+      return await res.json();
+    }
+  });
+
+  if (isLoading) return <div className="text-xs text-muted-foreground animate-pulse">Analyzing AI insights...</div>;
+
+  if (!explanation) return <div className="text-xs text-muted-foreground">{initialReason}</div>;
+
+  return <ExplanationVisualizer explanation={explanation} className="text-xs" />;
+}
 
 interface UserPreferences {
   mediaType: string[];
@@ -30,24 +52,24 @@ interface AdvancedRecommendation {
 
 export function AdvancedRecommendations() {
   const [showWizard, setShowWizard] = useState(false);
-  
+
   // Load saved preferences and search query from sessionStorage
   const [preferences, setPreferences] = useState<UserPreferences | null>(() => {
     const saved = sessionStorage.getItem('advancedRecommendations_preferences');
     return saved ? JSON.parse(saved) : null;
   });
-  
+
   const [searchQuery, setSearchQuery] = useState(() => {
     return sessionStorage.getItem('advancedRecommendations_query') || '';
   });
-  
+
   // Use a trigger to control when to search - only increments when user clicks button
   const [searchTrigger, setSearchTrigger] = useState(0);
   const [lastSearchedQuery, setLastSearchedQuery] = useState('');
-  
+
   // Track which recommendation details are expanded
   const [expandedRecommendations, setExpandedRecommendations] = useState<Set<number>>(new Set());
-  
+
   // Persist state to sessionStorage whenever it changes
   React.useEffect(() => {
     if (preferences) {
@@ -68,7 +90,7 @@ export function AdvancedRecommendations() {
     queryFn: async () => {
       // Build filters from preferences
       const filters: any = {};
-      
+
       if (preferences) {
         if (preferences.genres && preferences.genres.length > 0) {
           filters.genres = preferences.genres;
@@ -93,7 +115,7 @@ export function AdvancedRecommendations() {
           filters.runtime = preferences.runtime;
         }
       }
-      
+
       const response = await fetch('/api/recommendations/semantic-search', {
         method: 'POST',
         headers: {
@@ -105,19 +127,19 @@ export function AdvancedRecommendations() {
           filters
         }),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        
+
         if (response.status === 429) {
           throw new Error(errorData.message || 'Too many requests. Please wait a moment before trying again.');
         }
-        
+
         throw new Error(errorData.message || 'Failed to perform semantic search');
       }
-      
+
       const data = await response.json();
-      
+
       // Transform semantic search results to match expected format
       return {
         recommendations: data.results.map((result: any) => ({
@@ -258,7 +280,7 @@ export function AdvancedRecommendations() {
               <span className="sm:hidden">Search</span>
             </Button>
           </div>
-          
+
           {!preferences && (
             <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
               <p className="text-sm text-blue-700 dark:text-blue-300">
@@ -337,8 +359,8 @@ export function AdvancedRecommendations() {
             <div className="flex flex-col items-center gap-3">
               <div className="text-red-600 dark:text-red-400">
                 <p className="font-semibold mb-2">
-                  {error.message.includes('Too many requests') || error.message.includes('rate limit') 
-                    ? '⏱️ Rate Limit Reached' 
+                  {error.message.includes('Too many requests') || error.message.includes('rate limit')
+                    ? '⏱️ Rate Limit Reached'
                     : '❌ Error'}
                 </p>
                 <p className="text-sm text-muted-foreground">
@@ -365,8 +387,8 @@ export function AdvancedRecommendations() {
                 {preferences?.mediaType.includes('both') || (preferences?.mediaType.includes('movies') && preferences?.mediaType.includes('tv'))
                   ? 'Recommended Movies & TV Shows'
                   : preferences?.mediaType.includes('tv')
-                  ? 'Recommended TV Shows'
-                  : 'Recommended Movies'}
+                    ? 'Recommended TV Shows'
+                    : 'Recommended Movies'}
               </h2>
               <Badge variant="secondary" className="text-xs sm:text-sm">
                 {recommendations.recommendations.length}
@@ -378,26 +400,54 @@ export function AdvancedRecommendations() {
                 const title = rec.movie.title || rec.movie.name;
                 const releaseDate = rec.movie.release_date || rec.movie.first_air_date;
                 const year = releaseDate ? new Date(releaseDate).getFullYear().toString() : '2024';
-                
+
                 return (
-                  <MediaCard
-                    key={`${rec.movie.id}-${index}`}
-                    item={{
-                      id: rec.movie.id,
-                      title: title,
-                      name: rec.movie.name,
-                      rating: rec.movie.vote_average || 7.0,
-                      year: year,
-                      synopsis: rec.movie.overview,
-                      poster_path: rec.movie.poster_path,
-                      type: mediaType,
-                      media_type: mediaType,
-                      first_air_date: rec.movie.first_air_date,
-                      release_date: rec.movie.release_date,
-                      number_of_seasons: rec.movie.number_of_seasons
-                    }}
-                    mediaType={mediaType}
-                  />
+                  <div key={`${rec.movie.id}-${index}`} className="relative">
+                    <MediaCard
+                      item={{
+                        id: rec.movie.id,
+                        title: title,
+                        name: rec.movie.name,
+                        rating: rec.movie.vote_average || 7.0,
+                        year: year,
+                        synopsis: rec.movie.overview,
+                        poster_path: rec.movie.poster_path,
+                        type: mediaType,
+                        media_type: mediaType,
+                        first_air_date: rec.movie.first_air_date,
+                        release_date: rec.movie.release_date,
+                        number_of_seasons: rec.movie.number_of_seasons
+                      }}
+                      mediaType={mediaType}
+                    >
+                      <div className="pt-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-xs h-6 gap-1"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleRecommendationDetails(rec.movie.id);
+                          }}
+                        >
+                          <Brain className="h-3 w-3" />
+                          {expandedRecommendations.has(rec.movie.id) ? 'Hide Insights' : 'Why this?'}
+                          {expandedRecommendations.has(rec.movie.id) ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </Button>
+
+                        {expandedRecommendations.has(rec.movie.id) && (
+                          <div className="mt-2 animate-in fade-in zoom-in-95 duration-200">
+                            <ExplanationLoader
+                              movieId={rec.movie.id}
+                              mediaType={mediaType}
+                              initialReason={rec.reasons[0]}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </MediaCard>
+                  </div>
                 );
               })}
             </div>

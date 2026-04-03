@@ -1,0 +1,86 @@
+﻿diff --git a/movies/users_api.py b/movies/users_api.py
+index 1be8199..9175d74 100644
+--- a/movies/users_api.py
++++ b/movies/users_api.py
+@@ -19,6 +19,28 @@ def get_user_or_404(user_id):
+         return None
+ 
+ 
++@require_GET
++def get_user_by_username(request, username):
++    try:
++        user = User.objects.get(username=username)
++    except User.DoesNotExist:
++        return JsonResponse({'error': 'User not found'}, status=404)
++
++    profile, _ = UserProfile.objects.get_or_create(user=user)
++    return JsonResponse({
++        'user': {
++            'id': str(user.id),
++            'username': user.username,
++            'email': user.email,
++            'firstName': user.first_name,
++            'lastName': user.last_name,
++            'bio': profile.bio,
++            'profileImageUrl': profile.profile_image_url,
++            'createdAt': user.date_joined.isoformat(),
++        }
++    })
++
++
+ def get_or_create_demo_user():
+     demo_user, _ = User.objects.get_or_create(
+         username='demo_user',
+@@ -336,6 +358,23 @@ def add_to_viewing_history(request, user_id):
+         return JsonResponse({'error': 'Invalid JSON'}, status=400)
+ 
+ 
++@csrf_exempt
++@require_http_methods(["DELETE"])
++def remove_from_viewing_history(request, user_id, tmdb_id):
++    if not request.user.is_authenticated:
++        return JsonResponse({'error': 'Not authenticated'}, status=401)
++
++    if str(request.user.id) != str(user_id):
++        return JsonResponse({'error': 'Not authorized'}, status=403)
++
++    deleted, _ = ViewingHistory.objects.filter(
++        user=request.user,
++        tmdb_id=tmdb_id
++    ).delete()
++
++    return JsonResponse({'success': True, 'deleted': deleted > 0})
++
++
+ @require_GET
+ def get_user_reviews(request, user_id):
+     user = get_user_or_404(user_id)
+@@ -853,3 +892,28 @@ def demo_user_delete_review(request, review_id):
+     ).delete()
+     
+     return JsonResponse({'success': True, 'deleted': deleted > 0})
++
++
++@require_GET
++def get_user_by_username(request, username):
++    """Get a user's public profile by username"""
++    try:
++        user = User.objects.get(username=username)
++    except User.DoesNotExist:
++        return JsonResponse({'error': 'User not found'}, status=404)
++
++    profile, _ = UserProfile.objects.get_or_create(user=user)
++
++    return JsonResponse({
++        'id': str(user.id),
++        'username': user.username,
++        'firstName': user.first_name,
++        'lastName': user.last_name,
++        'email': user.email,
++        'profileImageUrl': profile.profile_image_url or '',
++        'bio': profile.bio or '',
++        'followersCount': UserFollow.objects.filter(following=user).count(),
++        'followingCount': UserFollow.objects.filter(follower=user).count(),
++        'reviewsCount': UserReview.objects.filter(user=user).count(),
++        'createdAt': user.date_joined.isoformat(),
++    })

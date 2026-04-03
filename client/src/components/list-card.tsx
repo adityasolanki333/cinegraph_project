@@ -51,13 +51,13 @@ export function ListCard({ list, showAuthor = true }: ListCardProps) {
     onMutate: async () => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['/api/community/lists', list.id, 'is-following'] });
-      
+
       // Snapshot the previous value
       const previousValue = queryClient.getQueryData(['/api/community/lists', list.id, 'is-following']);
-      
+
       // Optimistically update to the new value
       queryClient.setQueryData(['/api/community/lists', list.id, 'is-following'], true);
-      
+
       // Return a context object with the snapshotted value
       return { previousValue };
     },
@@ -75,6 +75,9 @@ export function ListCard({ list, showAuthor = true }: ListCardProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', list.id, 'followers'] });
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists'] });
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
+      }
       toast({
         title: "Following list",
         description: `You are now following "${list.title}".`,
@@ -89,13 +92,13 @@ export function ListCard({ list, showAuthor = true }: ListCardProps) {
     onMutate: async () => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['/api/community/lists', list.id, 'is-following'] });
-      
+
       // Snapshot the previous value
       const previousValue = queryClient.getQueryData(['/api/community/lists', list.id, 'is-following']);
-      
+
       // Optimistically update to the new value
       queryClient.setQueryData(['/api/community/lists', list.id, 'is-following'], false);
-      
+
       // Return a context object with the snapshotted value
       return { previousValue };
     },
@@ -113,6 +116,9 @@ export function ListCard({ list, showAuthor = true }: ListCardProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', list.id, 'followers'] });
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists'] });
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
+      }
       toast({
         title: "Unfollowed list",
         description: `You have unfollowed "${list.title}".`,
@@ -149,7 +155,7 @@ export function ListCard({ list, showAuthor = true }: ListCardProps) {
         <CardContent className="p-0 relative">
           {/* Gradient overlay on hover */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 pointer-events-none" />
-          
+
           {previewPosters.length > 0 ? (
             <div className={cn(
               "grid gap-0.5 aspect-square",

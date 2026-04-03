@@ -11,11 +11,11 @@ export function useWatchlist() {
     queryKey: ['/api/users', user?.id, 'watchlist'],
     queryFn: async () => {
       if (!user?.id) return [];
-      
+
       try {
         const response = await fetch(`/api/users/${user.id}/watchlist`);
         if (!response.ok) return [];
-        
+
         const data = await response.json();
         const serverWatchlist = data.items || data || [];
         // Convert server format to Movie format
@@ -24,6 +24,9 @@ export function useWatchlist() {
           title: item.title,
           posterUrl: item.posterPath,
           type: item.mediaType,
+          year: 0,
+          genre: '',
+          rating: 0,
         })) : [];
       } catch (error) {
         console.error("Failed to load watchlist from server:", error);
@@ -38,8 +41,8 @@ export function useWatchlist() {
   const addMutation = useMutation({
     mutationFn: async (movie: Movie) => {
       if (!user) throw new Error("User not authenticated");
-      
-      return apiRequest('POST', `/api/users/${user.id}/watchlist`, {
+
+      return apiRequest('POST', `/api/users/${user.id}/watchlist/add`, {
         tmdbId: parseInt(movie.id),
         mediaType: movie.type || 'movie',
         title: movie.title,
@@ -49,16 +52,16 @@ export function useWatchlist() {
     onMutate: async (newMovie) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['/api/users', user?.id, 'watchlist'] });
-      
+
       // Snapshot the previous value
       const previousWatchlist = queryClient.getQueryData(['/api/users', user?.id, 'watchlist']);
-      
+
       // Optimistically update to the new value
       queryClient.setQueryData(['/api/users', user?.id, 'watchlist'], (old: Movie[] = []) => {
         const exists = old.some((item: Movie) => item.id === newMovie.id);
         return exists ? old : [...old, newMovie];
       });
-      
+
       return { previousWatchlist };
     },
     onError: (_err, _newMovie, context) => {
@@ -70,6 +73,9 @@ export function useWatchlist() {
     onSettled: () => {
       // Refetch after mutation
       queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'watchlist'] });
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
+      }
     },
   });
 
@@ -77,21 +83,21 @@ export function useWatchlist() {
   const removeMutation = useMutation({
     mutationFn: async (movieId: string) => {
       if (!user) throw new Error("User not authenticated");
-      
+
       return apiRequest('DELETE', `/api/users/${user.id}/watchlist/${movieId}`);
     },
     onMutate: async (movieId) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['/api/users', user?.id, 'watchlist'] });
-      
+
       // Snapshot the previous value
       const previousWatchlist = queryClient.getQueryData(['/api/users', user?.id, 'watchlist']);
-      
+
       // Optimistically update
       queryClient.setQueryData(['/api/users', user?.id, 'watchlist'], (old: Movie[] = []) => {
         return old.filter(item => item.id !== movieId);
       });
-      
+
       return { previousWatchlist };
     },
     onError: (_err, _movieId, context) => {
@@ -103,6 +109,9 @@ export function useWatchlist() {
     onSettled: () => {
       // Refetch after mutation
       queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'watchlist'] });
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
+      }
     },
   });
 
@@ -111,7 +120,7 @@ export function useWatchlist() {
       console.warn("User not authenticated - cannot add to watchlist");
       return false;
     }
-    
+
     const isAlreadyInList = watchlist.some((item: Movie) => item.id === movie.id);
     if (isAlreadyInList) {
       return false;

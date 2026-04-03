@@ -38,22 +38,22 @@ async function ensureCsrfToken(): Promise<string | null> {
   return token;
 }
 
-export function useAuth(): AuthState {
-  const { user, isLoading, isAuthenticated } = useAuthContext();
-  return { user, isLoading, isAuthenticated };
+export function useAuth(): AuthState & { refetchUser: () => Promise<void> } {
+  const { user, isLoading, isAuthenticated, refetchUser } = useAuthContext();
+  return { user, isLoading, isAuthenticated, refetchUser };
 }
 
 export async function register(email: string, password: string, firstName: string, lastName: string): Promise<{ success: boolean; error?: string }> {
   try {
     const csrfToken = await ensureCsrfToken();
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
     if (csrfToken) {
       headers['X-CSRFToken'] = csrfToken;
     }
-    
+
     const response = await fetch('/api/auth/register', {
       method: 'POST',
       headers,
@@ -64,8 +64,6 @@ export async function register(email: string, password: string, firstName: strin
     const data = await response.json();
 
     if (response.ok) {
-      localStorage.removeItem('demo-mode');
-      localStorage.removeItem('demo-user');
       window.dispatchEvent(new CustomEvent('auth-change'));
       return { success: true };
     } else {
@@ -79,14 +77,14 @@ export async function register(email: string, password: string, firstName: strin
 export async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
   try {
     const csrfToken = await ensureCsrfToken();
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
     if (csrfToken) {
       headers['X-CSRFToken'] = csrfToken;
     }
-    
+
     const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers,
@@ -97,9 +95,6 @@ export async function login(email: string, password: string): Promise<{ success:
     const data = await response.json();
 
     if (response.ok) {
-      localStorage.removeItem('demo-mode');
-      localStorage.removeItem('demo-user');
-      sessionStorage.removeItem('explicit-logout');
       window.dispatchEvent(new CustomEvent('auth-change'));
       return { success: true };
     } else {
@@ -110,40 +105,17 @@ export async function login(email: string, password: string): Promise<{ success:
   }
 }
 
-export async function demoLogin(): Promise<{ success: boolean; error?: string }> {
-  try {
-    const demoUser = {
-      id: 'demo_user',
-      email: 'demo@movieapp.com',
-      firstName: 'Demo',
-      lastName: 'User',
-      bio: 'Demo user for testing the application',
-      profileImageUrl: null,
-      createdAt: new Date().toISOString(),
-    };
-    
-    // Clear the explicit logout flag when user chooses demo login
-    sessionStorage.removeItem('explicit-logout');
-    
-    localStorage.setItem('demo-mode', 'true');
-    localStorage.setItem('demo-user', JSON.stringify(demoUser));
-    
-    window.dispatchEvent(new CustomEvent('auth-change'));
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: 'Demo login failed' };
-  }
-}
+
 
 export async function logout() {
   try {
     const csrfToken = await ensureCsrfToken();
-    
+
     const headers: Record<string, string> = {};
     if (csrfToken) {
       headers['X-CSRFToken'] = csrfToken;
     }
-    
+
     await fetch('/api/auth/logout', {
       method: 'POST',
       headers,
@@ -152,13 +124,7 @@ export async function logout() {
   } catch (error) {
     console.error('Logout error:', error);
   }
-  
-  // Set explicit logout flag to prevent auto-enabling demo mode
-  sessionStorage.setItem('explicit-logout', 'true');
-  
-  localStorage.removeItem('demo-mode');
-  localStorage.removeItem('demo-user');
-  
+
   window.dispatchEvent(new CustomEvent('auth-change'));
   window.history.pushState({}, '', '/login');
   window.dispatchEvent(new PopStateEvent('popstate'));

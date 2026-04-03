@@ -4,11 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { login, register, demoLogin } from "@/hooks/useAuth";
-import { LogIn, UserPlus, Zap, CheckCircle2 } from "lucide-react";
+import { login, register } from "@/hooks/useAuth";
+import { LogIn, UserPlus, CheckCircle2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { motion, AnimatePresence } from "framer-motion";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 
 export default function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -21,37 +21,7 @@ export default function Login() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const handleDemoLogin = async () => {
-    setIsLoading(true);
-    
-    try {
-      const result = await demoLogin();
-      
-      if (result.success) {
-        setShowSuccess(true);
-        
-        toast({
-          title: "Demo Login Successful!",
-          description: "You can now add movies to your watchlist! (No cookies needed)",
-        });
-        
-        setTimeout(() => {
-          setLocation('/');
-        }, 1500);
-      } else {
-        throw new Error(result.error || 'Demo login failed');
-      }
-    } catch (error) {
-      console.error('Error with demo login:', error);
-      toast({
-        title: "Login Failed",
-        description: error instanceof Error ? error.message : "Could not login. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,15 +30,15 @@ export default function Login() {
     try {
       if (isSignUp) {
         const result = await register(email, password, firstName, lastName);
-        
+
         if (result.success) {
           setShowSuccess(true);
-          
+
           toast({
             title: "Account created!",
             description: "Welcome to the movie recommendation platform!",
           });
-          
+
           setTimeout(() => {
             setLocation('/');
           }, 1500);
@@ -77,15 +47,15 @@ export default function Login() {
         }
       } else {
         const result = await login(email, password);
-        
+
         if (result.success) {
           setShowSuccess(true);
-          
+
           toast({
             title: "Welcome back!",
             description: "You've successfully logged in.",
           });
-          
+
           setTimeout(() => {
             setLocation('/');
           }, 1500);
@@ -164,20 +134,20 @@ export default function Login() {
           </motion.div>
         )}
       </AnimatePresence>
-      
+
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">
             {isSignUp ? "Create Account" : "Welcome Back"}
           </CardTitle>
           <CardDescription>
-            {isSignUp 
-              ? "Sign up to start building your personal movie watchlist" 
+            {isSignUp
+              ? "Sign up to start building your personal movie watchlist"
               : "Sign in to access your movie recommendations and watchlist"
             }
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -192,7 +162,7 @@ export default function Login() {
                 data-testid="input-email"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -205,8 +175,17 @@ export default function Login() {
                 minLength={6}
                 data-testid="input-password"
               />
+              {!isSignUp && (
+                <div className="text-right">
+                  <Link href="/forgot-password">
+                    <span className="text-xs text-muted-foreground hover:text-primary cursor-pointer font-medium">
+                      Forgot password?
+                    </span>
+                  </Link>
+                </div>
+              )}
             </div>
-            
+
             {isSignUp && (
               <>
                 <div className="space-y-2">
@@ -221,7 +200,7 @@ export default function Login() {
                     data-testid="input-firstname"
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Last Name</Label>
                   <Input
@@ -236,7 +215,7 @@ export default function Login() {
                 </div>
               </>
             )}
-            
+
             <Button type="submit" className="w-full" disabled={isLoading} data-testid={isSignUp ? "button-signup" : "button-signin"}>
               {isLoading ? (
                 "Please wait..."
@@ -253,21 +232,9 @@ export default function Login() {
               )}
             </Button>
           </form>
-          
-          <div className="mt-4">
-            <Separator className="my-4" />
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleDemoLogin}
-              disabled={isLoading}
-              data-testid="button-demo-login"
-            >
-              <Zap className="h-4 w-4 mr-2" />
-              Try Demo Login
-            </Button>
-          </div>
-          
+
+
+
           <div className="mt-4 text-center">
             <Button
               variant="link"
@@ -275,8 +242,8 @@ export default function Login() {
               className="text-sm"
               data-testid="button-toggle-signup"
             >
-              {isSignUp 
-                ? "Already have an account? Sign in" 
+              {isSignUp
+                ? "Already have an account? Sign in"
                 : "Don't have an account? Sign up"
               }
             </Button>

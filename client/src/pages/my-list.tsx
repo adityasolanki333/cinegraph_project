@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import MovieCard from "@/components/movie-card";
+import { MediaCard } from "@/components/media-card";
 import { Heart, Plus, Loader2, LogIn, CheckCircle, Eye } from "lucide-react";
 import { useLocation } from "wouter";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
@@ -17,7 +17,7 @@ import type { Movie } from "@shared/schema";
 function EnrichedMovieCard({ item, isOwnList, onRemove }: { item: any; isOwnList: boolean; onRemove: () => void }) {
   const mediaType = item.mediaType === 'tv' ? 'tv' : item.type === 'tv' ? 'tv' : 'movie';
   const tmdbId = item.tmdbId || item.id;
-  
+
   const { data: tmdbData, isLoading } = useQuery({
     queryKey: [`/api/tmdb/${mediaType}/${tmdbId}`],
     enabled: !!tmdbId, // Always fetch TMDB data
@@ -53,7 +53,7 @@ function EnrichedMovieCard({ item, isOwnList, onRemove }: { item: any; isOwnList
     };
 
     return (
-      <MovieCard
+      <MediaCard
         movie={fallbackMovie}
         isInWatchlist={true}
         showRemoveButton={true}
@@ -66,7 +66,7 @@ function EnrichedMovieCard({ item, isOwnList, onRemove }: { item: any; isOwnList
   const movie = tmdbService.convertToMovie(tmdbData as any, mediaType);
 
   return (
-    <MovieCard
+    <MediaCard
       movie={movie}
       isInWatchlist={true}
       showRemoveButton={true}
@@ -175,7 +175,7 @@ export default function MyList() {
 
   const isLoading = favoritesLoading || watchedLoading;
   const error = null;
-  
+
   // Get current list items based on selected type
   const getCurrentListItems = () => {
     if (listType === "favorite") {
@@ -275,7 +275,7 @@ export default function MyList() {
           <Heart className="h-8 w-8 text-accent" />
           <h1 className="text-3xl font-bold text-foreground">My List</h1>
         </div>
-        
+
         {/* Filters */}
         <div className="flex space-x-4">
           <Select value={filterType} onValueChange={setFilterType}>
@@ -349,47 +349,47 @@ export default function MyList() {
           <Loader2 className="h-8 w-8 animate-spin" />
           <span className="ml-2">Loading your watchlist...</span>
         </div>
-      ) : 
-      
-      /* List Grid */
-      sortedList.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mb-8">
-          {sortedList.map((item: any) => (
-            <EnrichedMovieCard
-              key={item.id}
-              item={item}
-              isOwnList={true}
-              onRemove={() => handleRemoveFromList(item.id)}
-            />
-          ))}
-        </div>
-      ) : (
-        /* Empty Watchlist State */
-        <Card className="text-center py-12">
-          <CardContent className="pt-6">
-            <Heart className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Your watchlist is empty</h3>
-            <p className="text-muted-foreground mb-6">
-              {filterType === "movies" 
-                ? "No movies in your watchlist yet. Start adding some movies to watch later!"
-                : filterType === "tv"
-                ? "No TV shows in your watchlist yet. Start adding some shows to binge later!"
-                : "No items in your watchlist yet. Start building your perfect queue of movies and shows to watch!"
-              }
-            </p>
-            <div className="space-x-4">
-              <Button onClick={() => setLocation("/movies")}>
-                <Plus className="h-4 w-4 mr-2" />
-                Browse Movies
-              </Button>
-              <Button variant="outline" onClick={() => setLocation("/tv-shows")}>
-                <Plus className="h-4 w-4 mr-2" />
-                Browse TV Shows
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      ) :
+
+        /* List Grid */
+        sortedList.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mb-8">
+            {sortedList.map((item: any) => (
+              <EnrichedMovieCard
+                key={item.id}
+                item={item}
+                isOwnList={true}
+                onRemove={() => handleRemoveFromList(item.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          /* Empty Watchlist State */
+          <Card className="text-center py-12">
+            <CardContent className="pt-6">
+              <Heart className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Your watchlist is empty</h3>
+              <p className="text-muted-foreground mb-6">
+                {filterType === "movies"
+                  ? "No movies in your watchlist yet. Start adding some movies to watch later!"
+                  : filterType === "tv"
+                    ? "No TV shows in your watchlist yet. Start adding some shows to binge later!"
+                    : "No items in your watchlist yet. Start building your perfect queue of movies and shows to watch!"
+                }
+              </p>
+              <div className="space-x-4">
+                <Button onClick={() => setLocation("/movies")}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Browse Movies
+                </Button>
+                <Button variant="outline" onClick={() => setLocation("/tv-shows")}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Browse TV Shows
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
       {/* Empty state for filtered results */}
       {allListItems.length > 0 && sortedList.length === 0 && (

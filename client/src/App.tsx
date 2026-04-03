@@ -1,35 +1,43 @@
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Switch, Route, useLocation } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, prefetchCommonData } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import NotFound from "@/pages/not-found";
-import Home from "@/pages/home";
-import Movies from "@/pages/movies";
-import TVShows from "@/pages/tvshows";
-import Recommendations from "@/pages/recommendations";
-import MyList from "@/pages/my-list";
-import Profile from "@/pages/profile";
-import Settings from "@/pages/settings";
-import MovieDetails from "@/pages/movie-details";
-import TVShowDetails from "@/pages/tv-show-details";
-import Login from "@/pages/login";
-import Community from "@/pages/community";
-import ListDetail from "@/pages/list-detail";
-import Notifications from "@/pages/notifications";
+import { Loader2 } from "lucide-react";
 import Navbar from "@/components/layout/navbar";
+import { OnboardingWizard } from "@/components/onboarding-wizard";
+
+// Lazy load pages
+const NotFound = lazy(() => import("@/pages/not-found"));
+const Home = lazy(() => import("@/pages/home"));
+const Movies = lazy(() => import("@/pages/movies"));
+const TVShows = lazy(() => import("@/pages/tvshows"));
+const Recommendations = lazy(() => import("@/pages/recommendations"));
+const MyList = lazy(() => import("@/pages/my-list"));
+const Profile = lazy(() => import("@/pages/profile"));
+const Settings = lazy(() => import("@/pages/settings"));
+const MovieDetails = lazy(() => import("@/pages/movie-details"));
+const TVShowDetails = lazy(() => import("@/pages/tv-show-details"));
+const Login = lazy(() => import("@/pages/login"));
+const ForgotPassword = lazy(() => import("@/pages/forgot-password"));
+const Community = lazy(() => import("@/pages/community"));
+const ClubsList = lazy(() => import("@/pages/community/clubs-list"));
+const ClubDetails = lazy(() => import("@/pages/community/club-details"));
+const DiscussionThread = lazy(() => import("@/pages/community/discussion-thread"));
+const ListDetail = lazy(() => import("@/pages/list-detail"));
+const Notifications = lazy(() => import("@/pages/notifications"));
 
 function ScrollToTop() {
   const [location] = useLocation();
-  
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location]);
-  
+
   return null;
 }
 
@@ -37,28 +45,46 @@ function Router() {
   // Initialize WebSocket connection for real-time updates
   useWebSocket();
   
+  useEffect(() => {
+    prefetchCommonData();
+  }, []);
+
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-background">
         <ScrollToTop />
         <Navbar />
-        <Switch>
-          <Route path="/" component={Home} />
-          <Route path="/movies" component={Movies} />
-          <Route path="/tv-shows" component={TVShows} />
-          <Route path="/recommendations" component={Recommendations} />
-          <Route path="/my-list" component={MyList} />
-          <Route path="/community" component={Community} />
-          <Route path="/lists/:id" component={ListDetail} />
-          <Route path="/notifications" component={Notifications} />
-          <Route path="/profile/:userId" component={Profile} />
-          <Route path="/profile" component={Profile} />
-          <Route path="/settings" component={Settings} />
-          <Route path="/movie/:id" component={MovieDetails} />
-          <Route path="/tv/:id" component={TVShowDetails} />
-          <Route path="/login" component={Login} />
-          <Route component={NotFound} />
-        </Switch>
+        <OnboardingWizard />
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center min-h-[50vh]">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          }
+        >
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/movies" component={Movies} />
+            <Route path="/tv-shows" component={TVShows} />
+            <Route path="/recommendations" component={Recommendations} />
+            <Route path="/my-list" component={MyList} />
+            <Route path="/community" component={Community} />
+            <Route path="/community/clubs" component={ClubsList} />
+            <Route path="/community/clubs/:id" component={ClubDetails} />
+            <Route path="/community/clubs/threads/:id" component={DiscussionThread} />
+            <Route path="/lists/:id" component={ListDetail} />
+            <Route path="/notifications" component={Notifications} />
+            <Route path="/profile/:userId" component={Profile} />
+            <Route path="/profile" component={Profile} />
+            <Route path="/settings" component={Settings} />
+            <Route path="/movie/:id" component={MovieDetails} />
+            <Route path="/tv/:id" component={TVShowDetails} />
+            <Route path="/login" component={Login} />
+            <Route path="/forgot-password" component={ForgotPassword} />
+            <Route path="/reset-password" component={ForgotPassword} />
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
       </div>
     </ErrorBoundary>
   );
@@ -69,7 +95,7 @@ function App() {
   useEffect(() => {
     const savedSettings = localStorage.getItem("userSettings");
     let theme = "system"; // default theme
-    
+
     if (savedSettings) {
       try {
         const parsed = JSON.parse(savedSettings);
@@ -78,12 +104,12 @@ function App() {
         console.error("Failed to parse saved settings:", error);
       }
     }
-    
+
     const root = document.documentElement;
-    
+
     // Remove all theme classes
     root.classList.remove("dark", "system");
-    
+
     // Apply the selected theme class
     if (theme === "dark") {
       root.classList.add("dark");

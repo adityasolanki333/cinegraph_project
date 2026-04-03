@@ -15,12 +15,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReviewCardEnhanced } from "@/components/review-card-enhanced";
-import { 
-  Users, 
-  Star, 
-  TrendingUp, 
-  MessageSquare, 
-  Heart, 
+import {
+  Users,
+  Star,
+  TrendingUp,
+  MessageSquare,
+  Heart,
   List,
   Award,
   Clock,
@@ -58,8 +58,8 @@ export default function Community() {
     refetchInterval: 60000,
   });
 
-  const { 
-    data: feedData, 
+  const {
+    data: feedData,
     isLoading: feedLoading,
     fetchNextPage: fetchNextFeedPage,
     hasNextPage: hasNextFeedPage,
@@ -76,8 +76,8 @@ export default function Community() {
     refetchInterval: 30000,
   });
 
-  const { 
-    data: topReviewsData, 
+  const {
+    data: topReviewsData,
     isLoading: topReviewsLoading,
     fetchNextPage: fetchNextReviewsPage,
     hasNextPage: hasNextReviewsPage,
@@ -100,8 +100,8 @@ export default function Community() {
     refetchOnWindowFocus: true,
   });
 
-  const { 
-    data: trendingData, 
+  const {
+    data: trendingData,
     isLoading: trendingLoading,
     fetchNextPage: fetchNextTrendingPage,
     hasNextPage: hasNextTrendingPage,
@@ -142,8 +142,8 @@ export default function Community() {
     refetchOnWindowFocus: true,
   });
 
-  const { 
-    data: personalizedFeedData, 
+  const {
+    data: personalizedFeedData,
     isLoading: personalizedFeedLoading,
     fetchNextPage: fetchNextPersonalizedPage,
     hasNextPage: hasNextPersonalizedPage,
@@ -273,9 +273,9 @@ export default function Community() {
                 </Card>
               ))}
             </div>
-          ) : feedData?.pages?.[0]?.data && feedData.pages.some(page => page.data.length > 0) ? (
+          ) : feedData?.pages?.[0]?.activities && feedData.pages.some(page => page.activities?.length > 0) ? (
             <div className="space-y-4">
-              {feedData.pages.flatMap(page => page.data).map((item: FeedItem) => (
+              {feedData.pages.flatMap(page => page.activities ?? []).map((item: FeedItem) => (
                 <Card key={`${item.type}-${item.id}`} className="hover:shadow-md transition-shadow" data-testid={`feed-item-${item.id}`}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
@@ -289,12 +289,16 @@ export default function Community() {
                         <div>
                           <div className="flex items-center gap-2">
                             <Link href={`/profile/${item.userId}`} className="font-semibold hover:underline" data-testid={`link-user-${item.userId}`}>
-                              {item.user?.firstName} {item.user?.lastName}
+                              {(item as any).userName || (item.user?.firstName ? `${item.user.firstName} ${item.user.lastName ?? ''}`.trim() : 'User')}
                             </Link>
                             {item.type === 'review' ? (
                               <Badge variant="secondary" className="text-xs">Reviewed</Badge>
-                            ) : (
+                            ) : item.type === 'list' ? (
                               <Badge variant="secondary" className="text-xs">Created List</Badge>
+                            ) : item.type === 'watchlist' ? (
+                              <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-600">Added to Watchlist</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs bg-yellow-500/10 text-yellow-600">Gave Award</Badge>
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground dark:text-muted-foreground">
@@ -329,9 +333,39 @@ export default function Community() {
                           </p>
                         </div>
                       </div>
+                    ) : item.type === 'watchlist' ? (
+                      <div className="flex gap-4">
+                        {(item as any).posterPath && (
+                          <img
+                            src={`https://image.tmdb.org/t/p/w154${(item as any).posterPath}`}
+                            alt={(item as any).title}
+                            className="w-16 h-24 object-cover rounded"
+                          />
+                        )}
+                        <div className="flex-1">
+                          <Link href={`/${(item as any).mediaType}/${(item as any).tmdbId}`} className="font-semibold text-lg hover:underline">
+                            {(item as any).title}
+                          </Link>
+                          <p className="text-sm text-muted-foreground mt-1">Added to watchlist</p>
+                        </div>
+                      </div>
+                    ) : item.type === 'award' ? (
+                      <div className="flex items-center gap-3 p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg">
+                        <Award className="h-6 w-6 text-yellow-500 flex-shrink-0" />
+                        <div>
+                          <p className="text-sm">
+                            Gave a <span className="font-semibold capitalize">{(item as any).awardType}</span> award to{' '}
+                            <Link href={`/profile/${(item as any).reviewUserId}`} className="font-semibold hover:underline">
+                              {(item as any).reviewUserName}
+                            </Link>
+                            's review of{' '}
+                            <span className="font-semibold">{(item as any).reviewTitle}</span>
+                          </p>
+                        </div>
+                      </div>
                     ) : (
                       <div>
-                        <Link href={`/lists/${item.id}`} className="font-semibold text-lg hover:underline block mb-2" data-testid={`link-list-${item.id}`}>
+                        <Link href={`/lists/${(item as any).listId || item.id}`} className="font-semibold text-lg hover:underline block mb-2" data-testid={`link-list-${item.id}`}>
                           <List className="h-4 w-4 inline mr-2" />
                           {item.title}
                         </Link>
@@ -341,12 +375,12 @@ export default function Community() {
                           </p>
                         )}
                         <div className="flex gap-4 text-sm text-muted-foreground dark:text-muted-foreground">
-                          <span>{item.itemCount || 0} items</span>
+                          <span>{(item as any).itemCount || 0} items</span>
                           <span>{item.followerCount || 0} followers</span>
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Social Context */}
                     {(item as any).socialContext?.followedUsersEngaged?.length > 0 && (
                       <div className="mt-3 pt-3 border-t flex items-center gap-2 text-sm">
@@ -365,7 +399,7 @@ export default function Community() {
                   </CardContent>
                 </Card>
               ))}
-              
+
               {hasNextFeedPage && (
                 <div className="flex justify-center pt-4">
                   <Button
@@ -417,16 +451,16 @@ export default function Community() {
                 </Card>
               ))}
             </div>
-          ) : topReviewsData?.pages?.[0]?.data && topReviewsData.pages.some(page => page.data.length > 0) ? (
+          ) : topReviewsData?.pages?.[0]?.reviews && topReviewsData.pages.some(page => page.reviews?.length > 0) ? (
             <div className="space-y-4">
-              {topReviewsData.pages.flatMap(page => page.data).map((review: TopReview) => (
+              {topReviewsData.pages.flatMap(page => page.reviews ?? []).map((review: TopReview) => (
                 <ReviewCardEnhanced
                   key={review.id}
-                  review={{...review, user: review.user ? {...review.user, profileImageUrl: review.user.profileImageUrl ?? undefined} : undefined}}
+                  review={{ ...review, user: review.user ? { ...review.user, profileImageUrl: review.user.profileImageUrl ?? undefined } : undefined }}
                   currentUserId={user?.id}
                 />
               ))}
-              
+
               {hasNextReviewsPage && (
                 <div className="flex justify-center pt-4">
                   <Button
@@ -473,37 +507,37 @@ export default function Community() {
             <>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {trendingData.pages.flatMap(page => page.data).map((item: TrendingContent) => (
-                <Link
-                  key={`${item.tmdbId}-${item.mediaType}`}
-                  href={`/${item.mediaType}/${item.tmdbId}`}
-                  className="group"
-                  data-testid={`trending-item-${item.tmdbId}`}
-                >
-                  <div className="relative aspect-[2/3] overflow-hidden rounded-lg">
-                    {item.posterPath ? (
-                      <img
-                        src={`https://image.tmdb.org/t/p/w342${item.posterPath}`}
-                        alt={item.title}
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-muted flex items-center justify-center">
-                        <TrendingUp className="h-12 w-12 text-muted-foreground" />
+                  <Link
+                    key={`${item.tmdbId}-${item.mediaType}`}
+                    href={`/${item.mediaType}/${item.tmdbId}`}
+                    className="group"
+                    data-testid={`trending-item-${item.tmdbId}`}
+                  >
+                    <div className="relative aspect-[2/3] overflow-hidden rounded-lg">
+                      {item.posterPath ? (
+                        <img
+                          src={`https://image.tmdb.org/t/p/w342${item.posterPath}`}
+                          alt={item.title}
+                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-muted flex items-center justify-center">
+                          <TrendingUp className="h-12 w-12 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-sm">
+                        <Star className="h-3 w-3 inline mr-1" />
+                        {item.avgRating ? Number(item.avgRating).toFixed(1) : 'N/A'}
                       </div>
-                    )}
-                    <div className="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-sm">
-                      <Star className="h-3 w-3 inline mr-1" />
-                      {item.avgRating ? Number(item.avgRating).toFixed(1) : 'N/A'}
                     </div>
-                  </div>
-                  <h3 className="font-medium mt-2 line-clamp-2 text-sm">{item.title}</h3>
-                  <p className="text-xs text-muted-foreground dark:text-muted-foreground">
-                    {item.ratingCount} {item.ratingCount === 1 ? 'rating' : 'ratings'}
-                  </p>
-                </Link>
-              ))}
+                    <h3 className="font-medium mt-2 line-clamp-2 text-sm">{item.title}</h3>
+                    <p className="text-xs text-muted-foreground dark:text-muted-foreground">
+                      {item.ratingCount} {item.ratingCount === 1 ? 'rating' : 'ratings'}
+                    </p>
+                  </Link>
+                ))}
               </div>
-              
+
               {hasNextTrendingPage && (
                 <div className="flex justify-center pt-4">
                   <Button
@@ -575,19 +609,24 @@ export default function Community() {
                           className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors"
                           data-testid={`top-reviewer-${index}`}
                         >
-                          <span className="text-2xl font-bold text-muted-foreground dark:text-muted-foreground w-8">
-                            {index + 1}
-                          </span>
-                          <Avatar className="h-10 w-10">
+                          <div className="w-8 flex justify-center">
+                            {index === 0 ? <span className="text-2xl">🥇</span> :
+                              index === 1 ? <span className="text-2xl">🥈</span> :
+                                index === 2 ? <span className="text-2xl">🥉</span> :
+                                  <span className="text-xl font-bold text-muted-foreground w-8 text-center">{index + 1}</span>
+                            }
+                          </div>
+                          <Avatar className="h-10 w-10 border-2 border-transparent hover:border-primary transition-all">
                             <AvatarImage src={user.user?.profileImageUrl ?? undefined} />
                             <AvatarFallback>{user.user?.firstName?.[0] || 'U'}</AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">
+                            <p className="font-medium truncate flex items-center gap-2">
                               {user.user?.firstName} {user.user?.lastName}
+                              {user.userLevel && user.userLevel >= 5 && <Award className="h-3 w-3 text-primary" />}
                             </p>
                             <div className="flex items-center gap-2">
-                              <Badge className={levelInfo.color}>{levelInfo.name}</Badge>
+                              <Badge className={levelInfo.color} variant="secondary">{levelInfo.name}</Badge>
                               <span className="text-sm text-muted-foreground dark:text-muted-foreground">
                                 {user.totalReviews} reviews
                               </span>
@@ -620,19 +659,23 @@ export default function Community() {
                           className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors"
                           data-testid={`top-list-creator-${index}`}
                         >
-                          <span className="text-2xl font-bold text-muted-foreground dark:text-muted-foreground w-8">
-                            {index + 1}
-                          </span>
-                          <Avatar className="h-10 w-10">
+                          <div className="w-8 flex justify-center">
+                            {index === 0 ? <span className="text-2xl">🥇</span> :
+                              index === 1 ? <span className="text-2xl">🥈</span> :
+                                index === 2 ? <span className="text-2xl">🥉</span> :
+                                  <span className="text-xl font-bold text-muted-foreground w-8 text-center">{index + 1}</span>
+                            }
+                          </div>
+                          <Avatar className="h-10 w-10 border-2 border-transparent hover:border-primary transition-all">
                             <AvatarImage src={user.user?.profileImageUrl ?? undefined} />
                             <AvatarFallback>{user.user?.firstName?.[0] || 'U'}</AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">
+                            <p className="font-medium truncate flex items-center gap-2">
                               {user.user?.firstName} {user.user?.lastName}
                             </p>
                             <div className="flex items-center gap-2">
-                              <Badge className={levelInfo.color}>{levelInfo.name}</Badge>
+                              <Badge className={levelInfo.color} variant="secondary">{levelInfo.name}</Badge>
                               <span className="text-sm text-muted-foreground dark:text-muted-foreground">
                                 {user.totalLists} lists
                               </span>
@@ -665,19 +708,23 @@ export default function Community() {
                           className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors"
                           data-testid={`most-followed-${index}`}
                         >
-                          <span className="text-2xl font-bold text-muted-foreground dark:text-muted-foreground w-8">
-                            {index + 1}
-                          </span>
-                          <Avatar className="h-10 w-10">
+                          <div className="w-8 flex justify-center">
+                            {index === 0 ? <span className="text-2xl">🥇</span> :
+                              index === 1 ? <span className="text-2xl">🥈</span> :
+                                index === 2 ? <span className="text-2xl">🥉</span> :
+                                  <span className="text-xl font-bold text-muted-foreground w-8 text-center">{index + 1}</span>
+                            }
+                          </div>
+                          <Avatar className="h-10 w-10 border-2 border-transparent hover:border-primary transition-all">
                             <AvatarImage src={user.user?.profileImageUrl ?? undefined} />
                             <AvatarFallback>{user.user?.firstName?.[0] || 'U'}</AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">
+                            <p className="font-medium truncate flex items-center gap-2">
                               {user.user?.firstName} {user.user?.lastName}
                             </p>
                             <div className="flex items-center gap-2">
-                              <Badge className={levelInfo.color}>{levelInfo.name}</Badge>
+                              <Badge className={levelInfo.color} variant="secondary">{levelInfo.name}</Badge>
                               <span className="text-sm text-muted-foreground dark:text-muted-foreground">
                                 {user.totalFollowers} followers
                               </span>
@@ -710,19 +757,23 @@ export default function Community() {
                           className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors"
                           data-testid={`most-awarded-${index}`}
                         >
-                          <span className="text-2xl font-bold text-muted-foreground dark:text-muted-foreground w-8">
-                            {index + 1}
-                          </span>
-                          <Avatar className="h-10 w-10">
+                          <div className="w-8 flex justify-center">
+                            {index === 0 ? <span className="text-2xl">🥇</span> :
+                              index === 1 ? <span className="text-2xl">🥈</span> :
+                                index === 2 ? <span className="text-2xl">🥉</span> :
+                                  <span className="text-xl font-bold text-muted-foreground w-8 text-center">{index + 1}</span>
+                            }
+                          </div>
+                          <Avatar className="h-10 w-10 border-2 border-transparent hover:border-primary transition-all">
                             <AvatarImage src={user.user?.profileImageUrl ?? undefined} />
                             <AvatarFallback>{user.user?.firstName?.[0] || 'U'}</AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">
+                            <p className="font-medium truncate flex items-center gap-2">
                               {user.user?.firstName} {user.user?.lastName}
                             </p>
                             <div className="flex items-center gap-2">
-                              <Badge className={levelInfo.color}>{levelInfo.name}</Badge>
+                              <Badge className={levelInfo.color} variant="secondary">{levelInfo.name}</Badge>
                               <span className="text-sm text-muted-foreground dark:text-muted-foreground">
                                 {user.totalAwardsReceived} awards
                               </span>
@@ -795,9 +846,13 @@ export default function Community() {
                                   </Link>
                                   {item.type === 'review' ? (
                                     <Badge variant="secondary" className="text-xs">Reviewed</Badge>
-                                  ) : (
+                                  ) : item.type === 'list' ? (
                                     <Badge variant="secondary" className="text-xs">Created List</Badge>
-                                  )}
+                                  ) : item.type === 'watchlist' ? (
+                                    <Badge variant="secondary" className="text-xs">Added to Watchlist</Badge>
+                                  ) : item.type === 'award' ? (
+                                    <Badge variant="secondary" className="text-xs">Awarded Review</Badge>
+                                  ) : null}
                                 </div>
                                 <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                                   {item.createdAt && formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
@@ -831,7 +886,7 @@ export default function Community() {
                                 </p>
                               </div>
                             </div>
-                          ) : (
+                          ) : item.type === 'list' ? (
                             <div>
                               <Link href={`/lists/${item.id}`} className="font-semibold text-lg hover:underline block mb-2">
                                 <List className="h-4 w-4 inline mr-2" />
@@ -847,11 +902,28 @@ export default function Community() {
                                 <span>{item.followerCount || 0} followers</span>
                               </div>
                             </div>
-                          )}
+                          ) : item.type === 'watchlist' ? (
+                            <div>
+                              <Link href={`/${item.mediaType}/${item.tmdbId}`} className="font-semibold text-lg hover:underline block mb-2">
+                                <Star className="h-4 w-4 inline mr-2" />
+                                {item.title}
+                              </Link>
+                            </div>
+                          ) : item.type === 'award' ? (
+                            <div>
+                              <p className="text-sm text-muted-foreground mb-1">
+                                Awarded review by {item.reviewUserName}:
+                              </p>
+                              <Link href={`/reviews/${item.reviewId}`} className="font-semibold text-lg hover:underline block mb-2">
+                                <Award className="h-4 w-4 inline mr-2" />
+                                {item.reviewTitle}
+                              </Link>
+                            </div>
+                          ) : null}
                         </CardContent>
                       </Card>
                     ))}
-                    
+
                     {hasNextPersonalizedPage && (
                       <div className="flex justify-center pt-4">
                         <Button
@@ -886,87 +958,87 @@ export default function Community() {
 
               {/* Recommended Lists */}
               {recommendedListsLoading ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => (
-                <Card key={i}>
-                  <CardHeader>
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-24 w-full" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : recommendedLists && Array.isArray(recommendedLists) && recommendedLists.length > 0 ? (
-            <div>
-              <div className="mb-4">
-                <h2 className="text-xl font-semibold">Recommended Lists for You</h2>
-                <p className="text-sm text-muted-foreground dark:text-muted-foreground">
-                  Based on your ratings and favorites
-                </p>
-              </div>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {recommendedLists.map((list: RecommendedList) => (
-                  <Link key={list.id} href={`/lists/${list.id}`}>
-                    <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer" data-testid={`recommended-list-${list.id}`}>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[...Array(6)].map((_, i) => (
+                    <Card key={i}>
                       <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <CardTitle className="text-lg line-clamp-1 flex-1">{list.title}</CardTitle>
-                          <Badge variant="secondary" className="ml-2">
-                            {list.matchPercentage}% match
-                          </Badge>
-                        </div>
-                        <CardDescription className="line-clamp-2">
-                          {list.description || 'No description'}
-                        </CardDescription>
+                        <Skeleton className="h-6 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
                       </CardHeader>
                       <CardContent>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground dark:text-muted-foreground mb-3">
-                          <div className="flex items-center gap-1">
-                            <List className="h-4 w-4" />
-                            <span>{list.itemCount} items</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Users className="h-4 w-4" />
-                            <span>{list.followerCount} followers</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={list.user?.profileImageUrl ?? undefined} />
-                            <AvatarFallback>{list.user?.firstName?.[0] || 'U'}</AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm text-muted-foreground dark:text-muted-foreground">
-                            {list.user?.firstName} {list.user?.lastName}
-                          </span>
-                        </div>
-                        <div className="mt-3 text-xs text-muted-foreground dark:text-muted-foreground">
-                          <Badge variant="outline" className="text-xs">
-                            <Heart className="h-3 w-3 mr-1" />
-                            {list.matchCount} items you loved
-                          </Badge>
-                        </div>
+                        <Skeleton className="h-24 w-full" />
                       </CardContent>
                     </Card>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="py-16 text-center">
-                <div className="max-w-md mx-auto">
-                  <Heart className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-muted-foreground/50 dark:text-muted-foreground/50 mb-4 sm:mb-6" />
-                  <h3 className="text-lg sm:text-xl font-semibold mb-2">No recommendations yet</h3>
-                  <p className="text-sm sm:text-base text-muted-foreground dark:text-muted-foreground px-4 sm:px-0">
-                    Start rating movies and shows to get personalized list recommendations
-                  </p>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : recommendedLists && Array.isArray(recommendedLists) && recommendedLists.length > 0 ? (
+                <div>
+                  <div className="mb-4">
+                    <h2 className="text-xl font-semibold">Recommended Lists for You</h2>
+                    <p className="text-sm text-muted-foreground dark:text-muted-foreground">
+                      Based on your ratings and favorites
+                    </p>
+                  </div>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {recommendedLists.map((list: RecommendedList) => (
+                      <Link key={list.id} href={`/lists/${list.id}`}>
+                        <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer" data-testid={`recommended-list-${list.id}`}>
+                          <CardHeader>
+                            <div className="flex items-start justify-between">
+                              <CardTitle className="text-lg line-clamp-1 flex-1">{list.title}</CardTitle>
+                              <Badge variant="secondary" className="ml-2">
+                                {list.matchPercentage}% match
+                              </Badge>
+                            </div>
+                            <CardDescription className="line-clamp-2">
+                              {list.description || 'No description'}
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground dark:text-muted-foreground mb-3">
+                              <div className="flex items-center gap-1">
+                                <List className="h-4 w-4" />
+                                <span>{list.itemCount} items</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Users className="h-4 w-4" />
+                                <span>{list.followerCount} followers</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-6 w-6">
+                                <AvatarImage src={list.user?.profileImageUrl ?? undefined} />
+                                <AvatarFallback>{list.user?.firstName?.[0] || 'U'}</AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm text-muted-foreground dark:text-muted-foreground">
+                                {list.user?.firstName} {list.user?.lastName}
+                              </span>
+                            </div>
+                            <div className="mt-3 text-xs text-muted-foreground dark:text-muted-foreground">
+                              <Badge variant="outline" className="text-xs">
+                                <Heart className="h-3 w-3 mr-1" />
+                                {list.matchCount} items you loved
+                              </Badge>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-16 text-center">
+                    <div className="max-w-md mx-auto">
+                      <Heart className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-muted-foreground/50 dark:text-muted-foreground/50 mb-4 sm:mb-6" />
+                      <h3 className="text-lg sm:text-xl font-semibold mb-2">No recommendations yet</h3>
+                      <p className="text-sm sm:text-base text-muted-foreground dark:text-muted-foreground px-4 sm:px-0">
+                        Start rating movies and shows to get personalized list recommendations
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Similar Users Section */}
               <div>

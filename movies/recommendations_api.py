@@ -3,6 +3,7 @@ import os
 import re
 import time
 import requests
+import concurrent.futures
 import logging
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET
@@ -12,8 +13,7 @@ from .api import tmdb_request
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_KEY_FALLBACK = "AIzaSyBGMLjZAhyfNyQc5OoJscmaBS8zJEwEDqo"
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '') or GEMINI_API_KEY_FALLBACK
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
 # Initialize Gemini client using new google-genai SDK
 gemini_client = None
@@ -56,9 +56,9 @@ def get_user_context(user):
 
 
 GEMINI_MODELS = [
-    "gemma-3-12b-it",
-    "gemini-2.5-flash",
+    "gemma-3-12b-it", # Prioritize User request
     "gemini-2.0-flash",
+    "gemini-1.5-flash",
 ]
 
 def call_gemini_api(prompt, max_retries=2):
@@ -154,28 +154,6 @@ def parse_movie_recommendations(text):
                 movies.append(title)
     
     return movies[:10]
-
-
-async def search_tmdb_for_movies(movie_titles):
-    results = []
-    for title in movie_titles[:8]:
-        data = tmdb_request("/search/multi", {"query": title, "page": 1})
-        if data.get('results'):
-            for item in data['results'][:1]:
-                if item.get('media_type') in ['movie', 'tv']:
-                    results.append({
-                        'tmdbId': item.get('id'),
-                        'title': item.get('title') or item.get('name'),
-                        'mediaType': item.get('media_type'),
-                        'posterPath': item.get('poster_path'),
-                        'overview': item.get('overview', '')[:200],
-                        'voteAverage': item.get('vote_average'),
-                        'releaseDate': item.get('release_date') or item.get('first_air_date'),
-                    })
-    return results
-
-
-@csrf_exempt
 @require_POST
 def ai_chat(request):
     from django.contrib.auth.models import User
@@ -250,12 +228,14 @@ Keep recommendations relevant to the user's taste based on their profile. Be con
         movie_titles = parse_movie_recommendations(response_text)
         
         movies = []
-        for title in movie_titles[:6]:
+        
+        # Parallelize TMDB searches
+        def search_movie(title):
             search_data = tmdb_request("/search/multi", {"query": title, "page": 1})
             if search_data.get('results'):
                 for item in search_data['results'][:1]:
                     if item.get('media_type') in ['movie', 'tv']:
-                        movies.append({
+                        return {
                             'id': item.get('id'),
                             'tmdbId': item.get('id'),
                             'title': item.get('title') or item.get('name'),
@@ -264,8 +244,15 @@ Keep recommendations relevant to the user's taste based on their profile. Be con
                             'overview': item.get('overview', ''),
                             'vote_average': item.get('vote_average'),
                             'release_date': item.get('release_date') or item.get('first_air_date'),
-                        })
-                        break
+                        }
+            return None
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+            future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:6]}
+            for future in concurrent.futures.as_completed(future_to_title):
+                result = future.result()
+                if result:
+                    movies.append(result)
         
         return JsonResponse({
             'response': response_text,
@@ -276,9 +263,6 @@ Keep recommendations relevant to the user's taste based on their profile. Be con
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-
-
-@csrf_exempt
 @require_POST
 def save_preferences(request):
     if not request.user.is_authenticated:
@@ -347,127 +331,8 @@ def get_preferences(request, user_id):
         })
 
 
-@require_GET
-def get_personalized_recommendations(request, user_id):
-    if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
-    
-    if str(request.user.id) != str(user_id):
-        return JsonResponse({'error': 'Not authorized'}, status=403)
-    
-    user_context = get_user_context(request.user)
-    
-    genre_ids = []
-    if user_context['preferred_genres']:
-        genre_map = {
-            'Action': 28, 'Adventure': 12, 'Animation': 16, 'Comedy': 35,
-            'Crime': 80, 'Documentary': 99, 'Drama': 18, 'Family': 10751,
-            'Fantasy': 14, 'History': 36, 'Horror': 27, 'Music': 10402,
-            'Mystery': 9648, 'Romance': 10749, 'Science Fiction': 878,
-            'Thriller': 53, 'War': 10752, 'Western': 37
-        }
-        for genre in user_context['preferred_genres'][:2]:
-            if genre in genre_map:
-                genre_ids.append(genre_map[genre])
-    
-    if genre_ids:
-        params = {
-            "with_genres": ','.join(map(str, genre_ids)),
-            "sort_by": "popularity.desc",
-            "page": 1
-        }
-        data = tmdb_request("/discover/movie", params)
-    else:
-        data = tmdb_request("/movie/popular", {"page": 1})
-    
-    movies = data.get('results', [])[:12]
-    
-    return JsonResponse({
-        'recommendations': [{
-            'id': m.get('id'),
-            'tmdbId': m.get('id'),
-            'title': m.get('title') or m.get('name'),
-            'mediaType': 'movie',
-            'posterPath': m.get('poster_path'),
-            'overview': m.get('overview', ''),
-            'voteAverage': m.get('vote_average'),
-            'releaseDate': m.get('release_date'),
-            'reason': f"Based on your preference for {', '.join(user_context['preferred_genres'][:2]) if user_context['preferred_genres'] else 'popular movies'}"
-        } for m in movies],
-        'type': 'personalized'
-    })
 
 
-@csrf_exempt
-@require_POST
-def unified_recommendations(request):
-    from django.contrib.auth.models import User
-    
-    user = request.user if request.user.is_authenticated else None
-    if not user:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({
-                'recommendations': [],
-                'type': 'popular',
-                'message': 'Login for personalized recommendations'
-            })
-    
-    try:
-        data = json.loads(request.body) if request.body else {}
-    except json.JSONDecodeError:
-        data = {}
-    
-    media_type = data.get('mediaType', 'movie')
-    limit = data.get('limit', 20)
-    
-    user_context = get_user_context(user)
-    
-    genre_ids = []
-    genre_map = {
-        'Action': 28, 'Adventure': 12, 'Animation': 16, 'Comedy': 35,
-        'Crime': 80, 'Documentary': 99, 'Drama': 18, 'Family': 10751,
-        'Fantasy': 14, 'History': 36, 'Horror': 27, 'Music': 10402,
-        'Mystery': 9648, 'Romance': 10749, 'Science Fiction': 878,
-        'Thriller': 53, 'War': 10752, 'Western': 37
-    }
-    
-    for genre in user_context['preferred_genres'][:3]:
-        if genre in genre_map:
-            genre_ids.append(genre_map[genre])
-    
-    if genre_ids:
-        endpoint = "/discover/movie" if media_type == 'movie' else "/discover/tv"
-        params = {
-            "with_genres": ','.join(map(str, genre_ids)),
-            "sort_by": "popularity.desc",
-            "page": 1
-        }
-        data_result = tmdb_request(endpoint, params)
-    else:
-        endpoint = "/movie/popular" if media_type == 'movie' else "/tv/popular"
-        data_result = tmdb_request(endpoint, {"page": 1})
-    
-    movies = data_result.get('results', [])[:limit]
-    
-    return JsonResponse({
-        'recommendations': [{
-            'id': m.get('id'),
-            'tmdbId': m.get('id'),
-            'title': m.get('title') or m.get('name'),
-            'mediaType': media_type,
-            'posterPath': m.get('poster_path'),
-            'overview': m.get('overview', ''),
-            'voteAverage': m.get('vote_average'),
-            'releaseDate': m.get('release_date') or m.get('first_air_date'),
-            'reason': 'Based on your preferences' if genre_ids else 'Popular pick',
-            'confidence': 0.85 if genre_ids else 0.5,
-            'recommendationType': 'hybrid' if genre_ids else 'popular'
-        } for m in movies],
-        'type': 'unified',
-        'userId': str(user.id)
-    })
 
 
 @require_GET
@@ -591,7 +456,7 @@ def pattern_predict(request, user_id):
 @require_GET
 def explain_with_gemini(request):
     """Generate compelling explanation for why two movies match (using Gemini AI)"""
-    from .ml.explainability_engine import ExplainabilityEngine
+    from .ml.explainability_engine import explainability_engine as engine
     
     source_title = request.GET.get('sourceTitle', '')
     source_overview = request.GET.get('sourceOverview', '')
@@ -601,7 +466,6 @@ def explain_with_gemini(request):
     if not all([source_title, recommended_title]):
         return JsonResponse({'error': 'Missing required parameters'}, status=400)
     
-    engine = ExplainabilityEngine()
     explanation = engine.generate_gemini_explanation(
         source_title, source_overview or '',
         recommended_title, recommended_overview or ''
@@ -615,59 +479,3 @@ def explain_with_gemini(request):
     })
 
 
-@require_GET
-def get_user_recommendations_for_content(request, tmdb_id, media_type):
-    from .models import UserRecommendation, RecommendationVote
-    from django.contrib.auth.models import User
-    
-    # Get current user for checking their votes
-    current_user = None
-    user_id = request.GET.get('userId')
-    if request.user.is_authenticated:
-        current_user = request.user
-    elif user_id:
-        try:
-            current_user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            pass
-    
-    from django.db.models import Count, Q
-    
-    recommendations = UserRecommendation.objects.filter(
-        for_tmdb_id=tmdb_id,
-        for_media_type=media_type
-    ).select_related('user').annotate(
-        like_count_db=Count('votes', filter=Q(votes__vote_type='like')),
-        dislike_count_db=Count('votes', filter=Q(votes__vote_type='dislike'))
-    ).order_by('-like_count_db', 'dislike_count_db', '-created_at')[:20]
-    
-    result = []
-    for r in recommendations:
-        like_count = r.votes.filter(vote_type='like').count()
-        dislike_count = r.votes.filter(vote_type='dislike').count()
-        
-        # Check if current user has voted
-        user_vote = None
-        if current_user:
-            try:
-                vote = RecommendationVote.objects.get(recommendation=r, user=current_user)
-                user_vote = vote.vote_type
-            except RecommendationVote.DoesNotExist:
-                pass
-        
-        result.append({
-            'id': r.id,
-            'userId': str(r.user.id),
-            'userName': r.user.first_name or r.user.email,
-            'recommendedTmdbId': r.recommended_tmdb_id,
-            'recommendedMediaType': r.recommended_media_type,
-            'recommendedTitle': r.recommended_title,
-            'recommendedPosterPath': r.recommended_poster_path,
-            'reason': r.reason,
-            'createdAt': r.created_at.isoformat(),
-            'likeCount': like_count,
-            'dislikeCount': dislike_count,
-            'userVote': user_vote,
-        })
-    
-    return JsonResponse({'recommendations': result})

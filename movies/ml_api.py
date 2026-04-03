@@ -205,21 +205,52 @@ def get_user_similarity(request, user_id):
 @csrf_exempt
 def semantic_search(request):
     """Semantic search for movies/TV shows with TF-IDF similarity scores"""
-    if request.method != 'POST':
+    if request.method not in ['POST', 'GET']:
         return JsonResponse({"error": "Method not allowed"}, status=405)
     
     import time
     start_time = time.time()
     
     try:
-        body = json.loads(request.body)
-        query = body.get('query', '')
-        limit = min(body.get('limit', 20), 100)
-        filters = body.get('filters', {})
+        if request.method == 'POST':
+            body = json.loads(request.body)
+            query = body.get('query', '')
+            limit = min(body.get('limit', 20), 100)
+            filters = body.get('filters', {})
+        else:
+            query = request.GET.get('query', '')
+            try:
+                limit = min(int(request.GET.get('limit', 20)), 100)
+            except ValueError:
+                limit = 20
+            filters = {}
         
         if not query:
             return JsonResponse({"error": "query is required"}, status=400)
-        
+        from .ml.pinecone_service import pinecone_service
+        if pinecone_service.is_initialized():
+            pinecone_results = pinecone_service.search(query, k=limit)
+            if pinecone_results:
+                formatted_results = []
+                for item in pinecone_results:
+                    formatted_results.append({
+                        'tmdbId': item.get('id'),
+                        'title': item.get('title'),
+                        'overview': item.get('overview'),
+                        'posterPath': item.get('poster_path'),
+                        'releaseDate': item.get('release_date'),
+                        'voteAverage': item.get('vote_average'),
+                        'genres': [],
+                        'mediaType': 'movie',
+                        'similarity': item.get('similarity'),
+                        'explanation': item.get('explanation')
+                    })
+                return JsonResponse({
+                    'results': formatted_results,
+                    'query': query,
+                    'count': len(formatted_results)
+                })
+
         from . import api
         from .ml.embedding_service import semantic_embedding_service
         
@@ -1020,5 +1051,62 @@ def get_viewing_patterns(request, user_id):
         
         return JsonResponse(result)
         
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@require_GET
+def get_similar_movies_semantic(request, tmdb_id):
+    """Get semantically similar movies using vector search (Pinecone) with TMDB fallback."""
+    try:
+        limit = min(int(request.GET.get('limit', 10)), 50)
+        media_type = request.GET.get('media_type', 'movie')
+
+        similar_items = []
+
+        # Try Pinecone vector search first
+        try:
+            from .ml.pinecone_service import pinecone_service
+            results = pinecone_service.search_similar(tmdb_id, media_type, top_k=limit)
+            if results:
+                similar_items = [
+                    {
+                        'tmdb_id': r.get('tmdb_id'),
+                        'title': r.get('title', ''),
+                        'poster_path': r.get('poster_path'),
+                        'similarity_score': round(r.get('score', 0.0), 3),
+                        'media_type': r.get('media_type', media_type),
+                        'type': 'semantic_vector',
+                    }
+                    for r in results if r.get('tmdb_id') != tmdb_id
+                ]
+        except Exception:
+            pass
+
+        # Fallback: TMDB similar endpoint
+        if not similar_items:
+            from . import api
+            endpoint = f"/{media_type}/{tmdb_id}/similar"
+            result = api.tmdb_request(endpoint)
+            if 'results' in result:
+                similar_items = [
+                    {
+                        'tmdb_id': item['id'],
+                        'title': item.get('title') or item.get('name', ''),
+                        'poster_path': item.get('poster_path'),
+                        'similarity_score': round(item.get('vote_average', 7.0) / 10, 3),
+                        'media_type': media_type,
+                        'type': 'tmdb_similar',
+                    }
+                    for item in result['results'][:limit]
+                ]
+
+        return JsonResponse({
+            "tmdb_id": tmdb_id,
+            "media_type": media_type,
+            "similar_items": similar_items,
+            "count": len(similar_items),
+        })
+
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

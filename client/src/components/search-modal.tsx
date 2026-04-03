@@ -8,6 +8,7 @@ import { tmdbService } from "@/lib/tmdb";
 import { Search, X, Film, Tv, User, Building } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { logSearchInteraction } from "@/lib/feedback";
 
 interface SearchModalProps {
   open: boolean;
@@ -45,7 +46,7 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
     queryKey: ['/api/tmdb/search/multi', query],
     queryFn: async () => {
       if (!query.trim()) return { results: [] };
-      
+
       const results = await tmdbService.searchMulti(query);
       return results;
     },
@@ -85,33 +86,33 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
 
   const sortByRelevance = (results: any[], searchQuery: string) => {
     if (!results || results.length === 0) return [];
-    
+
     const query = searchQuery.toLowerCase().trim();
-    
+
     return [...results].sort((a, b) => {
       const titleA = (a.title || a.name || '').toLowerCase();
       const titleB = (b.title || b.name || '').toLowerCase();
-      
+
       const exactMatchA = titleA === query;
       const exactMatchB = titleB === query;
       if (exactMatchA && !exactMatchB) return -1;
       if (!exactMatchA && exactMatchB) return 1;
-      
+
       const startsWithA = titleA.startsWith(query);
       const startsWithB = titleB.startsWith(query);
       if (startsWithA && !startsWithB) return -1;
       if (!startsWithA && startsWithB) return 1;
-      
+
       const containsWordA = titleA.includes(` ${query}`) || titleA.startsWith(`${query} `);
       const containsWordB = titleB.includes(` ${query}`) || titleB.startsWith(`${query} `);
       if (containsWordA && !containsWordB) return -1;
       if (!containsWordA && containsWordB) return 1;
-      
+
       const containsA = titleA.includes(query);
       const containsB = titleB.includes(query);
       if (containsA && !containsB) return -1;
       if (!containsA && containsB) return 1;
-      
+
       const popularityA = a.popularity || 0;
       const popularityB = b.popularity || 0;
       return popularityB - popularityA;
@@ -141,14 +142,20 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
       default:
         results = searchResults?.results || [];
     }
-    
+
     return sortByRelevance(results, query);
   };
 
   const handleResultClick = (result: any) => {
     onOpenChange(false);
+
+    // Log interaction
+    if (query.length >= 2) {
+      logSearchInteraction(query, result.id, result.media_type || 'movie');
+    }
+
     setQuery("");
-    
+
     if (result.media_type === 'movie' || result.title) {
       setLocation(`/movie/${result.id}`);
     } else if (result.media_type === 'tv' || result.name) {
@@ -205,10 +212,13 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
+              id="search-modal-input"
+              name="search"
               placeholder="Search for movies, TV shows, franchises (e.g., 'Thor')..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="pl-10 pr-10"
+              autoComplete="off"
               autoFocus
             />
             {query && (
@@ -262,8 +272,8 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
                     const Icon = getResultIcon(result);
                     const imageUrl = getImageUrl(result);
                     const title = result.title || result.name;
-                    const year = result.release_date ? new Date(result.release_date).getFullYear() : 
-                                result.first_air_date ? new Date(result.first_air_date).getFullYear() : null;
+                    const year = result.release_date ? new Date(result.release_date).getFullYear() :
+                      result.first_air_date ? new Date(result.first_air_date).getFullYear() : null;
 
                     return (
                       <div
@@ -282,7 +292,7 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
                             <Icon className="h-6 w-6 text-muted-foreground" />
                           </div>
                         )}
-                        
+
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2">
                             <h4 className="font-medium truncate">{title}</h4>
@@ -290,28 +300,28 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
                               <span className="text-sm text-muted-foreground">({year})</span>
                             )}
                           </div>
-                          
+
                           {result.overview && (
                             <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
                               {result.overview}
                             </p>
                           )}
-                          
+
                           {result.known_for_department && (
                             <p className="text-sm text-muted-foreground mt-1">
                               {result.known_for_department}
                             </p>
                           )}
-                          
+
                           <div className="flex items-center space-x-2 mt-1">
                             <Badge variant="outline" className="text-xs">
                               {result.media_type === 'movie' || result.title ? 'Movie' :
-                               result.media_type === 'tv' || result.first_air_date ? 'TV Show' :
-                               result.media_type === 'person' || result.known_for_department ? 'Person' :
-                               activeTab === 'collections' || (result.backdrop_path !== undefined && !result.overview) ? 'Collection' :
-                               'Company'}
+                                result.media_type === 'tv' || result.first_air_date ? 'TV Show' :
+                                  result.media_type === 'person' || result.known_for_department ? 'Person' :
+                                    activeTab === 'collections' || (result.backdrop_path !== undefined && !result.overview) ? 'Collection' :
+                                      'Company'}
                             </Badge>
-                            
+
                             {result.vote_average && result.vote_average > 0 && (
                               <Badge variant="secondary" className="text-xs">
                                 ⭐ {result.vote_average.toFixed(1)}

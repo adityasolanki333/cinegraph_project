@@ -575,6 +575,70 @@ def create_rating(request):
 
 
 @csrf_exempt
+@require_http_methods(["GET", "PATCH", "PUT", "DELETE"])
+def manage_rating(request, review_id):
+    """Get, update or delete a specific rating/review by its ID."""
+    try:
+        review = UserReview.objects.get(id=review_id)
+    except UserReview.DoesNotExist:
+        return JsonResponse({'error': 'Rating not found'}, status=404)
+
+    if request.method == "GET":
+        return JsonResponse({
+            'id': review.id,
+            'tmdbId': review.tmdb_id,
+            'mediaType': review.media_type,
+            'title': review.title,
+            'rating': review.rating,
+            'review': review.review_text,
+            'isPublic': review.is_public,
+            'helpfulCount': review.helpful_count,
+            'createdAt': review.created_at.isoformat(),
+            'user': {
+                'id': str(review.user.id),
+                'firstName': review.user.first_name,
+                'lastName': review.user.last_name,
+            }
+        })
+
+    # Mutations require ownership
+    if not request.user.is_authenticated:
+        try:
+            acting_user = User.objects.get(username='demo_user')
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+    else:
+        acting_user = request.user
+
+    if review.user != acting_user:
+        return JsonResponse({'error': 'Not authorized'}, status=403)
+
+    if request.method == "DELETE":
+        review.delete()
+        return JsonResponse({'success': True, 'deleted': True})
+
+    # PATCH / PUT — update rating and/or review text
+    try:
+        data = json.loads(request.body)
+        if 'rating' in data:
+            review.rating = data['rating']
+        if 'reviewText' in data:
+            review.review_text = data['reviewText']
+        if 'isPublic' in data:
+            review.is_public = data['isPublic']
+        review.save()
+        return JsonResponse({
+            'success': True,
+            'id': review.id,
+            'rating': review.rating,
+            'review': review.review_text,
+            'isPublic': review.is_public,
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+
+@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def get_review_comments(request, review_id):
     try:
@@ -1768,28 +1832,27 @@ def get_community_feed(request):
 @require_GET
 def get_leaderboards(request):
     top_reviewers = UserActivityStats.objects.order_by('-total_reviews')[:10]
-    top_followed = UserActivityStats.objects.order_by('-total_followers')[:10]
-    top_levels = UserActivityStats.objects.order_by('-experience_points')[:10]
+    top_followers = UserActivityStats.objects.order_by('-total_followers')[:10]
+    top_lists = UserActivityStats.objects.order_by('-total_lists')[:10]
+    top_awards_received = UserActivityStats.objects.order_by('-total_awards_received')[:10]
     
+    def format_user(s, stat_key, stat_val):
+        return {
+            'userId': str(s.user.id),
+            'userLevel': s.user_level,
+            stat_key: stat_val,
+            'user': {
+                'firstName': s.user.first_name or s.user.username,
+                'lastName': s.user.last_name,
+                'profileImageUrl': s.user.profile.profile_image_url if hasattr(s.user, 'profile') else None
+            }
+        }
+
     return JsonResponse({
-        'topReviewers': [{
-            'userId': str(s.user.id),
-            'userName': s.user.first_name or s.user.email,
-            'reviewCount': s.total_reviews,
-            'level': s.user_level,
-        } for s in top_reviewers],
-        'topFollowed': [{
-            'userId': str(s.user.id),
-            'userName': s.user.first_name or s.user.email,
-            'followerCount': s.total_followers,
-            'level': s.user_level,
-        } for s in top_followed],
-        'topLevels': [{
-            'userId': str(s.user.id),
-            'userName': s.user.first_name or s.user.email,
-            'level': s.user_level,
-            'xp': s.experience_points,
-        } for s in top_levels],
+        'topReviewers': [format_user(s, 'totalReviews', s.total_reviews) for s in top_reviewers],
+        'topListCreators': [format_user(s, 'totalLists', s.total_lists) for s in top_lists],
+        'mostFollowed': [format_user(s, 'totalFollowers', s.total_followers) for s in top_followers],
+        'mostAwarded': [format_user(s, 'totalAwardsReceived', s.total_awards_received) for s in top_awards_received],
     })
 
 
@@ -1802,18 +1865,22 @@ def get_trending_content(request):
     from django.db.models import Count
     trending = UserReview.objects.values('tmdb_id', 'media_type', 'title', 'poster_path').annotate(
         review_count=Count('id')
-    ).order_by('-review_count')[offset:offset + limit]
+    ).order_by('-review_count')[offset:offset + limit + 1]
+    
+    has_more = len(trending) > limit
+    results = list(trending[:limit])
     
     return JsonResponse({
-        'trending': [{
+        'data': [{
             'tmdbId': t['tmdb_id'],
             'mediaType': t['media_type'],
             'title': t['title'],
             'posterPath': t['poster_path'],
-            'reviewCount': t['review_count'],
-        } for t in trending],
+            'ratingCount': t['review_count'],
+        } for t in results],
         'offset': offset,
-        'hasMore': len(trending) == limit
+        'nextOffset': offset + limit if has_more else None,
+        'hasMore': has_more
     })
 
 
@@ -2109,6 +2176,200 @@ def demo_user_impact(request):
         next_rank_score = 5
         progress = int(engagement_score / 5 * 100)
     
+    return JsonResponse({
+        'reviewStats': {
+            'totalReviews': reviews_count,
+            'averageRatingGiven': round(avg_rating, 1),
+            'mostActiveGenre': 'Action',
+        },
+        'listStats': {
+            'totalLists': lists_created,
+            'totalListFollowers': list_followers,
+            'totalItemsInLists': list_items,
+        },
+        'socialStats': {
+            'followerCount': followers_count,
+            'followingCount': following_count,
+            'profileViews': 0,
+        },
+        'engagementReceived': {
+            'totalAwardsReceived': awards_received,
+            'totalCommentsReceived': comments_received,
+            'totalReviewLikes': total_helpful,
+        },
+        'communityRank': {
+            'rank': rank,
+            'engagementScore': engagement_score,
+            'progressToNextRank': min(progress, 100),
+            'nextRankScore': next_rank_score,
+        }
+    })
+
+
+@csrf_exempt
+@require_http_methods(["GET", "PUT", "PATCH", "DELETE"])
+def manage_community_list(request, list_id):
+    """GET/update/delete a community list by ID."""
+    try:
+        lst = UserList.objects.get(id=list_id)
+    except UserList.DoesNotExist:
+        return JsonResponse({'error': 'List not found'}, status=404)
+
+    if request.method == "GET":
+        if not lst.is_public:
+            if not request.user.is_authenticated or request.user.id != lst.user.id:
+                return JsonResponse({'error': 'Not authorized'}, status=403)
+        items = ListItem.objects.filter(list=lst)
+        return JsonResponse({
+            'list': {
+                'id': lst.id,
+                'title': lst.title,
+                'description': lst.description,
+                'isPublic': lst.is_public,
+                'followerCount': lst.follower_count,
+                'createdAt': lst.created_at.isoformat(),
+                'updatedAt': lst.updated_at.isoformat(),
+                'user': {
+                    'id': str(lst.user.id),
+                    'firstName': lst.user.first_name,
+                    'lastName': lst.user.last_name,
+                },
+                'items': [{
+                    'id': item.id,
+                    'tmdbId': item.tmdb_id,
+                    'mediaType': item.media_type,
+                    'title': item.title,
+                    'posterPath': item.poster_path,
+                    'note': item.note,
+                    'position': item.position,
+                    'addedAt': item.added_at.isoformat(),
+                } for item in items]
+            }
+        })
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+    if lst.user != request.user:
+        return JsonResponse({'error': 'Not authorized'}, status=403)
+
+    if request.method == "DELETE":
+        lst.delete()
+        return JsonResponse({'success': True})
+
+    try:
+        data = json.loads(request.body)
+        if 'title' in data:
+            lst.title = data['title']
+        if 'description' in data:
+            lst.description = data['description']
+        if 'isPublic' in data:
+            lst.is_public = data['isPublic']
+        lst.save()
+        return JsonResponse({
+            'success': True,
+            'list': {'id': lst.id, 'title': lst.title, 'description': lst.description, 'isPublic': lst.is_public}
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+
+@require_GET
+def is_following_list(request, list_id):
+    """Check if the current user is following a specific list."""
+    if not request.user.is_authenticated:
+        return JsonResponse({'isFollowing': False})
+    exists = ListFollow.objects.filter(user=request.user, list_id=list_id).exists()
+    return JsonResponse({'isFollowing': exists})
+
+
+@require_GET
+def get_user_badge_progress(request, user_id):
+    """Get badge progress for a real user (not just demo)."""
+    try:
+        user = User.objects.get(id=user_id)
+    except (User.DoesNotExist, ValueError):
+        try:
+            user = User.objects.get(username=user_id)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+
+    badges = UserBadge.objects.filter(user=user)
+    earned_badge_types = set(b.badge_type for b in badges)
+
+    reviews_count = UserReview.objects.filter(user=user).count()
+    lists_count = UserList.objects.filter(user=user).count()
+    followers_count = UserFollow.objects.filter(following=user).count()
+
+    badge_definitions = [
+        {'badgeType': 'first_review', 'name': 'First Review', 'description': 'Write your first review',
+         'icon': '⭐', 'requiredValue': 1, 'currentValue': min(reviews_count, 1)},
+        {'badgeType': 'review_master', 'name': 'Review Master', 'description': 'Write 50 reviews',
+         'icon': '🏆', 'requiredValue': 50, 'currentValue': min(reviews_count, 50)},
+        {'badgeType': 'list_creator', 'name': 'List Creator', 'description': 'Create your first list',
+         'icon': '📝', 'requiredValue': 1, 'currentValue': min(lists_count, 1)},
+        {'badgeType': 'social_butterfly', 'name': 'Social Butterfly', 'description': 'Get 10 followers',
+         'icon': '🦋', 'requiredValue': 10, 'currentValue': min(followers_count, 10)},
+        {'badgeType': 'movie_buff', 'name': 'Movie Buff', 'description': 'Write 100 reviews',
+         'icon': '🎬', 'requiredValue': 100, 'currentValue': min(reviews_count, 100)},
+    ]
+
+    badge_progress = []
+    for badge in badge_definitions:
+        earned = badge['badgeType'] in earned_badge_types or badge['currentValue'] >= badge['requiredValue']
+        progress_pct = min(100, int((badge['currentValue'] / badge['requiredValue']) * 100)) if badge['requiredValue'] > 0 else 0
+        badge_progress.append({
+            'badgeType': badge['badgeType'],
+            'name': badge['name'],
+            'description': badge['description'],
+            'icon': badge['icon'],
+            'earned': earned,
+            'currentValue': badge['currentValue'],
+            'requiredValue': badge['requiredValue'],
+            'progressPercentage': progress_pct,
+        })
+
+    return JsonResponse(badge_progress, safe=False)
+
+
+@require_GET
+def get_user_impact(request, user_id):
+    """Get impact stats for a real user."""
+    try:
+        user = User.objects.get(id=user_id)
+    except (User.DoesNotExist, ValueError):
+        try:
+            user = User.objects.get(username=user_id)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+
+    reviews_count = UserReview.objects.filter(user=user).count()
+    avg_rating = UserReview.objects.filter(user=user).aggregate(avg=Avg('rating'))['avg'] or 0
+    total_helpful = sum(r.helpful_count for r in UserReview.objects.filter(user=user))
+    awards_received = ReviewAward.objects.filter(review__user=user).count()
+    comments_received = ReviewComment.objects.filter(review__user=user).count()
+    lists_created = UserList.objects.filter(user=user).count()
+    list_items = ListItem.objects.filter(list__user=user).count()
+    list_followers = sum(l.follower_count for l in UserList.objects.filter(user=user))
+    followers_count = UserFollow.objects.filter(following=user).count()
+    following_count = UserFollow.objects.filter(follower=user).count()
+
+    engagement_score = reviews_count * 2 + lists_created * 5 + awards_received + followers_count * 3
+
+    if engagement_score >= 100:
+        rank, next_rank_score, progress = "Legend", 100, 100
+    elif engagement_score >= 50:
+        rank, next_rank_score = "Expert", 100
+        progress = int((engagement_score - 50) / 50 * 100)
+    elif engagement_score >= 20:
+        rank, next_rank_score = "Active Member", 50
+        progress = int((engagement_score - 20) / 30 * 100)
+    elif engagement_score >= 5:
+        rank, next_rank_score = "Contributor", 20
+        progress = int((engagement_score - 5) / 15 * 100)
+    else:
+        rank, next_rank_score = "Newcomer", 5
+        progress = int(engagement_score / 5 * 100) if engagement_score > 0 else 0
+
     return JsonResponse({
         'reviewStats': {
             'totalReviews': reviews_count,

@@ -3,8 +3,8 @@ import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import MediaCard from "@/components/media-card";
-import MovieCardSkeleton from "@/components/movie-card-skeleton";
+import { MediaCard } from "@/components/media-card";
+import MediaCardSkeleton from "@/components/media-card-skeleton";
 
 interface SimilarContentProps {
   title: string;
@@ -85,7 +85,7 @@ export function SimilarContent({ title, overview, mediaType, currentTmdbId }: Si
           <div className="flex gap-4 pb-4">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="w-[150px] sm:w-[180px] md:w-[200px] flex-shrink-0">
-                <MovieCardSkeleton />
+                <MediaCardSkeleton />
               </div>
             ))}
           </div>

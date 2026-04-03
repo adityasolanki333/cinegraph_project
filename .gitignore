@@ -1,3 +1,6 @@
+# =========================
+# Python / Django
+# =========================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -18,13 +21,74 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
+
+# Django specifics
+*.sqlite3
+db.sqlite3
+staticfiles/
+media/
+local_settings.py
+
+# =========================
+# Environment & Secrets
+# =========================
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# =========================
+# Virtual Environments
+# =========================
 .venv
 env/
 venv/
 ENV/
 .pythonlibs/
-*.sqlite3
-db.sqlite3
-.DS_Store
+
+# =========================
+# Node / Frontend
+# =========================
+node_modules/
+dist/
+.cache/
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# =========================
+# Logs & Debug
+# =========================
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# OS & Editor
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# Replit artefacts
+# =========================
+.replit
+.replit_1
+.local/
+
+# =========================
+# Misc / large assets
+# =========================
+datasets/
+attached_assets/
+pyproject.toml
+reportprevious.md
+Interview/
+testsprite_tests/

@@ -4,8 +4,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
 
-RAPIDAPI_KEY_FALLBACK = "f211fb0407msh16b537f5b506933p188349jsn78ffb04fc791"
-RAPIDAPI_KEY = os.environ.get('RAPIDAPI_KEY', '') or RAPIDAPI_KEY_FALLBACK
+RAPIDAPI_KEY = os.environ.get('RAPIDAPI_KEY', '')
 
 
 def rapidapi_request(url, host):

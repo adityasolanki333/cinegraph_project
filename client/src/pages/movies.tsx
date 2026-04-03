@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import MovieCard from "@/components/movie-card";
+import { MediaCard } from "@/components/media-card";
 import MediaCardSkeleton from "@/components/media-card-skeleton";
 import Pagination from "@/components/pagination";
 import { tmdbService } from "@/lib/tmdb";
@@ -109,20 +109,20 @@ export default function Movies() {
       } else if (indianRegion === 'south') {
         allowedLanguages = ['ta', 'te', 'ml', 'kn']; // Tamil, Telugu, Malayalam, Kannada
       }
-      
+
       // If there's a search query, use the search API and apply filters
       if (indianSearchQuery) {
         const response = await fetch(`/api/tmdb/search/movies?query=${encodeURIComponent(indianSearchQuery)}&page=${indianPage}`);
         if (!response.ok) throw new Error('Failed to search Indian movies');
         const data = await response.json();
-        
+
         // Filter results by language (region), genre, and year
         const filteredResults = data.results.filter((movie: any) => {
           // Check language
           if (!movie.original_language || !allowedLanguages.includes(movie.original_language)) {
             return false;
           }
-          
+
           // Check genre if selected
           if (indianGenre !== "all") {
             const genreId = genresData?.find((g: any) => g.name === indianGenre)?.id;
@@ -130,7 +130,7 @@ export default function Movies() {
               return false;
             }
           }
-          
+
           // Check year if selected
           if (indianYear !== "all") {
             const releaseYear = movie.release_date?.substring(0, 4);
@@ -138,16 +138,16 @@ export default function Movies() {
               return false;
             }
           }
-          
+
           return true;
         });
-        
+
         return { ...data, results: filteredResults };
       }
-      
+
       // Build query params based on filters for discover API
       const languageParam = allowedLanguages.join('|');
-      
+
       // Determine sort parameter
       let sortParam = 'popularity.desc';
       if (indianSortBy === 'top_rated') {
@@ -155,41 +155,41 @@ export default function Movies() {
       } else if (indianSortBy === 'now_playing') {
         sortParam = 'popularity.desc'; // For now playing, we'll use date filters
       }
-      
+
       const params = new URLSearchParams({
         page: indianPage.toString(),
         region: 'IN',
         with_original_language: languageParam,
         sort_by: sortParam
       });
-      
+
       // If sorting by trending, add recent date range for simulated trending
       if (indianSortBy === 'trending' && !indianSearchQuery) {
         // Get movies from the last 3 months sorted by popularity
         const threeMonthsAgo = new Date();
         threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
         const formattedDate = threeMonthsAgo.toISOString().split('T')[0];
-        
+
         params.append('primary_release_date.gte', formattedDate);
         params.set('sort_by', 'popularity.desc');
         params.append('vote_count.gte', '10'); // Minimum votes to ensure quality
       }
-      
+
       // Add vote count filter for top rated
       if (indianSortBy === 'top_rated') {
         params.append('vote_count.gte', '100');
       }
-      
+
       // Add date filters for now playing
       if (indianSortBy === 'now_playing') {
         const today = new Date();
         const sixtyDaysAgo = new Date(today);
         sixtyDaysAgo.setDate(today.getDate() - 60);
-        
+
         params.append('primary_release_date.gte', sixtyDaysAgo.toISOString().split('T')[0]);
         params.append('primary_release_date.lte', today.toISOString().split('T')[0]);
       }
-      
+
       // Add genre filter if selected
       if (indianGenre !== "all") {
         const genreId = genresData?.find((g: any) => g.name === indianGenre)?.id;
@@ -197,12 +197,12 @@ export default function Movies() {
           params.append('with_genres', genreId.toString());
         }
       }
-      
+
       // Add year filter if selected (override date filters for now playing if year is set)
       if (indianYear !== "all") {
         params.append('primary_release_year', indianYear);
       }
-      
+
       const response = await fetch(`/api/tmdb/discover/movies?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch Indian movies');
       return response.json();
@@ -226,7 +226,7 @@ export default function Movies() {
     queryKey: ['/api/tmdb/movies', searchQuery, selectedGenre, selectedYear, currentPage],
     queryFn: async () => {
       const params: any = { page: currentPage };
-      
+
       if (searchQuery) {
         const searchResults = await tmdbService.searchMovies(searchQuery, currentPage);
         return {
@@ -234,14 +234,14 @@ export default function Movies() {
           total_pages: searchResults.total_pages
         };
       }
-      
+
       if (selectedGenre !== "all") {
         params.with_genres = genresData?.find((g: any) => g.name === selectedGenre)?.id;
       }
       if (selectedYear !== "all") {
         params.primary_release_year = selectedYear;
       }
-      
+
       const discoverResults = await tmdbService.discoverMovies(params);
       return {
         results: discoverResults.results.map(item => tmdbService.convertToMovie(item, 'movie')),
@@ -294,7 +294,7 @@ export default function Movies() {
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
       <div className="mb-6 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold mb-4">Movies & Content Discovery</h1>
-        
+
         {/* Enhanced Tabs Interface */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-5 gap-0.5 sm:gap-1">
@@ -336,7 +336,7 @@ export default function Movies() {
                   data-testid="input-discover-search"
                 />
               </div>
-              
+
               <div className="flex gap-3 sm:gap-4">
                 <Select value={selectedGenre} onValueChange={setSelectedGenre}>
                   <SelectTrigger className="w-full sm:w-[180px]">
@@ -387,15 +387,16 @@ export default function Movies() {
             ) : (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
-                  {movies.map((movie: Movie) => (
-                    <MovieCard
+                  {movies.map((movie: Movie, index: number) => (
+                    <MediaCard
                       key={movie.id}
                       movie={movie}
                       isInWatchlist={isInWatchlist(movie.id)}
+                      priority={index < 4}
                     />
                   ))}
                 </div>
-                
+
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}
@@ -419,18 +420,19 @@ export default function Movies() {
             ) : trendingMovies.length > 0 ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
-                  {trendingMovies.map((movie: any) => {
+                  {trendingMovies.map((movie: any, index: number) => {
                     const convertedMovie = tmdbService.convertToMovie(movie, 'movie');
                     return (
-                      <MovieCard
+                      <MediaCard
                         key={movie.id}
                         movie={convertedMovie}
                         isInWatchlist={isInWatchlist(convertedMovie.id)}
+                        priority={index < 4}
                       />
                     );
                   })}
                 </div>
-                
+
                 <Pagination
                   currentPage={trendingPage}
                   totalPages={trendingTotalPages}
@@ -456,18 +458,19 @@ export default function Movies() {
             ) : nowPlayingMovies.length > 0 ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
-                  {nowPlayingMovies.map((movie: any) => {
+                  {nowPlayingMovies.map((movie: any, index: number) => {
                     const convertedMovie = tmdbService.convertToMovie(movie, 'movie');
                     return (
-                      <MovieCard
+                      <MediaCard
                         key={movie.id}
                         movie={convertedMovie}
                         isInWatchlist={isInWatchlist(convertedMovie.id)}
+                        priority={index < 4}
                       />
                     );
                   })}
                 </div>
-                
+
                 <Pagination
                   currentPage={nowPlayingPage}
                   totalPages={nowPlayingTotalPages}
@@ -493,18 +496,19 @@ export default function Movies() {
             ) : upcomingMovies.length > 0 ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
-                  {upcomingMovies.map((movie: any) => {
+                  {upcomingMovies.map((movie: any, index: number) => {
                     const convertedMovie = tmdbService.convertToMovie(movie, 'movie');
                     return (
-                      <MovieCard
+                      <MediaCard
                         key={movie.id}
                         movie={convertedMovie}
                         isInWatchlist={isInWatchlist(convertedMovie.id)}
+                        priority={index < 4}
                       />
                     );
                   })}
                 </div>
-                
+
                 <Pagination
                   currentPage={upcomingPage}
                   totalPages={upcomingTotalPages}
@@ -532,7 +536,7 @@ export default function Movies() {
                   data-testid="input-indian-search"
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 sm:flex gap-3 sm:gap-4">
                 <Select value={indianRegion} onValueChange={setIndianRegion}>
                   <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-indian-region">
@@ -596,18 +600,19 @@ export default function Movies() {
             ) : indianMovies.length > 0 ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
-                  {indianMovies.map((movie: any) => {
+                  {indianMovies.map((movie: any, index: number) => {
                     const convertedMovie = tmdbService.convertToMovie(movie, 'movie');
                     return (
-                      <MovieCard
+                      <MediaCard
                         key={movie.id}
                         movie={convertedMovie}
                         isInWatchlist={isInWatchlist(convertedMovie.id)}
+                        priority={index < 4}
                       />
                     );
                   })}
                 </div>
-                
+
                 <Pagination
                   currentPage={indianPage}
                   totalPages={indianTotalPages}
