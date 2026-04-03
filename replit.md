@@ -22,9 +22,12 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 │   ├── analytics_api.py      # User engagement and content analytics
 │   ├── ml_api.py             # ML recommendation endpoints
 │   ├── ml/                   # Python ML modules
-│   │   ├── recommendation_engine.py  # Collaborative/content-based filtering
-│   │   ├── diversity_engine.py       # MMR, DPP, serendipity
-│   │   ├── contextual_bandits.py     # Thompson Sampling
+│   │   ├── recommendation_engine.py  # Collaborative/content-based filtering (temporal decay, mean-centering, sparse matrix)
+│   │   ├── signal_aggregator.py      # Unified implicit+explicit signal aggregator
+│   │   ├── feedback_service.py       # Feedback loop: per-user feature weight learning
+│   │   ├── embedding_manager.py      # User/item embedding population and similarity
+│   │   ├── diversity_engine.py       # MMR, DPP, serendipity (wired into pipeline)
+│   │   ├── contextual_bandits.py     # Thompson Sampling (DB-persisted arm states)
 │   │   ├── explainability_engine.py  # Recommendation explanations
 │   │   ├── embedding_service.py      # TF-IDF semantic embeddings with DB pre-fitting
 │   │   ├── pinecone_service.py      # Pinecone vector search with hybrid re-ranking
@@ -45,7 +48,15 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 ## Key Features
 - Netflix-style dark theme UI with hero sections
 - TMDB movie/TV data via proxy API
-- AI-powered recommendations using Gemini API
+- AI-powered recommendations using Gemini AI
+- **Advanced ML Recommendation Pipeline**:
+  - Unified signal aggregator (ratings, favorites, watchlist, watch duration, search clicks, viewing history)
+  - Collaborative filtering with temporal decay (180-day half-life) and mean-centering
+  - Cold-start recommendations for new users (<5 interactions) using onboarding genre preferences + TmdbMovieCache
+  - Contextual bandit (Thompson Sampling) selects strategy per request; arm states persisted to DB
+  - Diversity engine (MMR reranking + serendipity injection) integrated into recommendation pipeline
+  - Feedback loop: user interactions update per-user FeatureWeight, adapting hybrid scoring over time
+  - User/item embedding manager for profile-based content matching
 - User profiles, watchlists, favorites, viewing history
 - User reviews with public/private visibility
 - Social features: following, notifications, custom lists

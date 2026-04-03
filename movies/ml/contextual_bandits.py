@@ -6,6 +6,8 @@ Algorithm: Thompson Sampling with Beta posterior
 - Maintains Beta(α, β) distribution for each arm (recommendation strategy)
 - α = successes + 1, β = failures + 1
 - Samples from each distribution and selects arm with highest sample
+
+Arm states are persisted to the database via FeatureWeight model.
 """
 
 import numpy as np
@@ -18,9 +20,9 @@ from collections import defaultdict
 @dataclass
 class UserContext:
     user_id: str
-    time_of_day: str  # 'morning', 'afternoon', 'evening', 'night'
-    day_of_week: str  # 'weekday', 'weekend'
-    session_duration: float  # minutes
+    time_of_day: str
+    day_of_week: str
+    session_duration: float
     recent_genres: List[str]
     recent_interaction_count: int
     device_type: Optional[str] = None
@@ -30,8 +32,8 @@ class UserContext:
 @dataclass
 class BanditArm:
     name: str
-    alpha: float  # success count + 1
-    beta: float   # failure count + 1
+    alpha: float
+    beta: float
     pulls: int
     rewards: int
     success_rate: float
@@ -48,32 +50,33 @@ class BanditSelection:
 @dataclass
 class RewardFeedback:
     experiment_id: str
-    reward: float  # 0-1 scale
-    outcome_type: str  # 'clicked', 'watchlisted', 'rated_high', 'ignored', etc.
+    reward: float
+    outcome_type: str
 
 
 class ContextualBanditEngine:
-    """Thompson Sampling-based contextual bandit for recommendation strategy selection"""
+    """Thompson Sampling-based contextual bandit for recommendation strategy selection.
+    Arm states are persisted to the database via FeatureWeight."""
     
-    PRIOR_ALPHA = 1.0  # Prior belief in success
-    PRIOR_BETA = 1.0   # Prior belief in failure
+    PRIOR_ALPHA = 1.0
+    PRIOR_BETA = 1.0
     
     ARMS = [
-        'collaborative',         # Collaborative filtering
-        'content_based',         # Genre/metadata matching
-        'trending',              # Popular/trending items
-        'hybrid_ensemble',       # Ensemble of multiple strategies
-        'exploration_random'     # Pure exploration (random)
+        'collaborative',
+        'content_based',
+        'trending',
+        'hybrid_ensemble',
+        'exploration_random'
     ]
     
     REWARD_MAP = {
         'clicked': 0.3,
         'watchlisted': 0.6,
-        'rated_high': 1.0,      # Rating >= 7
-        'rated_medium': 0.4,    # Rating 5-6
-        'rated_low': 0.1,       # Rating <= 4
+        'rated_high': 1.0,
+        'rated_medium': 0.4,
+        'rated_low': 0.1,
         'ignored': 0.0,
-        'dismissed': -0.2,      # Negative signal
+        'dismissed': -0.2,
         'preference_positive': 0.8,
         'preference_negative': -0.1,
     }
@@ -81,15 +84,86 @@ class ContextualBanditEngine:
     def __init__(self):
         self.arm_states: Dict[str, Dict[str, BanditArm]] = defaultdict(dict)
         self.experiments: Dict[str, Dict] = {}
+
+    def _db_key(self, arm_name: str) -> str:
+        return f"bandit_arm_{arm_name}"
+
+    def _load_arm_states(self, user_id: str) -> None:
+        if user_id in self.arm_states and len(self.arm_states[user_id]) == len(self.ARMS):
+            return
+
+        try:
+            from django.contrib.auth.models import User
+            from movies.models import FeatureWeight
+
+            user = User.objects.filter(id=int(user_id)).first() if str(user_id).isdigit() else None
+
+            for arm_name in self.ARMS:
+                db_key = self._db_key(arm_name)
+                try:
+                    fw = FeatureWeight.objects.get(user=user, feature_name=db_key)
+                    alpha = self.PRIOR_ALPHA + fw.success_count
+                    beta_val = self.PRIOR_BETA + (fw.total_count - fw.success_count)
+                    self.arm_states[user_id][arm_name] = BanditArm(
+                        name=arm_name,
+                        alpha=alpha,
+                        beta=beta_val,
+                        pulls=fw.total_count,
+                        rewards=fw.success_count,
+                        success_rate=fw.success_rate,
+                    )
+                except Exception:
+                    self.arm_states[user_id][arm_name] = BanditArm(
+                        name=arm_name,
+                        alpha=self.PRIOR_ALPHA,
+                        beta=self.PRIOR_BETA,
+                        pulls=0,
+                        rewards=0,
+                        success_rate=0.0,
+                    )
+        except Exception:
+            for arm_name in self.ARMS:
+                if arm_name not in self.arm_states[user_id]:
+                    self.arm_states[user_id][arm_name] = BanditArm(
+                        name=arm_name,
+                        alpha=self.PRIOR_ALPHA,
+                        beta=self.PRIOR_BETA,
+                        pulls=0,
+                        rewards=0,
+                        success_rate=0.0,
+                    )
+
+    def _persist_arm_state(self, user_id: str, arm_name: str) -> None:
+        try:
+            from django.contrib.auth.models import User
+            from movies.models import FeatureWeight
+
+            user = User.objects.filter(id=int(user_id)).first() if str(user_id).isdigit() else None
+            arm = self.arm_states[user_id][arm_name]
+            db_key = self._db_key(arm_name)
+
+            total = arm.alpha + arm.beta
+            weight = arm.alpha / total if total > 0 else 0.5
+
+            FeatureWeight.objects.update_or_create(
+                user=user,
+                feature_name=db_key,
+                defaults={
+                    'weight': weight,
+                    'success_count': arm.rewards,
+                    'total_count': arm.pulls,
+                    'success_rate': arm.success_rate,
+                }
+            )
+        except Exception:
+            pass
     
     def extract_context(self, user_id: str, session_duration: float = 0, 
                         device_type: Optional[str] = None, mood: Optional[str] = None) -> UserContext:
-        """Extract user context features from current session"""
         now = datetime.now()
         hour = now.hour
         day_of_week = now.weekday()
         
-        # Determine time of day
         if 5 <= hour < 12:
             time_of_day = 'morning'
         elif 12 <= hour < 17:
@@ -99,15 +173,12 @@ class ContextualBanditEngine:
         else:
             time_of_day = 'night'
         
-        # Weekday vs weekend
         is_weekend = 'weekend' if day_of_week >= 5 else 'weekday'
         
-        # Get recent interactions from stored experiments
         user_experiments = [exp for exp_id, exp in self.experiments.items() 
                           if exp.get('user_id') == user_id]
         recent_count = len(user_experiments)
         
-        # Extract recent genres (simplified - would normally come from database)
         recent_genres = []
         for exp in user_experiments[-10:]:
             context = exp.get('context', {})
@@ -127,39 +198,18 @@ class ContextualBanditEngine:
         )
     
     def get_arm_states(self, user_id: str) -> List[BanditArm]:
-        """Get current state of all bandit arms for a user"""
-        arm_states = []
-        
-        for arm_name in self.ARMS:
-            # Get or initialize arm state for this user
-            if arm_name not in self.arm_states[user_id]:
-                self.arm_states[user_id][arm_name] = BanditArm(
-                    name=arm_name,
-                    alpha=self.PRIOR_ALPHA,
-                    beta=self.PRIOR_BETA,
-                    pulls=0,
-                    rewards=0,
-                    success_rate=0.0
-                )
-            arm_states.append(self.arm_states[user_id][arm_name])
-        
-        return arm_states
+        self._load_arm_states(user_id)
+        return [self.arm_states[user_id][arm] for arm in self.ARMS]
     
     def _sample_beta(self, alpha: float, beta: float) -> float:
-        """Sample from Beta distribution using numpy"""
         return np.random.beta(alpha, beta)
     
     def select_arm(self, context: UserContext) -> BanditSelection:
-        """
-        Select best arm using Thompson Sampling
-        Samples from Beta distribution for each arm and picks highest
-        """
         arm_states = self.get_arm_states(context.user_id)
         arm_scores = []
         max_score = -1.0
         chosen_arm = self.ARMS[0]
         
-        # Sample from each arm's posterior distribution
         for arm_state in arm_states:
             sampled_reward = self._sample_beta(arm_state.alpha, arm_state.beta)
             arm_scores.append({'arm': arm_state.name, 'score': sampled_reward})
@@ -168,7 +218,6 @@ class ContextualBanditEngine:
                 max_score = sampled_reward
                 chosen_arm = arm_state.name
         
-        # Calculate exploration rate (how uncertain we are)
         chosen_arm_state = next((a for a in arm_states if a.name == chosen_arm), None)
         exploration_rate = 1.0 / (1.0 + chosen_arm_state.pulls) if chosen_arm_state else 1.0
         
@@ -180,22 +229,16 @@ class ContextualBanditEngine:
         )
     
     def select_contextual_arm(self, context: UserContext) -> BanditSelection:
-        """
-        Contextual arm selection with feature-based weighting
-        Adjusts arm probabilities based on context features
-        """
         arm_states = self.get_arm_states(context.user_id)
         arm_scores = []
         max_score = -1.0
         chosen_arm = self.ARMS[0]
         
-        # Sample from each arm's posterior and adjust for context
         for arm_state in arm_states:
             sampled_reward = self._sample_beta(arm_state.alpha, arm_state.beta)
             
-            # Context-based boosting
             context_boost = self._get_context_boost(arm_state.name, context)
-            sampled_reward = sampled_reward * (1 + context_boost * 0.2)  # Up to 20% boost
+            sampled_reward = sampled_reward * (1 + context_boost * 0.2)
             
             arm_scores.append({'arm': arm_state.name, 'score': sampled_reward})
             
@@ -214,29 +257,20 @@ class ContextualBanditEngine:
         )
     
     def _get_context_boost(self, arm_name: str, context: UserContext) -> float:
-        """
-        Calculate context-based boost for an arm
-        Returns 0-1 multiplier based on how well context matches arm strength
-        """
         boost = 0.0
         
-        # Collaborative filtering works better on weekends (more browsing)
         if arm_name == 'collaborative' and context.day_of_week == 'weekend':
             boost += 0.2
         
-        # Trending works well in evening (leisure time)
         if arm_name == 'trending' and context.time_of_day == 'evening':
             boost += 0.25
         
-        # Content-based good for new users (cold start)
         if arm_name == 'content_based' and context.recent_interaction_count < 5:
             boost += 0.4
         
-        # Exploration during short sessions (user exploring)
         if arm_name == 'exploration_random' and context.session_duration < 5:
             boost += 0.3
         
-        # Hybrid good for engaged users
         if arm_name == 'hybrid_ensemble' and context.session_duration > 15:
             boost += 0.25
         
@@ -244,7 +278,6 @@ class ContextualBanditEngine:
     
     def log_experiment(self, user_id: str, arm_chosen: str, context: UserContext,
                        exploration_rate: float) -> str:
-        """Log a bandit experiment (arm selection)"""
         import uuid
         experiment_id = str(uuid.uuid4())
         
@@ -264,14 +297,13 @@ class ContextualBanditEngine:
             'created_at': datetime.now().isoformat()
         }
         
-        # Update arm pulls
         if user_id in self.arm_states and arm_chosen in self.arm_states[user_id]:
             self.arm_states[user_id][arm_chosen].pulls += 1
+            self._persist_arm_state(user_id, arm_chosen)
         
         return experiment_id
     
     def update_reward(self, feedback: RewardFeedback) -> None:
-        """Update experiment with reward (user feedback)"""
         if feedback.experiment_id not in self.experiments:
             return
         
@@ -282,7 +314,6 @@ class ContextualBanditEngine:
         user_id = experiment['user_id']
         arm_chosen = experiment['arm_chosen']
         
-        # Update arm state
         if user_id in self.arm_states and arm_chosen in self.arm_states[user_id]:
             arm = self.arm_states[user_id][arm_chosen]
             if feedback.reward >= 0.5:
@@ -291,19 +322,14 @@ class ContextualBanditEngine:
             else:
                 arm.beta += 1
             
-            # Recalculate success rate
-            total = arm.alpha + arm.beta - 2  # Subtract priors
+            total = arm.alpha + arm.beta - 2
             arm.success_rate = arm.rewards / total if total > 0 else 0.0
+            self._persist_arm_state(user_id, arm_chosen)
     
     def calculate_reward(self, outcome_type: str) -> float:
-        """
-        Calculate reward from user interaction
-        Converts user actions to 0-1 reward signal
-        """
         return self.REWARD_MAP.get(outcome_type, 0.0)
     
     def get_statistics(self, user_id: str) -> Dict[str, Any]:
-        """Get bandit statistics for monitoring"""
         arm_states = self.get_arm_states(user_id)
         total_experiments = sum(arm.pulls for arm in arm_states)
         total_rewards = sum(arm.rewards for arm in arm_states)
@@ -331,5 +357,4 @@ class ContextualBanditEngine:
         }
 
 
-# Singleton instance
 contextual_bandit_engine = ContextualBanditEngine()

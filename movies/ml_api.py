@@ -90,14 +90,16 @@ def enrich_recommendations_with_tmdb(recommendations, default_media_type='movie'
 @require_GET
 def get_hybrid_recommendations(request, user_id):
     """
-    Hybrid recommendations – tiered strategy:
-      1. MovieLens item-item similarity seeded from user's liked/favorited movies
+    Hybrid recommendations – bandit-driven tiered strategy:
+      0. Cold-start path for new users (< 5 interactions)
+      1. MovieLens item-item similarity seeded from unified signals
       2. TMDB Discover filtered by user's preferred genres (onboarding prefs)
       3. TMDB trending/popular as final fallback
+    Post-processing: diversity engine (MMR + serendipity)
     """
     from datetime import datetime, date
     from . import api as tmdb_api
-    from .models import UserPreferences
+    from .models import UserPreferences, TmdbMovieCache
 
     GENRE_NAME_TO_ID = {
         'Action': 28, 'Adventure': 12, 'Animation': 16, 'Comedy': 35,
@@ -108,6 +110,8 @@ def get_hybrid_recommendations(request, user_id):
         'Action & Adventure': 10759, 'Sci-Fi & Fantasy': 10765,
     }
 
+    GENRE_ID_TO_NAME = {v: k for k, v in GENRE_NAME_TO_ID.items()}
+
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
@@ -116,24 +120,16 @@ def get_hybrid_recommendations(request, user_id):
         limit = min(int(request.GET.get('limit', 20)), 100)
         current_year = datetime.now().year
 
-        # ── Collect user context ───────────────────────────────────────────
-        # Items user has already seen / rated – exclude from results
+        # ── Signal aggregator: unified implicit + explicit seeds ──────────
+        from .ml.signal_aggregator import signal_aggregator
+        seed_ids = signal_aggregator.get_seed_ids(user, min_score=0.2, limit=30)
+        interaction_count = signal_aggregator.get_interaction_count(user)
+
+        # ── Collect exclusion set ─────────────────────────────────────────
         reviewed_ids = set(UserReview.objects.filter(user=user).values_list('tmdb_id', flat=True))
         watchlist_ids = set(UserWatchlist.objects.filter(user=user).values_list('tmdb_id', flat=True))
-        favorite_ids = list(
-            UserFavorites.objects.filter(user=user)
-            .order_by('-added_at')
-            .values_list('tmdb_id', flat=True)[:20]
-        )
-        # Highly-rated reviews (rating ≥ 7 out of 10) as additional seeds
-        liked_review_ids = list(
-            UserReview.objects.filter(user=user, rating__gte=7)
-            .order_by('-created_at')
-            .values_list('tmdb_id', flat=True)[:15]
-        )
         excluded_ids = reviewed_ids | watchlist_ids
 
-        # Disliked items via feedback
         try:
             dismissed_ids = set(
                 Recommendation.objects.filter(user=user, user_feedback='disliked')
@@ -143,22 +139,33 @@ def get_hybrid_recommendations(request, user_id):
         except Exception:
             pass
 
-        # Seed list: favorites first (most intentional signal), then liked reviews
-        seed_ids = list(dict.fromkeys(favorite_ids + liked_review_ids))  # deduplicate, keep order
-
         # User's preferred genres (set during onboarding)
         preferred_genre_ids = []
+        preferred_genre_names = []
         try:
             prefs = UserPreferences.objects.get(user=user)
-            for gname in (prefs.preferred_genres or []):
+            preferred_genre_names = prefs.preferred_genres or []
+            for gname in preferred_genre_names:
                 gid = GENRE_NAME_TO_ID.get(gname)
                 if gid:
                     preferred_genre_ids.append(gid)
         except UserPreferences.DoesNotExist:
             pass
 
+        # ── Per-user learned weights from feedback loop ───────────────────
+        user_weights = {}
+        try:
+            from .ml.feedback_service import feedback_service
+            user_weights = feedback_service.get_user_weights(user)
+        except Exception:
+            pass
+
+        collab_w = user_weights.get('collaborative', 0.6)
+        content_w = user_weights.get('content', 0.4)
+        popularity_w = user_weights.get('popularity', 0.2)
+        recency_w = user_weights.get('recency', 0.15)
+
         def quality_score(item, movielens_sim=0.0):
-            """Unified scorer: ML similarity + TMDB quality + recency."""
             vote_avg = item.get('vote_average', 0)
             popularity = item.get('popularity', 0)
             raw_date = item.get('release_date') or item.get('first_air_date', '')
@@ -166,16 +173,88 @@ def get_hybrid_recommendations(request, user_id):
                 year = int(raw_date[:4]) if raw_date else 2000
             except ValueError:
                 year = 2000
-            recency = max(0, 1 - (current_year - year) / 15)  # decays over 15 years
-            tmdb_score = (vote_avg / 10) * 0.35 + min(popularity / 300, 1) * 0.25 + recency * 0.20
-            return movielens_sim * 0.20 + tmdb_score  # ML signal worth 20 %
+            recency = max(0, 1 - (current_year - year) / 15)
+            tmdb_score = (vote_avg / 10) * 0.35 + min(popularity / 300, 1) * popularity_w + recency * recency_w
+            return movielens_sim * collab_w * 0.33 + tmdb_score
+
+        # ── Bandit: select strategy ───────────────────────────────────────
+        experiment_id = None
+        arm_chosen = 'hybrid_ensemble'
+        try:
+            from .ml.contextual_bandits import contextual_bandit_engine
+            ctx = contextual_bandit_engine.extract_context(
+                str(user_id), session_duration=0
+            )
+            ctx.recent_interaction_count = interaction_count
+            ctx.recent_genres = preferred_genre_names[:5]
+            selection = contextual_bandit_engine.select_contextual_arm(ctx)
+            arm_chosen = selection.arm_chosen
+            experiment_id = contextual_bandit_engine.log_experiment(
+                str(user_id), arm_chosen, ctx, selection.exploration_rate
+            )
+            logger.info('Bandit: selected arm "%s" for user %s', arm_chosen, user_id)
+        except Exception as e:
+            logger.warning('Bandit selection failed, defaulting to hybrid: %s', e)
 
         recommendations = []
 
         # ═══════════════════════════════════════════════════════════════════
-        # TIER 1 — MovieLens item-item similarity
+        # COLD-START — users with fewer than 5 interactions
         # ═══════════════════════════════════════════════════════════════════
-        if seed_ids:
+        if interaction_count < 5:
+            logger.info('Cold-start path for user %s (%d interactions)', user_id, interaction_count)
+            if preferred_genre_names:
+                cached_movies = TmdbMovieCache.objects.filter(
+                    vote_count__gte=50,
+                    vote_average__gte=6.0,
+                    poster_path__isnull=False,
+                ).exclude(tmdb_id__in=excluded_ids).order_by('-popularity')[:200]
+
+                scored = []
+                for movie in cached_movies:
+                    movie_genres = movie.genres or []
+                    genre_names = []
+                    for g in movie_genres:
+                        if isinstance(g, dict):
+                            genre_names.append(g.get('name', ''))
+                        elif isinstance(g, str):
+                            genre_names.append(g)
+
+                    genre_overlap = len(set(genre_names) & set(preferred_genre_names))
+                    if genre_overlap == 0:
+                        continue
+
+                    genre_score = genre_overlap / max(len(preferred_genre_names), 1)
+                    pop_score = min(movie.popularity / 300, 1.0)
+                    vote_score = movie.vote_average / 10.0
+                    total = genre_score * 0.5 + vote_score * 0.3 + pop_score * 0.2
+
+                    scored.append({
+                        'tmdb_id': movie.tmdb_id,
+                        'media_type': movie.media_type,
+                        'title': movie.title,
+                        'poster_path': movie.poster_path,
+                        'backdrop_path': movie.backdrop_path,
+                        'overview': movie.overview or '',
+                        'vote_average': round(movie.vote_average, 1),
+                        'vote_count': movie.vote_count,
+                        'popularity': round(movie.popularity, 1),
+                        'release_date': movie.release_date or '',
+                        'genre_ids': [g.get('id') for g in movie_genres if isinstance(g, dict)] if movie_genres else [],
+                        'score': round(total, 4),
+                        'type': 'cold-start',
+                        'reason': f'Matches your love for {", ".join(list(set(genre_names) & set(preferred_genre_names))[:2])}',
+                    })
+
+                scored.sort(key=lambda x: x['score'], reverse=True)
+                recommendations = scored[:limit]
+                logger.info('Cold-start: %d recs from cache for user %s', len(recommendations), user_id)
+
+        # ═══════════════════════════════════════════════════════════════════
+        # TIER 1 — MovieLens item-item similarity (if bandit picks collab/hybrid/ensemble)
+        # ═══════════════════════════════════════════════════════════════════
+        run_movielens = arm_chosen in ('collaborative', 'hybrid_ensemble', 'content_based')
+        if seed_ids and run_movielens and len(recommendations) < limit:
             try:
                 from .ml.movielens_engine import movielens_engine
                 if movielens_engine.is_ready():
@@ -193,7 +272,6 @@ def get_hybrid_recommendations(request, user_id):
                         ]
                         enriched = enrich_recommendations_with_tmdb(raw_recs, max_workers=12)
 
-                        # Quality filter + re-score
                         filtered = []
                         for rec in enriched:
                             if (rec.get('poster_path')
@@ -203,7 +281,11 @@ def get_hybrid_recommendations(request, user_id):
                                 filtered.append(rec)
 
                         filtered.sort(key=lambda x: x['score'], reverse=True)
-                        recommendations = filtered[:limit]
+                        existing_ids = {r['tmdb_id'] for r in recommendations}
+                        for rec in filtered:
+                            if rec['tmdb_id'] not in existing_ids and len(recommendations) < limit:
+                                recommendations.append(rec)
+                                existing_ids.add(rec['tmdb_id'])
                         logger.info('MovieLens: returned %d recs for user %s', len(recommendations), user_id)
             except Exception as e:
                 logger.warning('MovieLens tier failed: %s', e)
@@ -211,7 +293,8 @@ def get_hybrid_recommendations(request, user_id):
         # ═══════════════════════════════════════════════════════════════════
         # TIER 2 — TMDB Discover filtered by preferred genres
         # ═══════════════════════════════════════════════════════════════════
-        if len(recommendations) < limit // 2:
+        run_genre = arm_chosen in ('content_based', 'hybrid_ensemble', 'trending', 'exploration_random')
+        if len(recommendations) < limit // 2 or (run_genre and len(recommendations) < limit):
             existing_ids = {r['tmdb_id'] for r in recommendations}
             genre_pool = {}
 
@@ -227,16 +310,15 @@ def get_hybrid_recommendations(request, user_id):
                         'vote_count.gte': 200,
                         'primary_release_date.gte': f'{three_years_ago}-01-01',
                         'page': 1,
-                    }, 'movie', f'Top-rated {gid} from the last 3 years'),
+                    }, 'movie', f'Top-rated {GENRE_ID_TO_NAME.get(gid, "genre")} from the last 3 years'),
                     ('/discover/tv', {
                         'with_genres': gid,
                         'sort_by': 'vote_average.desc',
                         'vote_count.gte': 100,
                         'first_air_date.gte': f'{three_years_ago}-01-01',
                         'page': 1,
-                    }, 'tv', f'Top-rated {gid} TV from the last 3 years'),
+                    }, 'tv', f'Top-rated {GENRE_ID_TO_NAME.get(gid, "genre")} TV from the last 3 years'),
                 ]
-            # Also add all-time highly rated in preferred genres
             for gid in genres_to_try[:2]:
                 discover_calls.append(
                     ('/discover/movie', {
@@ -333,11 +415,61 @@ def get_hybrid_recommendations(request, user_id):
             needed = limit - len(recommendations)
             recommendations += fallback_recs[:needed]
 
+        # ═══════════════════════════════════════════════════════════════════
+        # POST-PROCESSING — Diversity engine (MMR + serendipity)
+        # ═══════════════════════════════════════════════════════════════════
+        if len(recommendations) > 3:
+            try:
+                from .ml.diversity_engine import (
+                    diversity_engine, DiversityCandidate, DiversityConfig,
+                )
+
+                diversity_candidates = []
+                for rec in recommendations:
+                    genre_names_for_rec = [
+                        GENRE_ID_TO_NAME.get(gid, '') for gid in rec.get('genre_ids', [])
+                    ]
+                    genre_names_for_rec = [g for g in genre_names_for_rec if g]
+                    diversity_candidates.append(DiversityCandidate(
+                        id=str(rec['tmdb_id']),
+                        tmdb_id=rec['tmdb_id'],
+                        media_type=rec.get('media_type', 'movie'),
+                        score=rec.get('score', 0.5),
+                        genres=genre_names_for_rec,
+                    ))
+
+                config = DiversityConfig(
+                    lambda_param=0.7,
+                    epsilon_exploration=0.1,
+                    max_consecutive_same_genre=3,
+                    serendipity_rate=0.12,
+                    diversity_metric='mmr',
+                )
+
+                diversified = diversity_engine.apply_diversity(
+                    diversity_candidates, config, preferred_genre_names
+                )
+
+                rec_lookup = {r['tmdb_id']: r for r in recommendations}
+                reordered = []
+                for dc in diversified:
+                    if dc.tmdb_id in rec_lookup:
+                        rec = rec_lookup[dc.tmdb_id]
+                        rec['score'] = round(dc.score, 4)
+                        reordered.append(rec)
+                if reordered:
+                    recommendations = reordered
+                    logger.info('Diversity: reranked %d recs for user %s', len(recommendations), user_id)
+            except Exception as e:
+                logger.warning('Diversity engine failed (non-fatal): %s', e)
+
         return JsonResponse({
             "user_id": user_id,
             "recommendations": recommendations[:limit],
             "type": "hybrid",
             "count": len(recommendations[:limit]),
+            "strategy": arm_chosen,
+            "experiment_id": experiment_id,
         })
 
     except Exception as e:
@@ -1305,6 +1437,26 @@ def log_recommendation_interaction(request):
                 'outcome_type': interaction_type
             }
         )
+        
+        try:
+            from .ml.feedback_service import feedback_service
+            scoring_factors = body.get('scoring_factors') or {}
+            if not scoring_factors:
+                rec_type = recommendation.recommendation_type or 'hybrid'
+                scoring_factors = {
+                    'collaborative': 0.6 if rec_type in ('collaborative', 'hybrid') else 0.2,
+                    'content': 0.4 if rec_type in ('content', 'hybrid') else 0.2,
+                    'popularity': 0.2,
+                    'recency': 0.15,
+                }
+            feedback_service.record_outcome(
+                user=user,
+                recommendation=recommendation,
+                interaction_type=interaction_type,
+                scoring_factors=scoring_factors,
+            )
+        except Exception as e:
+            logger.warning('Feedback service error (non-fatal): %s', e)
         
         bandit_result = None
         try:
