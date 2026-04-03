@@ -3,26 +3,16 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bell, Trash2, CheckCheck, User, MessageSquare, Award, Heart, List, Users } from "lucide-react";
+import { Bell, Trash2, CheckCheck, MessageSquare, Users, List, Heart } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Notification } from "@shared/schema";
 import { usePageMeta } from "@/hooks/usePageMeta";
-
-interface NotificationWithActor extends Notification {
-  actor?: {
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-    profileImageUrl: string | null;
-  } | null;
-}
 
 export default function NotificationsPage() {
   usePageMeta({
@@ -31,33 +21,19 @@ export default function NotificationsPage() {
   });
 
   const [, setLocation] = useLocation();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [filterType, setFilterType] = useState<string>('all');
 
-  const { data: notifications = [], isLoading } = useQuery<NotificationWithActor[]>({
-    queryKey: ['/api/community/notifications', { unreadOnly: filterType === 'unread' }],
+  const { data: notifications = [], isLoading } = useQuery<Notification[]>({
+    queryKey: ['/api/community/notifications', filterType],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        limit: '50',
-        ...(filterType === 'unread' && { unreadOnly: 'true' })
-      });
-      
-      const headers: Record<string, string> = {};
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        try {
-          const user = JSON.parse(storedUser);
-          if (user?.id) {
-            headers["x-user-id"] = user.id;
-          }
-        } catch (error) {
-          console.error('Failed to parse user from localStorage', error);
-        }
+      const params = new URLSearchParams({ limit: '50' });
+      if (filterType === 'unread') {
+        params.set('unreadOnly', 'true');
       }
-      
+
       const response = await fetch(`/api/community/notifications?${params}`, {
-        headers,
         credentials: "include",
       });
       if (!response.ok) throw new Error('Failed to fetch notifications');
@@ -67,7 +43,7 @@ export default function NotificationsPage() {
   });
 
   const markAsReadMutation = useMutation({
-    mutationFn: async (notificationId: string) => {
+    mutationFn: async (notificationId: number) => {
       return apiRequest('PUT', `/api/community/notifications/${notificationId}/read`, {});
     },
     onSuccess: () => {
@@ -90,7 +66,7 @@ export default function NotificationsPage() {
   });
 
   const deleteNotificationMutation = useMutation({
-    mutationFn: async (notificationId: string) => {
+    mutationFn: async (notificationId: number) => {
       return apiRequest('DELETE', `/api/community/notifications/${notificationId}`);
     },
     onSuccess: () => {
@@ -102,15 +78,15 @@ export default function NotificationsPage() {
     },
   });
 
-  const handleNotificationClick = (notification: NotificationWithActor) => {
+  const handleNotificationClick = (notification: Notification) => {
     if (!notification.isRead) {
       markAsReadMutation.mutate(notification.id);
     }
 
-    if (notification.entityType === 'list' && notification.entityId) {
-      setLocation(`/lists/${notification.entityId}`);
-    } else if (notification.type === 'message') {
-      setLocation('/messages');
+    if (notification.relatedTmdbId && notification.relatedMediaType) {
+      setLocation(`/${notification.relatedMediaType}/${notification.relatedTmdbId}`);
+    } else if (notification.type === 'follow' && notification.relatedUserId) {
+      setLocation(`/profile`);
     }
   };
 
@@ -120,20 +96,20 @@ export default function NotificationsPage() {
         return <Users className="h-4 w-4" />;
       case 'comment':
         return <MessageSquare className="h-4 w-4" />;
-      case 'award':
-        return <Award className="h-4 w-4" />;
+      case 'like':
+        return <Heart className="h-4 w-4" />;
       case 'list_follow':
         return <List className="h-4 w-4" />;
-      case 'message':
-        return <MessageSquare className="h-4 w-4" />;
+      case 'recommendation':
+        return <Bell className="h-4 w-4" />;
       default:
         return <Bell className="h-4 w-4" />;
     }
   };
 
-  const filteredNotifications = filterType === 'all' 
-    ? notifications 
-    : notifications.filter(n => n.type === filterType || (filterType === 'unread' && !n.isRead));
+  const filteredNotifications = filterType === 'all' || filterType === 'unread'
+    ? notifications
+    : notifications.filter(n => n.type === filterType);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -181,8 +157,8 @@ export default function NotificationsPage() {
             <TabsTrigger value="unread" data-testid="tab-unread">Unread</TabsTrigger>
             <TabsTrigger value="follow" data-testid="tab-follow">Follows</TabsTrigger>
             <TabsTrigger value="comment" data-testid="tab-comment">Comments</TabsTrigger>
-            <TabsTrigger value="award" data-testid="tab-award">Awards</TabsTrigger>
-            <TabsTrigger value="message" data-testid="tab-message">Messages</TabsTrigger>
+            <TabsTrigger value="like" data-testid="tab-like">Likes</TabsTrigger>
+            <TabsTrigger value="list_follow" data-testid="tab-list-follow">List Follows</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -224,18 +200,9 @@ export default function NotificationsPage() {
                 data-testid={`notification-card-${notification.id}`}
               >
                 <div className="flex items-start space-x-4">
-                  {notification.actor ? (
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={notification.actor.profileImageUrl || undefined} />
-                      <AvatarFallback>
-                        {notification.actor.firstName?.[0] || notification.actor.lastName?.[0] || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                  ) : (
-                    <div className="h-10 w-10 rounded-full bg-accent flex items-center justify-center">
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                  )}
+                  <div className="h-10 w-10 rounded-full bg-accent flex items-center justify-center">
+                    {getNotificationIcon(notification.type)}
+                  </div>
                   
                   <div className="flex-1 min-w-0">
                     <p className="text-sm leading-relaxed" data-testid={`text-notification-message-${notification.id}`}>

@@ -469,6 +469,76 @@ def mark_notifications_read(request, user_id):
 
 
 @require_GET
+def community_get_notifications(request):
+    if not request.user.is_authenticated:
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+
+    try:
+        limit = max(1, min(100, int(request.GET.get('limit', 50))))
+    except (ValueError, TypeError):
+        limit = 50
+    unread_only = request.GET.get('unreadOnly', '').lower() == 'true'
+
+    qs = Notification.objects.filter(user=request.user)
+    if unread_only:
+        qs = qs.filter(is_read=False)
+    notifications = qs[:limit]
+
+    return JsonResponse([{
+        'id': n.id,
+        'type': n.notification_type,
+        'message': n.message,
+        'relatedUserId': n.related_user_id,
+        'relatedTmdbId': n.related_tmdb_id,
+        'relatedMediaType': n.related_media_type,
+        'isRead': n.is_read,
+        'createdAt': n.created_at.isoformat(),
+    } for n in notifications], safe=False)
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def community_mark_notification_read(request, notification_id):
+    if not request.user.is_authenticated:
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+
+    updated = Notification.objects.filter(
+        user=request.user, id=notification_id
+    ).update(is_read=True)
+
+    if not updated:
+        return error_response('Notification not found', 'NOT_FOUND', 404)
+
+    return JsonResponse({'success': True})
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def community_mark_all_read(request):
+    if not request.user.is_authenticated:
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+
+    Notification.objects.filter(user=request.user).update(is_read=True)
+    return JsonResponse({'success': True})
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def community_delete_notification(request, notification_id):
+    if not request.user.is_authenticated:
+        return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
+
+    deleted, _ = Notification.objects.filter(
+        user=request.user, id=notification_id
+    ).delete()
+
+    if not deleted:
+        return error_response('Notification not found', 'NOT_FOUND', 404)
+
+    return JsonResponse({'success': True})
+
+
+@require_GET
 def notifications_unread_count(request):
     if not request.user.is_authenticated:
         return JsonResponse({'count': 0})

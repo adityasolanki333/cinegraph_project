@@ -94,13 +94,14 @@ export interface Recommendation {
 }
 
 export interface Notification {
-  id: string;
-  userId: string;
+  id: number;
   type: string;
-  title: string;
   message: string;
+  relatedUserId: number | null;
+  relatedTmdbId: number | null;
+  relatedMediaType: string | null;
   isRead: boolean;
-  createdAt?: Date;
+  createdAt: string;
 }
 
 export interface UserCommunity {

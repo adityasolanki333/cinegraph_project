@@ -149,6 +149,10 @@ urlpatterns = [
     
     # Community endpoints
     path('community/notifications/unread/count', social_api.notifications_unread_count, name='api_notifications_count'),
+    path('community/notifications/read-all', social_api.community_mark_all_read, name='api_community_mark_all_read'),
+    path('community/notifications/<int:notification_id>/read', social_api.community_mark_notification_read, name='api_community_mark_read'),
+    path('community/notifications/<int:notification_id>', social_api.community_delete_notification, name='api_community_delete_notification'),
+    path('community/notifications', social_api.community_get_notifications, name='api_community_get_notifications'),
     path('community/lists/containing/<int:tmdb_id>/<str:media_type>', social_api.lists_containing_content, name='api_lists_containing'),
     path('sentiment/<int:tmdb_id>/<str:media_type>', social_api.get_sentiment, name='api_sentiment'),
     path('ratings', social_api.get_ratings, name='api_ratings'),

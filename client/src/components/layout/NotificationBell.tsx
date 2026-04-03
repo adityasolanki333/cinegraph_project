@@ -4,53 +4,29 @@ import { useLocation } from "wouter";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Notification } from "@shared/schema";
 
-interface NotificationWithActor extends Notification {
-  actor?: {
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-    profileImageUrl: string | null;
-  } | null;
-}
-
 export function NotificationBell() {
   const [, setLocation] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
 
-  // Get unread count
-  const { data: unreadCount = 0 } = useQuery<number>({
+  const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ['/api/community/notifications/unread/count'],
     enabled: isAuthenticated,
     refetchInterval: 60000,
   });
+  const unreadCount = unreadData?.count ?? 0;
 
-  const { data: notifications = [] } = useQuery<NotificationWithActor[]>({
-    queryKey: ['/api/community/notifications'],
+  const { data: notifications = [] } = useQuery<Notification[]>({
+    queryKey: ['/api/community/notifications', 'bell'],
     queryFn: async () => {
-      const headers: Record<string, string> = {};
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        try {
-          const user = JSON.parse(storedUser);
-          if (user?.id) {
-            headers["x-user-id"] = user.id;
-          }
-        } catch (error) {
-          console.error('Failed to parse user from localStorage', error);
-        }
-      }
-      
       const response = await fetch('/api/community/notifications?limit=10', {
-        headers,
         credentials: "include",
       });
       if (!response.ok) throw new Error('Failed to fetch notifications');
@@ -60,9 +36,8 @@ export function NotificationBell() {
     refetchInterval: 60000,
   });
 
-  // Mark as read mutation
   const markAsReadMutation = useMutation({
-    mutationFn: async (notificationId: string) => {
+    mutationFn: async (notificationId: number) => {
       return apiRequest('PUT', `/api/community/notifications/${notificationId}/read`, {});
     },
     onSuccess: () => {
@@ -71,7 +46,6 @@ export function NotificationBell() {
     },
   });
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -88,28 +62,20 @@ export function NotificationBell() {
     };
   }, [isOpen]);
 
-  const handleNotificationClick = (notification: NotificationWithActor) => {
+  const handleNotificationClick = (notification: Notification) => {
     if (!notification.isRead) {
       markAsReadMutation.mutate(notification.id);
     }
 
-    // Navigate based on notification type and entity
-    if (notification.entityType === 'review' && notification.entityId) {
-      // Navigate to the movie/show detail page - we'd need to fetch the tmdbId from the review
-      // For now, just close the dropdown
+    if (notification.relatedTmdbId && notification.relatedMediaType) {
+      setLocation(`/${notification.relatedMediaType}/${notification.relatedTmdbId}`);
       setIsOpen(false);
-    } else if (notification.entityType === 'list' && notification.entityId) {
-      setLocation(`/lists/${notification.entityId}`);
-      setIsOpen(false);
-    } else if (notification.entityType === 'user' && notification.actorId) {
+    } else if (notification.type === 'follow' && notification.relatedUserId) {
       setLocation(`/profile`);
       setIsOpen(false);
+    } else {
+      setIsOpen(false);
     }
-  };
-
-  const getNotificationIcon = (type: string) => {
-    // Return appropriate icon based on notification type
-    return null; // We'll use the actor avatar instead
   };
 
   if (!isAuthenticated) {
@@ -172,14 +138,6 @@ export function NotificationBell() {
                     data-testid={`notification-item-${notification.id}`}
                   >
                     <div className="flex items-start space-x-3">
-                      {notification.actor && (
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={notification.actor.profileImageUrl || undefined} />
-                          <AvatarFallback>
-                            {notification.actor.firstName?.[0] || notification.actor.lastName?.[0] || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
                       <div className="flex-1 space-y-1">
                         <p className="text-sm leading-tight" data-testid={`text-notification-message-${notification.id}`}>
                           {notification.message}
