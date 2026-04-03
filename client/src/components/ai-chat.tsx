@@ -48,6 +48,48 @@ const quickSuggestions = [
 
 import { getAuthHeaders } from "@/lib/queryClient";
 
+const typingMessages = [
+  "Thinking...",
+  "Analyzing your request...",
+  "Searching for movies...",
+  "Browsing the catalog...",
+  "Finding the best picks...",
+  "Almost there...",
+];
+
+function TypingIndicator() {
+  const [messageIndex, setMessageIndex] = useState(0);
+  const [displayedText, setDisplayedText] = useState("");
+  const [charIndex, setCharIndex] = useState(0);
+
+  const currentMessage = typingMessages[messageIndex];
+
+  useEffect(() => {
+    if (charIndex < currentMessage.length) {
+      const timer = setTimeout(() => {
+        setDisplayedText(currentMessage.slice(0, charIndex + 1));
+        setCharIndex(charIndex + 1);
+      }, 40);
+      return () => clearTimeout(timer);
+    } else {
+      const timer = setTimeout(() => {
+        setMessageIndex((messageIndex + 1) % typingMessages.length);
+        setCharIndex(0);
+        setDisplayedText("");
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [charIndex, currentMessage, messageIndex]);
+
+  return (
+    <div className="flex items-center space-x-2 text-sm text-muted-foreground" data-testid="typing-indicator">
+      <Sparkles className="h-3.5 w-3.5 text-accent animate-pulse flex-shrink-0" />
+      <span>{displayedText}</span>
+      <span className="inline-block w-0.5 h-4 bg-accent animate-[blink_1s_steps(2)_infinite]" />
+    </div>
+  );
+}
+
 export default function AIChat({ className }: AIChatProps) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -412,11 +454,10 @@ export default function AIChat({ className }: AIChatProps) {
     try {
       await handleStreamingResponse(currentInput);
     } catch {
-      await handleFallbackResponse(currentInput);
     } finally {
       setIsLoading(false);
     }
-  }, [inputValue, isLoading, handleStreamingResponse, handleFallbackResponse]);
+  }, [inputValue, isLoading, handleStreamingResponse]);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -460,6 +501,10 @@ export default function AIChat({ className }: AIChatProps) {
                         : "bg-muted text-muted-foreground max-w-full sm:max-w-[95%]"
                     )}
                   >
+                    {message.isStreaming && !message.content && !message.statusMessage && (
+                      <TypingIndicator />
+                    )}
+
                     {message.statusMessage && !message.content && (
                       <div className="flex items-center space-x-2 text-sm text-muted-foreground" data-testid={`status-message-${message.id}`}>
                         <Sparkles className="h-3.5 w-3.5 animate-pulse text-accent" />
@@ -467,7 +512,7 @@ export default function AIChat({ className }: AIChatProps) {
                       </div>
                     )}
 
-                    {(message.content || !message.statusMessage) && (
+                    {message.content && (
                       <p className="text-sm whitespace-pre-line">
                         {message.content}
                         {message.isStreaming && (
@@ -564,13 +609,7 @@ export default function AIChat({ className }: AIChatProps) {
                     <Bot className="h-4 w-4 text-accent-foreground" />
                   </div>
                   <div className="bg-muted rounded-lg p-3">
-                    <div className="flex items-center space-x-2">
-                      <div className="flex space-x-1">
-                        <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" />
-                        <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
-                        <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
-                      </div>
-                    </div>
+                    <TypingIndicator />
                   </div>
                 </div>
               )}
