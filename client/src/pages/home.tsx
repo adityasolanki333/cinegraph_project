@@ -715,7 +715,7 @@ export default function Home() {
 
         {/* Popular Movies */}
         <WithTMDBFallback section="Popular Movies">
-          <MovieRow title={t("home.popularMovies")} movies={popularMovies} showMore={true} isLoading={popularLoading} />
+          <MovieRow title={t("home.popularMovies")} movies={popularMovies} showMore={true} showMoreLink="/movies?tab=trending" isLoading={popularLoading} />
         </WithTMDBFallback>
 
         {/* Top Rated */}
