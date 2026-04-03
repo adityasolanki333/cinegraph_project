@@ -557,30 +557,14 @@ export default function AIChat({ className }: AIChatProps) {
 
                         <div className="w-full overflow-hidden">
                           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-                            {message.movies && message.movies.slice(0, 8).map((movie: any) => {
-                              const formattedMovie = {
-                                id: movie.id.toString(),
-                                title: movie.title || movie.name,
-                                genre: movie.genre_ids?.[0] || 'Unknown',
-                                year: movie.release_date ? new Date(movie.release_date).getFullYear() : 2024,
-                                rating: movie.vote_average || 7.0,
-                                synopsis: movie.overview || 'No description available',
-                                director: 'Unknown',
-                                cast: [],
-                                posterUrl: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : 'https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?ixlib=rb-4.0.3&w=400&h=600&fit=crop',
-                                type: (movie.media_type === 'tv' ? 'tv' : 'movie') as 'movie' | 'tv',
-                                duration: movie.runtime || null,
-                                seasons: movie.number_of_seasons || null
-                              };
-
-                              return (
-                                <div key={movie.id} className="w-full min-w-0" data-testid={`movie-card-${movie.id}`}>
-                                  <MediaCard
-                                    movie={formattedMovie}
-                                  />
-                                </div>
-                              );
-                            })}
+                            {message.movies && message.movies.slice(0, 8).map((movie: any) => (
+                              <div key={movie.id} className="w-full min-w-0" data-testid={`movie-card-${movie.id}`}>
+                                <MediaCard
+                                  item={movie}
+                                  mediaType={movie.media_type === 'tv' ? 'tv' : 'movie'}
+                                />
+                              </div>
+                            ))}
                             {message.moviesLoading && !message.moviesDone && (
                               <>
                                 {Array.from({ length: Math.max(0, (message.moviesLoading || 4) - (message.movies?.length || 0)) }).map((_, i) => (
