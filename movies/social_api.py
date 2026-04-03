@@ -2233,11 +2233,21 @@ def demo_user_impact(request):
         next_rank_score = 5
         progress = int(engagement_score / 5 * 100)
     
+    # Compute most active genre from user preferences
+    most_active_genre = 'N/A'
+    try:
+        from .models import UserPreferences
+        prefs = UserPreferences.objects.get(user=user)
+        if prefs.preferred_genres:
+            most_active_genre = prefs.preferred_genres[0]
+    except Exception:
+        pass
+
     return JsonResponse({
         'reviewStats': {
             'totalReviews': reviews_count,
             'averageRatingGiven': round(avg_rating, 1),
-            'mostActiveGenre': 'Action',
+            'mostActiveGenre': most_active_genre,
         },
         'listStats': {
             'totalLists': lists_created,

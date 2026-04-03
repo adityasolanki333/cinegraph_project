@@ -13,6 +13,16 @@ from .api import tmdb_request
 
 logger = logging.getLogger(__name__)
 
+# Shared TMDB genre ID mapping used across pattern analysis functions
+TMDB_GENRE_MAP = {
+    'Action': 28, 'Adventure': 12, 'Animation': 16, 'Comedy': 35,
+    'Crime': 80, 'Documentary': 99, 'Drama': 18, 'Family': 10751,
+    'Fantasy': 14, 'History': 36, 'Horror': 27, 'Music': 10402,
+    'Mystery': 9648, 'Romance': 10749, 'Science Fiction': 878,
+    'Thriller': 53, 'War': 10752, 'Western': 37
+}
+
+
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
 # Initialize Gemini client using new google-genai SDK
@@ -361,20 +371,12 @@ def pattern_analyze(request, user_id):
     
     is_binge_watcher = history.count() > 15 or (reviews.count() > 10 and avg_rating > 7)
     
-    genre_map = {
-        'Action': 28, 'Adventure': 12, 'Animation': 16, 'Comedy': 35,
-        'Crime': 80, 'Documentary': 99, 'Drama': 18, 'Family': 10751,
-        'Fantasy': 14, 'History': 36, 'Horror': 27, 'Music': 10402,
-        'Mystery': 9648, 'Romance': 10749, 'Science Fiction': 878,
-        'Thriller': 53, 'War': 10752, 'Western': 37
-    }
-    
     preferred_genre_ids = []
     try:
         prefs = UserPreferences.objects.get(user=user)
         for genre_name in (prefs.preferred_genres or [])[:5]:
-            if genre_name in genre_map:
-                preferred_genre_ids.append(genre_map[genre_name])
+            if genre_name in TMDB_GENRE_MAP:
+                preferred_genre_ids.append(TMDB_GENRE_MAP[genre_name])
     except UserPreferences.DoesNotExist:
         preferred_genre_ids = [28, 878, 53]
     
@@ -417,24 +419,17 @@ def pattern_predict(request, user_id):
     if reviews:
         avg_rating = sum(r.rating for r in reviews) / len(reviews)
     
-    is_binge = history.count() > 15 or reviews.count() > 10
+    avg_rating_val = avg_rating  # already computed above
+    is_binge = history.count() > 15 or (reviews.count() > 10 and avg_rating_val > 7)
     session_type = 'binge' if is_binge else ('explorer' if history.count() > 5 else 'casual')
-    
-    genre_map = {
-        'Action': 28, 'Adventure': 12, 'Animation': 16, 'Comedy': 35,
-        'Crime': 80, 'Documentary': 99, 'Drama': 18, 'Family': 10751,
-        'Fantasy': 14, 'History': 36, 'Horror': 27, 'Music': 10402,
-        'Mystery': 9648, 'Romance': 10749, 'Science Fiction': 878,
-        'Thriller': 53, 'War': 10752, 'Western': 37
-    }
     
     next_genre = 28
     if user:
         try:
             prefs = UserPreferences.objects.get(user=user)
             for genre_name in (prefs.preferred_genres or [])[:1]:
-                if genre_name in genre_map:
-                    next_genre = genre_map[genre_name]
+                if genre_name in TMDB_GENRE_MAP:
+                    next_genre = TMDB_GENRE_MAP[genre_name]
                     break
         except UserPreferences.DoesNotExist:
             pass

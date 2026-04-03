@@ -10,12 +10,13 @@ import {
   Film,
   Star,
   Target,
-  Calendar,
   Clock,
-  Lightbulb
+  Lightbulb,
+  Eye,
+  BarChart3
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface PatternPrediction {
   nextGenre: number;
@@ -29,6 +30,12 @@ interface PatternAnalysis {
   preferredGenres: number[];
   avgRating: number;
   predictedNextGenre: number;
+}
+
+interface PatternCounts {
+  totalWatched: number;
+  totalReviews: number;
+  totalFavorites: number;
 }
 
 const GENRE_MAP: Record<number, string> = {
@@ -56,7 +63,6 @@ const GENRE_MAP: Record<number, string> = {
 export function PatternInsights() {
   const { user } = useAuth();
 
-  // Fetch pattern prediction - always call hooks unconditionally
   const { data: predictionData, isLoading: predictionLoading } = useQuery<{
     userId: string;
     prediction: PatternPrediction;
@@ -70,10 +76,10 @@ export function PatternInsights() {
     enabled: !!user?.id,
   });
 
-  // Fetch pattern analysis - always call hooks unconditionally
   const { data: analysisData, isLoading: analysisLoading } = useQuery<{
     userId: string;
     analysis: PatternAnalysis;
+    patterns: PatternCounts;
   }>({
     queryKey: ['/api/recommendations/pattern/analyze', user?.id],
     queryFn: async () => {
@@ -86,31 +92,7 @@ export function PatternInsights() {
 
   const prediction = predictionData?.prediction;
   const analysis = analysisData?.analysis;
-
-  // All useMemo hooks must be called unconditionally (before any returns)
-  const last30DaysData = useMemo(() => {
-    if (!user?.id || !analysis) return [];
-    const userIdHash = user.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const seededRandom = (day: number) => {
-      const x = Math.sin(userIdHash + day) * 10000;
-      return x - Math.floor(x);
-    };
-    
-    return Array.from({ length: 30 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (29 - i));
-      const dayOfWeek = date.getDay();
-      const baseMovies = analysis.bingeWatcher
-        ? (dayOfWeek === 0 || dayOfWeek === 6 ? 3 : 1)
-        : (dayOfWeek === 0 || dayOfWeek === 6 ? 2 : 0.5);
-      const variance = seededRandom(i) * 1.5;
-      return {
-        date: `${date.getMonth() + 1}/${date.getDate()}`,
-        moviesWatched: Math.max(0, Math.floor(baseMovies + variance)),
-        avgRating: Number(((analysis.avgRating || 7) - 0.5 + seededRandom(i + 30)).toFixed(1))
-      };
-    });
-  }, [user?.id, analysis]);
+  const patterns = analysisData?.patterns;
 
   const genrePreferenceData = useMemo(() => {
     if (!analysis?.preferredGenres?.length) return [];
@@ -126,17 +108,6 @@ export function PatternInsights() {
     });
   }, [analysis?.preferredGenres]);
 
-  const totalMoviesThisMonth = useMemo(() => 
-    last30DaysData.reduce((sum, day) => sum + day.moviesWatched, 0),
-    [last30DaysData]
-  );
-
-  const avgMoviesPerWeek = useMemo(() => 
-    (totalMoviesThisMonth / 4).toFixed(1),
-    [totalMoviesThisMonth]
-  );
-
-  // Now we can have conditional returns after all hooks
   if (!user) {
     return null;
   }
@@ -203,7 +174,28 @@ export function PatternInsights() {
           )}
         </div>
 
-        {/* Stats Grid */}
+        {/* Real Stats Grid */}
+        {patterns && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center p-3 rounded-lg bg-muted/40">
+              <Eye className="h-4 w-4 mx-auto mb-1 text-primary" />
+              <p className="text-xl font-bold" data-testid="text-total-watched">{patterns.totalWatched}</p>
+              <p className="text-xs text-muted-foreground">Watched</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-muted/40">
+              <Star className="h-4 w-4 mx-auto mb-1 text-yellow-500" />
+              <p className="text-xl font-bold" data-testid="text-total-reviews">{patterns.totalReviews}</p>
+              <p className="text-xs text-muted-foreground">Reviews</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-muted/40">
+              <Film className="h-4 w-4 mx-auto mb-1 text-blue-500" />
+              <p className="text-xl font-bold" data-testid="text-total-favorites">{patterns.totalFavorites}</p>
+              <p className="text-xs text-muted-foreground">Favorites</p>
+            </div>
+          </div>
+        )}
+
+        {/* Session Type + Avg Rating */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-muted-foreground">
@@ -287,52 +279,11 @@ export function PatternInsights() {
           </div>
         )}
 
-        {/* 30-Day Viewing Trends */}
-        <div className="space-y-3 pt-2 border-t border-border">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            <span>30-Day Viewing Trends</span>
-          </div>
-          <div className="h-[200px] w-full" data-testid="chart-viewing-trends">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={last30DaysData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis 
-                  dataKey="date" 
-                  stroke="hsl(var(--muted-foreground))"
-                  style={{ fontSize: '10px' }}
-                  interval={6}
-                />
-                <YAxis 
-                  stroke="hsl(var(--muted-foreground))"
-                  style={{ fontSize: '10px' }}
-                />
-                <Tooltip 
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--background))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '6px',
-                    fontSize: '12px'
-                  }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="moviesWatched" 
-                  stroke="hsl(var(--primary))" 
-                  strokeWidth={2}
-                  dot={{ fill: 'hsl(var(--primary))', r: 3 }}
-                  name="Movies Watched"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
         {/* Genre Preference Distribution */}
         {genrePreferenceData.length > 0 && (
           <div className="space-y-3 pt-2 border-t border-border">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Target className="h-4 w-4" />
+              <BarChart3 className="h-4 w-4" />
               <span>Genre Distribution</span>
             </div>
             <div className="h-[200px] w-full" data-testid="chart-genre-distribution">
@@ -372,7 +323,7 @@ export function PatternInsights() {
           </div>
         )}
 
-        {/* Smart Insights */}
+        {/* Smart Insights — based on real backend data */}
         <div className="space-y-3 pt-2 border-t border-border">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Lightbulb className="h-4 w-4" />
@@ -383,18 +334,20 @@ export function PatternInsights() {
               <div className="flex items-start gap-2">
                 <Clock className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
                 <p className="text-sm" data-testid="text-insight-best-time">
-                  <span className="font-medium">Best Watching Time:</span> You tend to watch {analysis.preferredGenres.length > 0 ? GENRE_MAP[analysis.preferredGenres[0]] : 'movies'} on {dominantDay}
+                  <span className="font-medium">Viewing Style:</span> You tend to watch {analysis.preferredGenres.length > 0 ? GENRE_MAP[analysis.preferredGenres[0]] : 'movies'} most on {dominantDay}
                 </p>
               </div>
             </div>
-            <div className="bg-primary/10 rounded-lg p-3 border border-primary/20">
-              <div className="flex items-start gap-2">
-                <TrendingUp className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
-                <p className="text-sm" data-testid="text-insight-activity">
-                  <span className="font-medium">Activity Trend:</span> You've watched {totalMoviesThisMonth} movies this month ({avgMoviesPerWeek} per week average)
-                </p>
+            {patterns && patterns.totalWatched > 0 && (
+              <div className="bg-primary/10 rounded-lg p-3 border border-primary/20">
+                <div className="flex items-start gap-2">
+                  <TrendingUp className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
+                  <p className="text-sm" data-testid="text-insight-activity">
+                    <span className="font-medium">Your Library:</span> {patterns.totalWatched} watched, {patterns.totalReviews} reviewed, {patterns.totalFavorites} favorited
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
             {analysis.avgRating > 4 && (
               <div className="bg-primary/10 rounded-lg p-3 border border-primary/20">
                 <div className="flex items-start gap-2">
@@ -408,7 +361,7 @@ export function PatternInsights() {
           </div>
         </div>
 
-        {/* Recommendation */}
+        {/* Binge recommendation */}
         {analysis.bingeWatcher && (
           <div className="bg-muted/50 rounded-lg p-3 border border-border">
             <p className="text-sm text-muted-foreground italic">
