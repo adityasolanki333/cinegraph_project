@@ -156,13 +156,16 @@ class ForgetPasswordView(APIView):
                 'message': 'If an account with that email exists, a reset link has been sent.'
             })
 
-        from django.core.signing import TimestampSigner
-        signer = TimestampSigner()
-        token = signer.sign(str(user.id))
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        combined_token = f'{uid}:{token}'
 
         host = request.META.get('HTTP_HOST', '')
         scheme = 'https' if request.is_secure() or request.META.get('HTTP_X_FORWARDED_PROTO') == 'https' else 'http'
-        reset_link = f'{scheme}://{host}/forget-password?token={token}'
+        reset_link = f'{scheme}://{host}/forget-password?token={combined_token}'
 
         from django.conf import settings
         sendgrid_key = getattr(settings, 'SENDGRID_API_KEY', '')
@@ -206,8 +209,8 @@ class ForgetPasswordView(APIView):
 
         is_debug = getattr(settings, 'DEBUG', False)
         if is_debug and not email_sent:
-            response_data['demo_reset_token'] = token
-            response_data['demo_reset_link'] = f'/forget-password?token={token}'
+            response_data['demo_reset_token'] = combined_token
+            response_data['demo_reset_link'] = f'/forget-password?token={combined_token}'
 
         return Response(response_data)
 
@@ -220,21 +223,37 @@ class ResetPasswordView(APIView):
         if not serializer.is_valid():
             return Response({'error': serializer.errors, 'code': 'VALIDATION_ERROR'}, status=400)
 
-        from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
-        signer = TimestampSigner()
+        combined_token = serializer.validated_data['token']
+        password = serializer.validated_data['password']
 
         try:
-            user_id = signer.unsign(serializer.validated_data['token'], max_age=3600)
-            user = User.objects.get(id=user_id)
-            user.set_password(serializer.validated_data['password'])
-            user.save()
-            return Response({'success': True, 'message': 'Password successfully reset'})
-        except SignatureExpired:
-            return Response({'error': 'Reset link has expired', 'code': 'VALIDATION_ERROR'}, status=400)
-        except BadSignature:
+            uid_b64, token = combined_token.split(':', 1)
+        except ValueError:
             return Response({'error': 'Invalid reset link', 'code': 'VALIDATION_ERROR'}, status=400)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found', 'code': 'NOT_FOUND'}, status=404)
+
+        from django.utils.http import urlsafe_base64_decode
+        from django.utils.encoding import force_str
+        from django.contrib.auth.tokens import default_token_generator
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        try:
+            user_id = force_str(urlsafe_base64_decode(uid_b64))
+            user = User.objects.get(pk=user_id)
+        except (ValueError, User.DoesNotExist):
+            return Response({'error': 'Invalid reset link', 'code': 'VALIDATION_ERROR'}, status=400)
+
+        if not default_token_generator.check_token(user, token):
+            return Response({'error': 'Reset link has expired or already been used', 'code': 'VALIDATION_ERROR'}, status=400)
+
+        try:
+            validate_password(password, user)
+        except DjangoValidationError as e:
+            return Response({'error': '; '.join(e.messages), 'code': 'VALIDATION_ERROR'}, status=400)
+
+        user.set_password(password)
+        user.save()
+        return Response({'success': True, 'message': 'Password successfully reset'})
 
 
 class DeleteAccountSerializer(serializers.Serializer):

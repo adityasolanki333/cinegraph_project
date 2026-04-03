@@ -132,6 +132,14 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
   - Frontend: Added 24 Vitest + React Testing Library tests covering page smoke tests, hooks (useAuth, useWatchlist), and queryClient
   - Implemented proper TypeScript interfaces in mock factories, replacing `any` casts
   - ML pipeline tests cover RecommendationEngine, BanditEngine, DiversityEngine, SignalAggregator, and FeedbackService
+- April 3, 2026: Password Reset via Email (SendGrid)
+  - Forgot password now generates a secure token (Django PasswordResetTokenGenerator) and emails a reset link via SendGrid
+  - Token is one-time-use: automatically invalidated after password change (uses password hash salt)
+  - Reset password endpoint validates password against Django password validators
+  - Combined token format: base64(uid):token — prevents replay attacks
+  - SendGrid API key stored in secrets (SENDGRID_API_KEY), from address DEFAULT_FROM_EMAIL in settings
+  - In DEBUG mode, if email fails to send, reset token returned in response for testing
+  - Added sendgrid>=6.12.5 to pyproject.toml dependencies
 - April 3, 2026: JWT Auth & Forget Password Rename
   - Switched from session-based to JWT-based authentication using djangorestframework-simplejwt
   - Login and register endpoints now return JWT access/refresh tokens instead of session cookies
