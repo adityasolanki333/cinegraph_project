@@ -565,7 +565,10 @@ class UserRecommendationsForContentView(APIView):
                     pass
             result.append({
                 'id': r.id, 'userId': str(r.user.id),
-                'userName': f"{r.user.first_name} {r.user.last_name}".strip() or r.user.email,
+                'userName': f"{r.user.first_name} {r.user.last_name}".strip() or r.user.username or r.user.email,
+                'userFirstName': r.user.first_name or r.user.username or r.user.email.split('@')[0],
+                'userLastName': r.user.last_name or '',
+                'userEmail': r.user.email,
                 'recommendedTmdbId': r.recommended_tmdb_id,
                 'recommendedMediaType': r.recommended_media_type,
                 'recommendedTitle': r.recommended_title,
@@ -605,7 +608,10 @@ class UserRecommendationCommentsView(APIView):
         return Response({
             'comments': [{
                 'id': c.id, 'userId': str(c.user.id),
-                'userName': f"{c.user.first_name} {c.user.last_name}".strip() or c.user.email,
+                'userName': f"{c.user.first_name} {c.user.last_name}".strip() or c.user.username or c.user.email,
+                'userFirstName': c.user.first_name or c.user.username or c.user.email.split('@')[0],
+                'userLastName': c.user.last_name or '',
+                'userEmail': c.user.email,
                 'comment': c.comment, 'createdAt': c.created_at.isoformat(),
             } for c in comments]
         })
@@ -630,7 +636,10 @@ class UserRecommendationCommentsView(APIView):
             'success': True,
             'comment': {
                 'id': comment.id, 'userId': str(comment.user.id),
-                'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.email,
+                'userName': f"{comment.user.first_name} {comment.user.last_name}".strip() or comment.user.username or comment.user.email,
+                'userFirstName': comment.user.first_name or comment.user.username or comment.user.email.split('@')[0],
+                'userLastName': comment.user.last_name or '',
+                'userEmail': comment.user.email,
                 'comment': comment.comment, 'createdAt': comment.created_at.isoformat(),
             }
         })
@@ -669,7 +678,10 @@ class RecommendationCommentsView(APIView):
         return Response({
             'comments': [{
                 'id': c.id, 'userId': str(c.user.id),
-                'userName': f"{c.user.first_name} {c.user.last_name}".strip() or c.user.email,
+                'userName': f"{c.user.first_name} {c.user.last_name}".strip() or c.user.username or c.user.email,
+                'userFirstName': c.user.first_name or c.user.username or c.user.email.split('@')[0],
+                'userLastName': c.user.last_name or '',
+                'userEmail': c.user.email,
                 'comment': c.comment, 'createdAt': c.created_at.isoformat(),
             } for c in comments]
         })
