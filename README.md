@@ -37,21 +37,6 @@ A Netflix-inspired movie and TV show recommendation platform with AI-powered sug
 - Node.js 18+
 - PostgreSQL database (or SQLite for local development)
 
-## Environment Variables
-
-Create a `.env` file in the project root or set these environment variables:
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SESSION_SECRET` | Yes | Django secret key (app will not start without this) |
-| `DATABASE_URL` | Yes | PostgreSQL connection string (falls back to SQLite if not set) |
-| `TMDB_API_KEY` | Yes | TMDB API key for movie/TV data ([get one here](https://www.themoviedb.org/settings/api)) |
-| `GEMINI_API_KEY` | No | Google Gemini API key for AI recommendations |
-| `RAPIDAPI_KEY` | No | RapidAPI key for YouTube trailer search |
-| `SENDGRID_API_KEY` | No | SendGrid API key for password reset emails |
-| `DEFAULT_FROM_EMAIL` | No | Sender email address for password reset |
-| `DEBUG` | No | Set to `True` for development (defaults to `False`) |
-
 ## Getting Started
 
 ### 1. Clone the repository
@@ -79,21 +64,48 @@ uv sync
 npm install
 ```
 
-### 4. Set up environment variables
+### 4. Set up the `.env` file
+
+The app loads all API keys and configuration from a `.env` file in the project root. A template is provided:
 
 ```bash
 cp .env.example .env
-# Edit .env with your API keys and database URL
 ```
 
-Or export them directly:
+Then open `.env` and fill in your keys:
 
-```bash
-export SESSION_SECRET="your-secret-key-here"
-export DATABASE_URL="postgresql://user:password@host:5432/dbname"
-export TMDB_API_KEY="your-tmdb-api-key"
-export DEBUG="True"
+```env
+SESSION_SECRET=your-django-secret-key-here
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+TMDB_API_KEY=your-tmdb-api-key
+GEMINI_API_KEY=your-gemini-api-key
+RAPIDAPI_KEY=your-rapidapi-key
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=your-email-app-password
+DEBUG=True
 ```
+
+#### Environment Variables Reference
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SESSION_SECRET` | Yes | Django secret key (app will not start without this) |
+| `DATABASE_URL` | No | PostgreSQL connection string (falls back to SQLite if not set) |
+| `TMDB_API_KEY` | Yes | TMDB API key for movie/TV data |
+| `GEMINI_API_KEY` | No | Google Gemini API key for AI chat recommendations |
+| `RAPIDAPI_KEY` | No | RapidAPI key for YouTube trailer search |
+| `EMAIL_HOST_USER` | No | Email address for sending password reset emails |
+| `EMAIL_HOST_PASSWORD` | No | Email app password for SMTP authentication |
+| `DEBUG` | No | Set to `True` for development (defaults to `False`) |
+
+#### Where to Get API Keys
+
+| API | How to Get a Key |
+|-----|-----------------|
+| **TMDB** | Sign up at [themoviedb.org](https://www.themoviedb.org/signup), then go to Settings > API to generate a key |
+| **Gemini** | Go to [ai.google.dev](https://ai.google.dev/) and create an API key in Google AI Studio |
+| **RapidAPI** | Sign up at [rapidapi.com](https://rapidapi.com/), subscribe to the YouTube search API |
+| **Email (Gmail)** | Use a Gmail address and generate an [App Password](https://myaccount.google.com/apppasswords) (requires 2FA enabled) |
 
 ### 5. Run database migrations
 
@@ -127,7 +139,7 @@ The frontend proxies all `/api` requests to the Django backend automatically.
 
 ### Running on Replit
 
-Both servers are configured as workflows and start automatically:
+On Replit, API keys are stored as Secrets (environment variables) instead of a `.env` file. Both servers are configured as workflows and start automatically:
 - **MovieFlix Server** - runs `python manage.py runserver 0.0.0.0:8000`
 - **React Frontend** - runs `npm run dev`
 
