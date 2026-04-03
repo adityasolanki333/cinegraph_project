@@ -107,6 +107,7 @@ def me_view(request):
             'user': {
                 'id': str(user.id),
                 'email': user.email,
+                'username': user.username,
                 'firstName': user.first_name,
                 'lastName': user.last_name,
                 'createdAt': user.date_joined.isoformat(),

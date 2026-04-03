@@ -61,6 +61,9 @@ export default function Profile() {
     if (displayUser?.firstName && displayUser?.lastName) {
       return `${displayUser.firstName} ${displayUser.lastName}`;
     }
+    if (displayUser?.username) {
+      return displayUser.username;
+    }
     if (displayUser?.email) {
       const u = displayUser.email.split('@')[0];
       return u.replace(/[._]/g, ' ').split(' ')
@@ -72,7 +75,7 @@ export default function Profile() {
   const displayName = getDisplayName();
   const initials = displayUser?.firstName && displayUser?.lastName
     ? `${displayUser.firstName[0]}${displayUser.lastName[0]}`
-    : displayUser?.email?.[0]?.toUpperCase() || "U";
+    : (displayUser?.username?.[0]?.toUpperCase() || displayUser?.email?.[0]?.toUpperCase() || "U");
 
   // ── Ratings / Reviews ────────────────────────────────────────────────────
   const { data: userRatings, isLoading: ratingsLoading } = useQuery({

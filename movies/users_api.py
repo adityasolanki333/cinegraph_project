@@ -19,28 +19,6 @@ def get_user_or_404(user_id):
         return None
 
 
-@require_GET
-def get_user_by_username(request, username):
-    try:
-        user = User.objects.get(username=username)
-    except User.DoesNotExist:
-        return JsonResponse({'error': 'User not found'}, status=404)
-
-    profile, _ = UserProfile.objects.get_or_create(user=user)
-    return JsonResponse({
-        'user': {
-            'id': str(user.id),
-            'username': user.username,
-            'email': user.email,
-            'firstName': user.first_name,
-            'lastName': user.last_name,
-            'bio': profile.bio,
-            'profileImageUrl': profile.profile_image_url,
-            'createdAt': user.date_joined.isoformat(),
-        }
-    })
-
-
 def get_or_create_demo_user():
     demo_user, _ = User.objects.get_or_create(
         username='demo_user',
