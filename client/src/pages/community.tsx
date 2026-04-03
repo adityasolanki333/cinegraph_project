@@ -333,7 +333,7 @@ export default function Community() {
                           <img
                             src={`https://image.tmdb.org/t/p/w154${item.posterPath}`}
                             alt={item.title}
-                            className="w-20 h-30 object-cover rounded"
+                            className="w-20 h-[7.5rem] object-cover rounded"
                           />
                         )}
                         <div className="flex-1">
@@ -886,7 +886,7 @@ export default function Community() {
                                 <img
                                   src={`https://image.tmdb.org/t/p/w154${item.posterPath}`}
                                   alt={item.title}
-                                  className="w-20 h-30 object-cover rounded"
+                                  className="w-20 h-[7.5rem] object-cover rounded"
                                 />
                               )}
                               <div className="flex-1">
