@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Bot, User, Sparkles, ArrowDown, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MediaCard } from "@/components/media-card";
-import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 
 interface ChatMessage {
@@ -15,7 +14,7 @@ interface ChatMessage {
   type: "user" | "ai";
   content: string;
   recommendations?: Array<{ title: string; rating: number; reason: string }>;
-  movies?: any[]; // TMDB movie objects for rendering MovieCards
+  movies?: any[];
   queryInsights?: {
     detectedMood?: string;
     detectedGenres: string[];
@@ -26,23 +25,35 @@ interface ChatMessage {
   suggestions?: string[];
   source?: string;
   timestamp: Date;
+  isStreaming?: boolean;
 }
 
 interface AIChatProps {
   className?: string;
 }
 
-// MovieVanders-style natural language suggestions
 const quickSuggestions = [
   { label: "😂 Something Funny", query: "I want something funny to laugh at" },
   { label: "🔥 Exciting Action", query: "show me thrilling action movies" },
   { label: "💕 Romantic Tonight", query: "romantic movies for date night" },
   { label: "😱 Scary Films", query: "I'm in the mood for something scary" },
-  { label: "📼 90s Nostalgia", query: "classic movies from the 90s" },
+  { label: "🆕 What's New", query: "what movies are in theaters right now?" },
   { label: "😊 Feel-Good Movies", query: "uplifting feel-good movies" },
   { label: "🤯 Mind-Bending", query: "thought-provoking intellectual films" },
   { label: "💎 Hidden Gems", query: "underrated movies I should watch" },
 ];
+
+function getCsrfToken(): string {
+  const name = "csrftoken";
+  const cookies = document.cookie.split(";");
+  for (const cookie of cookies) {
+    const trimmed = cookie.trim();
+    if (trimmed.startsWith(name + "=")) {
+      return decodeURIComponent(trimmed.substring(name.length + 1));
+    }
+  }
+  return "";
+}
 
 export default function AIChat({ className }: AIChatProps) {
   const { user } = useAuth();
@@ -51,20 +62,19 @@ export default function AIChat({ className }: AIChatProps) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Convert timestamp strings back to Date objects
         return parsed.map((msg: any) => ({
           ...msg,
-          timestamp: new Date(msg.timestamp)
+          timestamp: new Date(msg.timestamp),
+          isStreaming: false,
         }));
       } catch {
-        // If parsing fails, return default
       }
     }
     return [
       {
         id: "1",
         type: "ai",
-        content: "👋 Hi! I'm your MovieVanders-powered AI assistant! 🎬✨ I understand natural language and can find movies that perfectly match your mood and preferences. Try asking me things like 'I want funny movies for tonight' 😂, 'something scary to watch' 😱, 'romantic films from the 90s' 💕, or even 'movies similar to Inception' 🤯. I'll analyze your request and provide personalized recommendations! 🍿",
+        content: "👋 Hi! I'm your MovieVanders AI assistant! 🎬✨ I know what's currently in theaters, trending this week, and coming soon. Ask me things like 'what's new in theaters?', 'something scary to watch', or 'movies similar to Inception'. I remember our conversation, so feel free to follow up! 🍿",
         timestamp: new Date(),
       },
     ];
@@ -75,12 +85,12 @@ export default function AIChat({ className }: AIChatProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Persist messages to sessionStorage
   useEffect(() => {
-    sessionStorage.setItem('aiChat_messages', JSON.stringify(messages));
+    const toSave = messages.map(m => ({ ...m, isStreaming: false }));
+    sessionStorage.setItem('aiChat_messages', JSON.stringify(toSave));
   }, [messages]);
 
-  const scrollToBottom = (smooth = false) => {
+  const scrollToBottom = useCallback((smooth = false) => {
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
       if (scrollContainer) {
@@ -90,9 +100,9 @@ export default function AIChat({ className }: AIChatProps) {
         });
       }
     }
-  };
+  }, []);
 
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
       if (scrollContainer) {
@@ -101,71 +111,224 @@ export default function AIChat({ className }: AIChatProps) {
         setShowScrollButton(!isNearBottom && scrollHeight > clientHeight);
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
   useEffect(() => {
     const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
     if (scrollContainer) {
       scrollContainer.addEventListener('scroll', handleScroll);
-      // Initial check
       handleScroll();
       return () => scrollContainer.removeEventListener('scroll', handleScroll);
     }
-  }, []);
+  }, [handleScroll]);
 
-  // Auto-scroll to bottom when new messages arrive, but only if user was already at bottom
   useEffect(() => {
-    if (messages.length > 1) { // Skip initial message
+    if (messages.length > 1) {
       const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
       if (scrollContainer) {
         const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
         const wasNearBottom = scrollHeight - scrollTop - clientHeight < 150;
         if (wasNearBottom) {
-          setTimeout(() => scrollToBottom(), 100); // Small delay to ensure content is rendered
+          setTimeout(() => scrollToBottom(), 100);
         }
       }
     }
-  }, [messages.length]);
+  }, [messages.length, scrollToBottom]);
 
-  const generateAIResponse = async (userInput: string): Promise<ChatMessage> => {
+  const getConversationHistory = useCallback(() => {
+    return messages
+      .filter(m => m.type === 'user' || (m.type === 'ai' && m.id !== '1'))
+      .slice(-6)
+      .map(m => ({
+        type: m.type,
+        content: m.content,
+      }));
+  }, [messages]);
+
+  const handleStreamingResponse = useCallback(async (userInput: string) => {
+    const history = getConversationHistory();
+    const streamingMsgId = Date.now().toString();
+
+    setMessages(prev => [...prev, {
+      id: streamingMsgId,
+      type: "ai",
+      content: "",
+      movies: [],
+      timestamp: new Date(),
+      isStreaming: true,
+    }]);
+
     try {
-      // Use the new AI chat endpoint that provides real TMDB movie data
-      const response = await apiRequest('POST', '/api/ai/chat', {
-        message: userInput,
-        userId: user?.id ? String(user.id) : undefined,
+      const response = await fetch('/api/ai/chat/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          message: userInput,
+          userId: user?.id ? String(user.id) : undefined,
+          history,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+
+      if (contentType.includes('text/event-stream')) {
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No reader');
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const event = JSON.parse(line.slice(6));
+
+                if (event.type === 'chunk') {
+                  setMessages(prev => prev.map(m =>
+                    m.id === streamingMsgId
+                      ? { ...m, content: m.content + event.content }
+                      : m
+                  ));
+                  scrollToBottom();
+                } else if (event.type === 'done') {
+                  setMessages(prev => prev.map(m =>
+                    m.id === streamingMsgId
+                      ? { ...m, movies: event.movies || [], isStreaming: false }
+                      : m
+                  ));
+                } else if (event.type === 'error') {
+                  setMessages(prev => prev.map(m =>
+                    m.id === streamingMsgId
+                      ? { ...m, content: event.message || 'Something went wrong. Please try again.', isStreaming: false }
+                      : m
+                  ));
+                }
+              } catch {
+              }
+            }
+          }
+        }
+
+        setMessages(prev => prev.map(m =>
+          m.id === streamingMsgId ? { ...m, isStreaming: false } : m
+        ));
+
+      } else {
+        const data = await response.json();
+
+        if (data.type === 'fallback') {
+          setMessages(prev => prev.map(m =>
+            m.id === streamingMsgId
+              ? {
+                  ...m,
+                  content: data.response,
+                  movies: data.movies || [],
+                  source: 'fallback',
+                  isStreaming: false,
+                }
+              : m
+          ));
+        } else {
+          setMessages(prev => prev.map(m =>
+            m.id === streamingMsgId
+              ? {
+                  ...m,
+                  content: data.response || data.error || 'No response received.',
+                  movies: data.movies || [],
+                  isStreaming: false,
+                }
+              : m
+          ));
+        }
+      }
+
+    } catch (error) {
+      await handleFallbackResponse(userInput, streamingMsgId);
+    }
+  }, [user, getConversationHistory, scrollToBottom]);
+
+  const handleFallbackResponse = useCallback(async (userInput: string, existingMsgId?: string) => {
+    const history = getConversationHistory();
+
+    try {
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          message: userInput,
+          userId: user?.id ? String(user.id) : undefined,
+          history,
+        }),
       });
 
       const data = await response.json();
 
-        const newMessage = {
+      if (existingMsgId) {
+        setMessages(prev => prev.map(m =>
+          m.id === existingMsgId
+            ? {
+                ...m,
+                content: data.response || data.error || "I'd love to help! Tell me what kind of movies you're in the mood for.",
+                movies: data.movies || [],
+                source: data.source,
+                isStreaming: false,
+              }
+            : m
+        ));
+      } else {
+        setMessages(prev => [...prev, {
           id: Date.now().toString(),
-          type: "ai" as const,
-          content: data.response,
-          recommendations: data.recommendations,
-          movies: data.movies || [], // TMDB movie objects for MovieCards
-          queryInsights: data.queryInsights,
-          suggestions: data.suggestions,
+          type: "ai",
+          content: data.response || data.error || "I'd love to help! Tell me what kind of movies you're in the mood for.",
+          movies: data.movies || [],
           source: data.source,
           timestamp: new Date(),
-        };
-
-        return newMessage;
-    } catch (error) {
-      // Fallback response with helpful guidance
-      return {
-        id: Date.now().toString(),
-        type: "ai",
-        content: "I'd love to help you find the perfect movie! Tell me what you're in the mood for - like 'happy comedies', 'scary thrillers', 'romantic movies', or 'action adventures' - and I'll find great options for you!",
-        timestamp: new Date(),
-      };
+        }]);
+      }
+    } catch {
+      const fallbackContent = "I'm having trouble connecting right now. Please try asking again in a moment!";
+      if (existingMsgId) {
+        setMessages(prev => prev.map(m =>
+          m.id === existingMsgId
+            ? { ...m, content: fallbackContent, isStreaming: false }
+            : m
+        ));
+      } else {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          type: "ai",
+          content: fallbackContent,
+          timestamp: new Date(),
+        }]);
+      }
     }
-  };
+  }, [user, getConversationHistory]);
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
 
     const userMessage: ChatMessage = {
@@ -176,32 +339,25 @@ export default function AIChat({ className }: AIChatProps) {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputValue;
     setInputValue("");
     setIsLoading(true);
 
-    // Generate AI response with real API integration
     try {
-      const aiResponse = await generateAIResponse(userMessage.content);
-      setMessages(prev => [...prev, aiResponse]);
-    } catch (error) {
-      const fallbackResponse = {
-        id: Date.now().toString(),
-        type: "ai" as const,
-        content: "I'm having trouble connecting right now. Please try asking again!",
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, fallbackResponse]);
+      await handleStreamingResponse(currentInput);
+    } catch {
+      await handleFallbackResponse(currentInput);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [inputValue, isLoading, handleStreamingResponse, handleFallbackResponse]);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
+  }, [handleSendMessage]);
 
   return (
     <Card className={cn("flex flex-col w-full max-w-7xl h-full", className)}>
@@ -213,7 +369,6 @@ export default function AIChat({ className }: AIChatProps) {
       </CardHeader>
 
       <CardContent className="flex-1 flex flex-col p-2 sm:p-3 pt-0 sm:pt-0 overflow-hidden">
-        {/* Chat Messages Area - Takes available space and scrolls */}
         <div className="flex-1 relative min-h-0 overflow-hidden mb-2 sm:mb-3">
           <ScrollArea ref={scrollAreaRef} className="h-full max-h-full pr-1 sm:pr-2">
             <div className="space-y-3 sm:space-y-4 pb-2">
@@ -239,7 +394,12 @@ export default function AIChat({ className }: AIChatProps) {
                         : "bg-muted text-muted-foreground max-w-full sm:max-w-[95%]"
                     )}
                   >
-                    <p className="text-sm whitespace-pre-line">{message.content}</p>
+                    <p className="text-sm whitespace-pre-line">
+                      {message.content}
+                      {message.isStreaming && (
+                        <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-middle" />
+                      )}
+                    </p>
 
                     {message.movies && message.movies.length > 0 && (
                       <div className="mt-3 sm:mt-4 bg-gradient-to-r from-muted/30 to-muted/10 rounded-lg p-2 sm:p-3 md:p-4 border border-border/50" data-testid={`movie-cards-${message.id}`}>
@@ -258,7 +418,6 @@ export default function AIChat({ className }: AIChatProps) {
                         <div className="w-full overflow-hidden">
                           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
                             {message.movies.slice(0, 8).map((movie: any, index: number) => {
-                              // Convert TMDB movie format to our Movie format
                               const formattedMovie = {
                                 id: movie.id.toString(),
                                 title: movie.title || movie.name,
@@ -296,7 +455,7 @@ export default function AIChat({ className }: AIChatProps) {
                 </div>
               ))}
 
-              {isLoading && (
+              {isLoading && !messages.some(m => m.isStreaming) && (
                 <div className="flex items-start space-x-3">
                   <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg bg-accent">
                     <Bot className="h-4 w-4 text-accent-foreground" />
@@ -314,7 +473,6 @@ export default function AIChat({ className }: AIChatProps) {
             </div>
           </ScrollArea>
 
-          {/* Scroll to bottom button */}
           {showScrollButton && (
             <Button
               onClick={() => scrollToBottom(true)}
@@ -328,7 +486,6 @@ export default function AIChat({ className }: AIChatProps) {
           )}
         </div>
 
-        {/* Quick Movie Suggestions - Compact */}
         <div className="flex-shrink-0 mb-2">
           <div className="flex flex-wrap gap-1">
             {quickSuggestions.slice(0, 6).map((suggestion, index) => (
@@ -352,7 +509,7 @@ export default function AIChat({ className }: AIChatProps) {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="What are you looking for? (e.g., 'funny comedies')"
+            placeholder="What are you looking for? (e.g., 'what's new in theaters?')"
             disabled={isLoading}
             className="flex-1"
             data-testid="input-chat-message"

@@ -83,6 +83,14 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
   - Dead code removed: test_endpoints.py, test_feed.js, .gitignore_1, models_search.py, unused lru_cache/duplicate imports, ~10 unrouted demo_user_* view functions
   - Tests fixed: Corrected URL references (auth/user→auth/me, trending paths, search paths, community-feed); login tests updated to use email field
   - Frontend: Notification polling throttled from 30s to 60s in NotificationBell.tsx
+- April 3, 2026: AI Chat & Analysis Production Upgrade
+  - Injected real-time TMDB movie context (trending, now playing, upcoming) into Gemini prompts with today's date
+  - Rewrote system prompt to prioritize recent releases (2024-2026), include release years, and reference current movies
+  - Added multi-turn conversation memory (last 6 messages sent as context to Gemini)
+  - Added streaming SSE endpoint (`/api/ai/chat/stream`) with progressive text rendering on frontend
+  - Upgraded pattern analysis to use Gemini for richer viewing habit insights (`aiInsight` field)
+  - Hardened error handling with user-friendly messages, proper logging, and TMDB trending fallback
+  - Each TMDB source in fetch_current_movies() individually try/caught for partial-data resilience
 - December 18, 2025: PostgreSQL Migration Complete
   - Switched from SQLite to PostgreSQL (Neon-backed via DATABASE_URL)
   - All Django migrations applied successfully (25 migrations)

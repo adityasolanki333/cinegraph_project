@@ -172,6 +172,7 @@ urlpatterns = [
     
     # AI Recommendations endpoints
     path('ai/chat', recommendations_api.ai_chat, name='api_ai_chat'),
+    path('ai/chat/stream', recommendations_api.ai_chat_stream, name='api_ai_chat_stream'),
     path('recommendations/preferences', recommendations_api.save_preferences, name='api_save_preferences'),
     path('users/<str:user_id>/preferences', recommendations_api.get_preferences, name='api_get_preferences'),
 
