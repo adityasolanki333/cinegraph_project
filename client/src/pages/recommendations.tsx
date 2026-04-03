@@ -20,6 +20,27 @@ import type { Movie } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { usePageMeta } from "@/hooks/usePageMeta";
 
+function getCsrfToken(): string {
+  const name = "csrftoken";
+  const cookies = document.cookie.split(";");
+  for (const cookie of cookies) {
+    const trimmed = cookie.trim();
+    if (trimmed.startsWith(name + "=")) {
+      return decodeURIComponent(trimmed.substring(name.length + 1));
+    }
+  }
+  return "";
+}
+
+async function ensureCsrfToken(): Promise<string> {
+  let token = getCsrfToken();
+  if (!token) {
+    await fetch('/api/auth/csrf', { credentials: 'include' });
+    token = getCsrfToken();
+  }
+  return token || "";
+}
+
 const moodOptions = [
   {
     id: "happy",
@@ -386,13 +407,16 @@ export default function Recommendations() {
     queryKey: ['/api/recommendations/pipeline', user?.id, pipelineRefreshKey, diversityLevel],
     enabled: !!user?.id,
     queryFn: async () => {
+      const csrfToken = await ensureCsrfToken();
+
       // Step 1: Select recommendation strategy via Contextual Bandit
       let arm = 'hybrid';
       let experimentId = null;
       try {
         const banditResp = await fetch(`/api/ml/bandit/${user?.id}/select`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          credentials: 'include',
           body: JSON.stringify({ mood: selectedMood })
         });
         if (banditResp.ok) {
@@ -429,7 +453,8 @@ export default function Recommendations() {
         try {
           const divResp = await fetch(`/api/ml/diversity/apply`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            credentials: 'include',
             body: JSON.stringify({
               candidates: recs,
               config: {
@@ -719,7 +744,7 @@ export default function Recommendations() {
                             </Button>
                           </div>
                           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {visibleItems.map((item: any) => {
+                            {visibleItems.map((item: any, itemIdx: number) => {
                               const itemId = String(item.tmdb_id ?? item.id);
                               const boostMovie = {
                                 id: itemId,
@@ -738,7 +763,7 @@ export default function Recommendations() {
                               };
                               return (
                                 <MediaCard
-                                  key={itemId}
+                                  key={`boost-${boostIdx}-${itemId}-${itemIdx}`}
                                   movie={boostMovie}
                                   showFeedback={true}
                                   recommendationScore={boostMovie.score}
@@ -762,12 +787,12 @@ export default function Recommendations() {
                       if (visibleRecs.length === 0) return null;
                       return (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                          {visibleRecs.map((rec: any) => {
+                          {visibleRecs.map((rec: any, recIdx: number) => {
                             const rawId = rec.id ?? rec.tmdbId ?? rec.movieId;
                             if (!rawId) return null;
                             return (
                               <MediaCard
-                                key={rawId}
+                                key={`rec-${rawId}-${recIdx}`}
                                 movie={rec}
                                 showFeedback={true}
                                 recommendationScore={rec.score}

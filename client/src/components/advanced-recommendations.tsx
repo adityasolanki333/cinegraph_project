@@ -12,6 +12,27 @@ import MediaCardSkeleton from '@/components/media-card-skeleton';
 import { ExplanationVisualizer, ExplanationData } from './explanation-visualizer';
 import { useAuth } from '@/hooks/useAuth';
 
+function getCsrfToken(): string {
+  const name = "csrftoken";
+  const cookies = document.cookie.split(";");
+  for (const cookie of cookies) {
+    const trimmed = cookie.trim();
+    if (trimmed.startsWith(name + "=")) {
+      return decodeURIComponent(trimmed.substring(name.length + 1));
+    }
+  }
+  return "";
+}
+
+async function ensureCsrfToken(): Promise<string> {
+  let token = getCsrfToken();
+  if (!token) {
+    await fetch('/api/auth/csrf', { credentials: 'include' });
+    token = getCsrfToken();
+  }
+  return token || "";
+}
+
 function ExplanationLoader({ movieId, mediaType, initialReason }: { movieId: number, mediaType: string, initialReason: string }) {
   const { user } = useAuth();
   const userId = user?.id || 'demo_user';
@@ -181,11 +202,14 @@ export function AdvancedRecommendations() {
         }
       }
 
+      const csrfToken = await ensureCsrfToken();
       const response = await fetch('/api/recommendations/semantic-search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken,
         },
+        credentials: 'include',
         body: JSON.stringify({
           query: lastSearchedQuery,
           limit: 20,
