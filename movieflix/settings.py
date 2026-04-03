@@ -17,9 +17,14 @@ if env_path.exists():
 
 SECRET_KEY = os.environ.get('SESSION_SECRET', 'django-insecure-dev-key-change-in-production')
 
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+_default_hosts = 'localhost,127.0.0.1,.replit.dev,.repl.co,.kirk.replit.dev'
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', _default_hosts).split(',')
+# Also allow the Replit dev domain if set
+_replit_domain = os.environ.get('REPLIT_DEV_DOMAIN', '')
+if _replit_domain and _replit_domain not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_replit_domain)
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -102,18 +107,15 @@ FRONTEND_BUILD_DIR = BASE_DIR / 'dist' / 'public'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://*.replit.dev', 
+    'https://*.replit.dev',
     'https://*.repl.co',
+    'https://*.kirk.replit.dev',
+    'http://localhost:5000',
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5175',
-    'http://localhost:5176',
-    'http://localhost:5177',
+    'http://127.0.0.1:5000',
     'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    'http://127.0.0.1:5175',
-    'http://127.0.0.1:5176',
-    'http://127.0.0.1:5177',
 ]
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
@@ -126,20 +128,7 @@ if _cors_origins_env:
     CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins_env.split(',') if o.strip()]
     CORS_ALLOW_ALL_ORIGINS = False
 else:
-    # Development fallback — allow localhost only
-    CORS_ALLOWED_ORIGINS = [
-        'http://localhost:5173',
-        'http://localhost:5174',
-        'http://localhost:5175',
-        'http://localhost:5176',
-        'http://localhost:5177',
-        'http://127.0.0.1:5173',
-        'http://127.0.0.1:5174',
-        'http://127.0.0.1:5175',
-        'http://127.0.0.1:5176',
-        'http://127.0.0.1:5177',
-    ]
-    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [

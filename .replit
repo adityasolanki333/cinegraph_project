@@ -60,5 +60,5 @@ externalPort = 8000
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["gunicorn", "--bind=0.0.0.0:5000", "--reuse-port", "--workers=2", "movieflix.wsgi:application"]
+run = ["node", "./dist/index.cjs"]
 build = ["npm", "run", "build"]
