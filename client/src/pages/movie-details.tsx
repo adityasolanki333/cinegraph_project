@@ -958,6 +958,7 @@ function SemanticSimilarMovies({
           release_date: item.release_date || '',
           overview: item.overview || '',
           genre: Array.isArray(item.genres) && item.genres.length > 0 ? item.genres[0] : '',
+          genre_ids: Array.isArray(item.genre_ids) ? item.genre_ids : [],
           similarity: item.similarity_score ?? item.similarity ?? null,
           explanation: item.explanation || null,
         })),
@@ -1029,6 +1030,7 @@ function SemanticSimilarMovies({
                 release_date: movie.release_date,
                 synopsis: movie.overview,
                 genre: movie.genre,
+                genre_ids: movie.genre_ids,
               }}
               mediaType="movie"
             />

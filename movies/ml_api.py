@@ -1091,70 +1091,110 @@ def get_similar_movies_semantic(request, tmdb_id):
         limit = min(int(request.GET.get('limit', 10)), 50)
         media_type = request.GET.get('media_type', 'movie')
 
-        similar_items = []
+        import concurrent.futures
+        from . import api as tmdb_api
 
-        # Try Pinecone vector search first
+        def enrich_and_filter(items):
+            """Fetch full TMDB metadata for all items, then remove those without a poster."""
+            def fetch_detail(idx):
+                item = items[idx]
+                try:
+                    detail = tmdb_api.tmdb_request(f"/{media_type}/{item['tmdb_id']}")
+                    return idx, detail
+                except Exception:
+                    return idx, {}
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                for idx, detail in executor.map(fetch_detail, range(len(items))):
+                    if detail:
+                        items[idx]['poster_path'] = detail.get('poster_path') or items[idx].get('poster_path', '')
+                        items[idx]['overview'] = detail.get('overview') or ''
+                        items[idx]['vote_average'] = detail.get('vote_average') or 0
+                        items[idx]['release_date'] = detail.get('release_date') or detail.get('first_air_date') or ''
+                        items[idx]['genres'] = [g['name'] for g in detail.get('genres', [])]
+
+            return [item for item in items if item.get('poster_path')]
+
+        similar_items = []
+        SIMILARITY_THRESHOLD = 0.70  # min acceptable Pinecone quality
+
+        # 1. Try Pinecone vector search — only use if top result quality is high enough
         try:
             from .ml.pinecone_service import pinecone_service
-            results = pinecone_service.get_nearest_neighbors(int(tmdb_id), k=limit)
+            results = pinecone_service.get_nearest_neighbors(int(tmdb_id), k=limit + 5)
             if results:
-                similar_items = [
-                    {
-                        'tmdb_id': r.get('id'),
-                        'title': r.get('title', ''),
-                        'poster_path': r.get('poster_path') or '',
-                        'similarity_score': round(r.get('similarity', 0.0), 3),
-                        'media_type': media_type,
-                        'type': 'semantic_vector',
-                        'explanation': r.get('explanation', ''),
-                    }
-                    for r in results if str(r.get('id')) != str(tmdb_id)
-                ]
-
-                # Enrich all items from TMDB to get full metadata (poster, rating, overview, genres)
-                import concurrent.futures
-                from . import api as tmdb_api
-
-                def fetch_tmdb_detail(idx):
-                    item = similar_items[idx]
-                    try:
-                        detail = tmdb_api.tmdb_request(f"/{media_type}/{item['tmdb_id']}")
-                        return idx, detail
-                    except Exception:
-                        return idx, {}
-
-                with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                    for idx, detail in executor.map(fetch_tmdb_detail, range(len(similar_items))):
-                        if detail:
-                            similar_items[idx]['poster_path'] = detail.get('poster_path') or similar_items[idx]['poster_path']
-                            similar_items[idx]['overview'] = detail.get('overview') or ''
-                            similar_items[idx]['vote_average'] = detail.get('vote_average') or 0
-                            similar_items[idx]['release_date'] = detail.get('release_date') or detail.get('first_air_date') or ''
-                            similar_items[idx]['genres'] = [g['name'] for g in detail.get('genres', [])]
-
-                # Filter out items with no poster
-                similar_items = [item for item in similar_items if item.get('poster_path')]
-
+                top_score = results[0].get('similarity', 0.0) if results else 0.0
+                if top_score >= SIMILARITY_THRESHOLD:
+                    similar_items = [
+                        {
+                            'tmdb_id': r.get('id'),
+                            'title': r.get('title', ''),
+                            'poster_path': r.get('poster_path') or '',
+                            'similarity_score': round(r.get('similarity', 0.0), 3),
+                            'media_type': media_type,
+                            'type': 'semantic_vector',
+                            'explanation': r.get('explanation', ''),
+                        }
+                        for r in results if str(r.get('id')) != str(tmdb_id)
+                    ][:limit]
+                    similar_items = enrich_and_filter(similar_items)
+                else:
+                    print(f"Pinecone quality too low for {tmdb_id} (top={top_score:.2f}), using TMDB fallback")
         except Exception as e:
             print(f"Pinecone search error: {e}")
 
-        # Fallback: TMDB similar endpoint
+        # 2. Fallback: TMDB recommendations (better quality than /similar for popular films)
         if not similar_items:
-            from . import api
-            endpoint = f"/{media_type}/{tmdb_id}/similar"
-            result = api.tmdb_request(endpoint)
-            if 'results' in result:
+            try:
+                rec_result = tmdb_api.tmdb_request(f"/{media_type}/{tmdb_id}/recommendations")
+                rec_items = rec_result.get('results', [])[:limit + 5]
+                if rec_items:
+                    similar_items = [
+                        {
+                            'tmdb_id': item['id'],
+                            'title': item.get('title') or item.get('name', ''),
+                            'poster_path': item.get('poster_path') or '',
+                            'overview': item.get('overview') or '',
+                            'vote_average': item.get('vote_average') or 0,
+                            'release_date': item.get('release_date') or item.get('first_air_date') or '',
+                            'genre_ids': item.get('genre_ids', []),
+                            'genres': [],
+                            'similarity_score': round(item.get('vote_average', 0) / 10, 3),
+                            'media_type': media_type,
+                            'type': 'tmdb_recommendations',
+                            'explanation': 'Recommended by TMDB',
+                        }
+                        for item in rec_items
+                        if item.get('poster_path')
+                    ][:limit]
+            except Exception as e:
+                print(f"TMDB recommendations error: {e}")
+
+        # 3. Last resort: TMDB /similar endpoint
+        if not similar_items:
+            try:
+                sim_result = tmdb_api.tmdb_request(f"/{media_type}/{tmdb_id}/similar")
+                sim_items = sim_result.get('results', [])[:limit + 5]
                 similar_items = [
                     {
                         'tmdb_id': item['id'],
                         'title': item.get('title') or item.get('name', ''),
-                        'poster_path': item.get('poster_path'),
-                        'similarity_score': round(item.get('vote_average', 7.0) / 10, 3),
+                        'poster_path': item.get('poster_path') or '',
+                        'overview': item.get('overview') or '',
+                        'vote_average': item.get('vote_average') or 0,
+                        'release_date': item.get('release_date') or item.get('first_air_date') or '',
+                        'genre_ids': item.get('genre_ids', []),
+                        'genres': [],
+                        'similarity_score': round(item.get('vote_average', 0) / 10, 3),
                         'media_type': media_type,
                         'type': 'tmdb_similar',
+                        'explanation': 'Fans also watched',
                     }
-                    for item in result['results'][:limit]
-                ]
+                    for item in sim_items
+                    if item.get('poster_path')
+                ][:limit]
+            except Exception as e:
+                print(f"TMDB similar error: {e}")
 
         return JsonResponse({
             "tmdb_id": tmdb_id,
