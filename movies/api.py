@@ -6,8 +6,7 @@ from django.conf import settings
 from functools import lru_cache
 
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
-TMDB_API_KEY_FALLBACK = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJkMGQwMmJlMzE1OWUwZDE5NmMzNDZiMjMzYjM0YmI4NyIsIm5iZiI6MTc1NDk3NjAzMy4zNywic3ViIjoiNjg5YWNmMjFhMjkxOGQ3ZGVjOGRhZmFiIiwic2NvcGVzIjpbImFwaV9yZWFkIl0sInZlcnNpb24iOjF9.zU4nND6frFZTFEWG_tRm2K357UC78HKCn08YedcXv68"
-TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '') or TMDB_API_KEY_FALLBACK
+TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
 
 def get_headers():
     return {
