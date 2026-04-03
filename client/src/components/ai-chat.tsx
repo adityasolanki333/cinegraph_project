@@ -499,32 +499,32 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   }, [handleSendMessage]);
 
   return (
-    <div className={cn("fixed bottom-20 md:bottom-4 right-4 z-[60] flex flex-col items-end", className)} data-testid="ai-chat-widget">
+    <div className={cn("fixed z-[60]", isOpen ? "inset-0 md:inset-auto md:bottom-4 md:right-4 md:flex md:flex-col md:items-end" : "bottom-20 md:bottom-4 right-4 flex flex-col items-end", className)} data-testid="ai-chat-widget">
       {isOpen && (
-        <div className="mb-3 w-[92vw] sm:w-[420px] md:w-[480px] h-[75vh] sm:h-[600px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-                <Bot className="h-4 w-4 text-primary-foreground" />
+        <div className="w-full h-full md:mb-3 md:w-[480px] md:h-[600px] bg-background md:border md:border-border md:rounded-2xl md:shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 md:slide-in-from-bottom-5 fade-in duration-300">
+          <div className="flex items-center justify-between px-4 py-3 md:py-2.5 border-b border-border bg-card shrink-0 safe-area-top">
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 md:h-8 md:w-8 rounded-full bg-primary flex items-center justify-center shrink-0">
+                <Bot className="h-5 w-5 md:h-4 md:w-4 text-primary-foreground" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-foreground">AI Movie Assistant</h3>
-                <p className="text-[10px] text-muted-foreground">Ask me for recommendations</p>
+                <h3 className="text-base md:text-sm font-semibold text-foreground">AI Movie Assistant</h3>
+                <p className="text-xs md:text-[10px] text-muted-foreground">Ask me for recommendations</p>
               </div>
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={toggleOpen}
-              className="h-8 w-8 p-0 rounded-full hover:bg-muted shrink-0"
+              className="h-9 w-9 md:h-8 md:w-8 p-0 rounded-full hover:bg-muted shrink-0"
               data-testid="button-close-chat"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5 md:h-4 md:w-4" />
             </Button>
           </div>
 
           <div className="flex-1 relative min-h-0 overflow-hidden">
-            <ScrollArea ref={scrollAreaRef} className="h-full px-3 py-2">
+            <ScrollArea ref={scrollAreaRef} className="h-full px-3 md:px-3 py-2">
               <div className="space-y-3 pb-2">
                 {messages.map((message) => (
                   <div
@@ -574,7 +574,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                         }
                         if (!displayText && !message.isStreaming) return null;
                         return (
-                          <p className="text-[13px] leading-relaxed whitespace-pre-line">
+                          <p className="text-sm md:text-[13px] leading-relaxed whitespace-pre-line">
                             {displayText}
                             {message.isStreaming && (
                               <span className="inline-block w-1 h-3.5 bg-primary ml-0.5 animate-pulse align-middle rounded-full" />
@@ -594,7 +594,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                             </div>
                           )}
 
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 gap-2.5 md:gap-2">
                             {message.movies && message.movies.slice(0, 4).map((movie: any) => {
                               const mediaType = movie.media_type === 'tv' ? 'tv' : 'movie';
                               const title = movie.title || movie.name || 'Untitled';
@@ -631,16 +631,16 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                                           No Poster
                                         </div>
                                       )}
-                                      <div className="absolute top-1 right-1 flex items-center gap-0.5 bg-black/70 text-yellow-400 text-[10px] font-semibold px-1.5 py-0.5 rounded">
-                                        <Star className="h-2.5 w-2.5 fill-yellow-400" />
+                                      <div className="absolute top-1 right-1 flex items-center gap-0.5 bg-black/70 text-yellow-400 text-[11px] md:text-[10px] font-semibold px-1.5 py-0.5 rounded">
+                                        <Star className="h-3 w-3 md:h-2.5 md:w-2.5 fill-yellow-400" />
                                         {rating.toFixed(1)}
                                       </div>
                                     </div>
-                                    <div className="px-1.5 py-1">
-                                      <p className="font-medium text-[11px] leading-tight text-foreground line-clamp-2 group-hover:text-primary transition-colors">
+                                    <div className="px-2 py-1.5 md:px-1.5 md:py-1">
+                                      <p className="font-medium text-xs md:text-[11px] leading-tight text-foreground line-clamp-2 group-hover:text-primary transition-colors">
                                         {title}
                                       </p>
-                                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                                      <p className="text-[11px] md:text-[10px] text-muted-foreground mt-0.5 truncate">
                                         {[year, genre].filter(Boolean).join(' \u2022 ')}
                                       </p>
                                     </div>
@@ -696,15 +696,15 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
             )}
           </div>
 
-          <div className="border-t border-border bg-card px-3 py-2 space-y-2">
-            <div className="flex flex-wrap gap-1">
+          <div className="border-t border-border bg-card px-3 md:px-3 py-2.5 md:py-2 space-y-2 shrink-0 safe-area-bottom">
+            <div className="flex flex-wrap gap-1.5 md:gap-1">
               {quickSuggestions.slice(0, 4).map((suggestion, index) => (
                 <Button
                   key={index}
                   variant="outline"
                   size="sm"
                   onClick={() => setInputValue(suggestion.query)}
-                  className="text-[10px] h-5 px-1.5 rounded-full"
+                  className="text-xs md:text-[10px] h-7 md:h-5 px-2.5 md:px-1.5 rounded-full"
                   disabled={isLoading}
                   data-testid={`button-suggestion-${index}`}
                 >
@@ -720,39 +720,32 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                 onKeyPress={handleKeyPress}
                 placeholder="Ask for movie recommendations..."
                 disabled={isLoading}
-                className="flex-1 h-9 text-sm rounded-full bg-muted border-0 focus-visible:ring-1"
+                className="flex-1 h-11 md:h-9 text-base md:text-sm rounded-full bg-muted border-0 focus-visible:ring-1"
                 data-testid="input-chat-message"
               />
               <Button
                 onClick={handleSendMessage}
                 disabled={!inputValue.trim() || isLoading}
                 size="sm"
-                className="h-9 w-9 rounded-full p-0"
+                className="h-11 w-11 md:h-9 md:w-9 rounded-full p-0"
                 data-testid="button-send-message"
               >
-                <Send className="h-4 w-4" />
+                <Send className="h-5 w-5 md:h-4 md:w-4" />
               </Button>
             </div>
           </div>
         </div>
       )}
 
-      <Button
-        onClick={toggleOpen}
-        className={cn(
-          "h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 p-0",
-          isOpen
-            ? "bg-muted text-muted-foreground hover:bg-muted/80"
-            : "bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105"
-        )}
-        data-testid="button-toggle-chat"
-      >
-        {isOpen ? (
-          <X className="h-6 w-6" />
-        ) : (
+      {!isOpen && (
+        <Button
+          onClick={toggleOpen}
+          className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 p-0 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105"
+          data-testid="button-toggle-chat"
+        >
           <MessageSquare className="h-6 w-6" />
-        )}
-      </Button>
+        </Button>
+      )}
     </div>
   );
 }
