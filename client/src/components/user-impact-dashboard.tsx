@@ -13,11 +13,9 @@ import {
   TrendingUp, 
   Trophy,
   Sparkles,
-  Target,
-  Film
+  Target
 } from "lucide-react";
 import type { UserImpactData } from "@shared/api-types";
-import { getLevelBadge } from "@shared/helpers";
 
 interface UserImpactDashboardProps {
   userId: string;
@@ -35,16 +33,7 @@ export function UserImpactDashboard({ userId }: UserImpactDashboardProps) {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const { data: userStats, isLoading: statsLoading } = useQuery<any>({
-    queryKey: ['/api/community', userId, 'stats'],
-    queryFn: async () => {
-      const response = await fetch(`/api/community/${userId}/stats`);
-      if (!response.ok) return {};
-      return response.json();
-    },
-  });
-
-  if (isLoading || statsLoading) {
+  if (isLoading) {
     return (
       <div className="space-y-6" data-testid="impact-dashboard-loading">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -73,8 +62,6 @@ export function UserImpactDashboard({ userId }: UserImpactDashboardProps) {
   }
 
   const { reviewStats, listStats, socialStats, engagementReceived, communityRank } = impactData;
-  const experiencePoints = userStats?.experiencePoints || 0;
-  const levelInfo = getLevelBadge(experiencePoints);
 
   // Get rank color and gradient
   const getRankColor = (rank: string) => {

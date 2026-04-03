@@ -986,17 +986,6 @@ def get_review_awards(request, review_id):
                 related_tmdb_id=review.tmdb_id,
                 related_media_type=review.media_type
             )
-            
-            giver_stats, _ = UserActivityStats.objects.get_or_create(user=user)
-            giver_stats.total_awards_given += 1
-            giver_stats.experience_points += 2
-            giver_stats.save()
-            
-            receiver_stats, _ = UserActivityStats.objects.get_or_create(user=review.user)
-            receiver_stats.total_awards_received += 1
-            receiver_stats.experience_points += 10
-            receiver_stats.user_level = receiver_stats.calculate_level()
-            receiver_stats.save()
         
         return JsonResponse({
             'success': True,
@@ -1034,74 +1023,6 @@ def get_user_awards_for_review(request, review_id):
     return JsonResponse({
         'userAwards': [a.award_type for a in user_awards]
     })
-
-
-@csrf_exempt
-@require_POST
-def give_review_award(request, review_id):
-    # Support demo user for unauthenticated requests
-    if not request.user.is_authenticated:
-        try:
-            user = User.objects.get(username='demo_user')
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'Not authenticated'}, status=401)
-    else:
-        user = request.user
-    
-    try:
-        review = UserReview.objects.get(id=review_id)
-    except UserReview.DoesNotExist:
-        return JsonResponse({'error': 'Review not found'}, status=404)
-    
-    if review.user == user:
-        return JsonResponse({'error': 'Cannot give awards to your own review'}, status=400)
-    
-    try:
-        data = json.loads(request.body)
-        award_type = data.get('awardType', '').lower()
-        
-        valid_types = ['outstanding', 'perfect', 'great', 'helpful', 'insightful', 'funny']
-        if award_type not in valid_types:
-            return JsonResponse({'error': f'Invalid award type. Must be one of: {", ".join(valid_types)}'}, status=400)
-        
-        award, created = ReviewAward.objects.get_or_create(
-            user=user,
-            review=review,
-            award_type=award_type
-        )
-        
-        if created and review.user != user:
-            Notification.objects.create(
-                user=review.user,
-                notification_type='like',
-                message=f'{user.first_name or user.email} gave your review a "{award_type}" award',
-                related_user_id=user.id,
-                related_tmdb_id=review.tmdb_id,
-                related_media_type=review.media_type
-            )
-            
-            giver_stats, _ = UserActivityStats.objects.get_or_create(user=user)
-            giver_stats.total_awards_given += 1
-            giver_stats.experience_points += 2
-            giver_stats.save()
-            
-            receiver_stats, _ = UserActivityStats.objects.get_or_create(user=review.user)
-            receiver_stats.total_awards_received += 1
-            receiver_stats.experience_points += 10
-            receiver_stats.user_level = receiver_stats.calculate_level()
-            receiver_stats.save()
-        
-        return JsonResponse({
-            'success': True,
-            'created': created,
-            'award': {
-                'id': award.id,
-                'awardType': award.award_type,
-                'createdAt': award.created_at.isoformat(),
-            }
-        })
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
 
 @csrf_exempt
