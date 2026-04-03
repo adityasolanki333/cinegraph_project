@@ -19,12 +19,9 @@ SECRET_KEY = os.environ.get('SESSION_SECRET', 'django-insecure-dev-key-change-in
 
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-_default_hosts = 'localhost,127.0.0.1,.replit.dev,.repl.co,.kirk.replit.dev'
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', _default_hosts).split(',')
-# Also allow the Replit dev domain if set
-_replit_domain = os.environ.get('REPLIT_DEV_DOMAIN', '')
-if _replit_domain and _replit_domain not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append(_replit_domain)
+_replit_domains = [d for d in os.environ.get('REPLIT_DOMAINS', '').split(',') if d]
+_default_hosts = ['localhost', '127.0.0.1'] + _replit_domains
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',') if os.environ.get('ALLOWED_HOSTS') else _default_hosts
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -106,17 +103,17 @@ FRONTEND_BUILD_DIR = BASE_DIR / 'dist' / 'public'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CSRF_TRUSTED_ORIGINS = [
-    'https://*.replit.dev',
-    'https://*.repl.co',
-    'https://*.kirk.replit.dev',
-    'http://localhost:5000',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://127.0.0.1:5000',
-    'http://127.0.0.1:5173',
-]
+CSRF_TRUSTED_ORIGINS = (
+    ['https://' + d for d in _replit_domains]
+    + [
+        'http://localhost:5000',
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:5175',
+        'http://127.0.0.1:5000',
+        'http://127.0.0.1:5173',
+    ]
+)
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
 SESSION_COOKIE_SAMESITE = 'Lax'
