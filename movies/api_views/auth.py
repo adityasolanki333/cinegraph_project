@@ -168,35 +168,41 @@ class ForgetPasswordView(APIView):
         reset_link = f'{scheme}://{host}/forget-password?token={combined_token}'
 
         from django.conf import settings
-        sendgrid_key = getattr(settings, 'SENDGRID_API_KEY', '')
+        from django.core.mail import send_mail
         email_sent = False
 
-        if sendgrid_key:
+        if settings.EMAIL_HOST_USER:
             try:
-                from sendgrid import SendGridAPIClient
-                from sendgrid.helpers.mail import Mail
-                message = Mail(
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    to_emails=email,
-                    subject='CineGraph - Reset Your Password',
-                    html_content=(
-                        f'<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">'
-                        f'<h2 style="color:#6366f1">CineGraph Password Reset</h2>'
-                        f'<p>Hi {user.first_name or "there"},</p>'
-                        f'<p>We received a request to reset your password. Click the button below to set a new password:</p>'
-                        f'<p style="text-align:center;margin:30px 0">'
-                        f'<a href="{reset_link}" style="background:#6366f1;color:#fff;padding:12px 32px;'
-                        f'border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">'
-                        f'Reset Password</a></p>'
-                        f'<p style="color:#666;font-size:14px">This link expires in 1 hour. '
-                        f'If you did not request this, you can safely ignore this email.</p>'
-                        f'<hr style="border:none;border-top:1px solid #eee;margin:20px 0">'
-                        f'<p style="color:#999;font-size:12px">CineGraph - Your Movie & TV Companion</p>'
-                        f'</div>'
-                    ),
+                html_content = (
+                    f'<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">'
+                    f'<h2 style="color:#6366f1">CineGraph Password Reset</h2>'
+                    f'<p>Hi {user.first_name or "there"},</p>'
+                    f'<p>We received a request to reset your password. Click the button below to set a new password:</p>'
+                    f'<p style="text-align:center;margin:30px 0">'
+                    f'<a href="{reset_link}" style="background:#6366f1;color:#fff;padding:12px 32px;'
+                    f'border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">'
+                    f'Reset Password</a></p>'
+                    f'<p style="color:#666;font-size:14px">This link expires in 1 hour. '
+                    f'If you did not request this, you can safely ignore this email.</p>'
+                    f'<hr style="border:none;border-top:1px solid #eee;margin:20px 0">'
+                    f'<p style="color:#999;font-size:12px">CineGraph - Your Movie & TV Companion</p>'
+                    f'</div>'
                 )
-                sg = SendGridAPIClient(sendgrid_key)
-                sg.send(message)
+                plain_text = (
+                    f'Hi {user.first_name or "there"},\n\n'
+                    f'We received a request to reset your password.\n\n'
+                    f'Click here to reset: {reset_link}\n\n'
+                    f'This link expires in 1 hour.\n'
+                    f'If you did not request this, you can safely ignore this email.'
+                )
+                send_mail(
+                    subject='CineGraph - Reset Your Password',
+                    message=plain_text,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[email],
+                    html_message=html_content,
+                    fail_silently=False,
+                )
                 email_sent = True
                 logger.info('Password reset email sent to %s', email)
             except Exception as e:
