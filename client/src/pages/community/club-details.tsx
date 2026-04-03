@@ -141,10 +141,10 @@ export default function ClubDetails() {
                     <img
                         src={club.cover_image_url}
                         alt={club.title}
-                        className="w-full h-48 sm:h-64 object-cover"
+                        className="w-full h-56 sm:h-72 object-cover"
                     />
                 ) : (
-                    <div className="w-full h-48 sm:h-64 bg-gradient-to-r from-primary/20 to-primary/10" />
+                    <div className="w-full h-56 sm:h-72 bg-gradient-to-r from-primary/20 to-primary/10" />
                 )}
 
                 <div className="absolute bottom-0 left-0 right-0 p-6 z-20 text-white">
