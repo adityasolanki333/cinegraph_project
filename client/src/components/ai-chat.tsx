@@ -133,6 +133,126 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
+    const saved = localStorage.getItem('aiChat_fabPos');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return { x: -1, y: -1 };
+  });
+  const fabRef = useRef<HTMLButtonElement>(null);
+  const dragState = useRef<{
+    isDragging: boolean;
+    moved: boolean;
+    startX: number;
+    startY: number;
+    startPosX: number;
+    startPosY: number;
+  }>({ isDragging: false, moved: false, startX: 0, startY: 0, startPosX: 0, startPosY: 0 });
+
+  const clampPos = useCallback((x: number, y: number) => {
+    const size = 56;
+    const pad = 4;
+    const maxX = window.innerWidth - size - pad;
+    const maxY = window.innerHeight - size - pad;
+    return {
+      x: Math.max(pad, Math.min(x, maxX)),
+      y: Math.max(pad, Math.min(y, maxY)),
+    };
+  }, []);
+
+  useEffect(() => {
+    if (fabPos.x === -1 && fabPos.y === -1) {
+      const defaultX = window.innerWidth - 56 - 16;
+      const defaultY = window.innerHeight - 56 - 80;
+      setFabPos({ x: defaultX, y: defaultY });
+    }
+  }, [fabPos]);
+
+  useEffect(() => {
+    if (fabPos.x >= 0 && fabPos.y >= 0) {
+      localStorage.setItem('aiChat_fabPos', JSON.stringify(fabPos));
+    }
+  }, [fabPos]);
+
+  useEffect(() => {
+    const onResize = () => {
+      setFabPos(prev => {
+        if (prev.x < 0 || prev.y < 0) return prev;
+        return clampPos(prev.x, prev.y);
+      });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [clampPos]);
+
+  const handleDragStart = useCallback((clientX: number, clientY: number) => {
+    const el = fabRef.current;
+    if (!el) return;
+    dragState.current = {
+      isDragging: true,
+      moved: false,
+      startX: clientX,
+      startY: clientY,
+      startPosX: fabPos.x,
+      startPosY: fabPos.y,
+    };
+  }, [fabPos]);
+
+  const handleDragMove = useCallback((clientX: number, clientY: number) => {
+    const ds = dragState.current;
+    if (!ds.isDragging) return;
+    const dx = clientX - ds.startX;
+    const dy = clientY - ds.startY;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+      ds.moved = true;
+    }
+    if (ds.moved) {
+      setFabPos(clampPos(ds.startPosX + dx, ds.startPosY + dy));
+    }
+  }, [clampPos]);
+
+  const handleDragEnd = useCallback(() => {
+    const ds = dragState.current;
+    const wasDrag = ds.moved;
+    ds.isDragging = false;
+    ds.moved = false;
+
+    if (!wasDrag) {
+      toggleOpen();
+    } else {
+      const size = 56;
+      const midX = window.innerWidth / 2;
+      setFabPos(prev => {
+        const snappedX = (prev.x + size / 2) < midX ? 4 : window.innerWidth - size - 4;
+        return clampPos(snappedX, prev.y);
+      });
+    }
+  }, [toggleOpen, clampPos]);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => handleDragMove(e.clientX, e.clientY);
+    const onMouseUp = () => handleDragEnd();
+    const onTouchMove = (e: TouchEvent) => {
+      if (dragState.current.isDragging) {
+        e.preventDefault();
+        handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+    const onTouchEnd = () => handleDragEnd();
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [handleDragMove, handleDragEnd]);
+
   useEffect(() => {
     const toSave = messages.map(m => ({
       ...m,
@@ -499,7 +619,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   }, [handleSendMessage]);
 
   return (
-    <div className={cn("fixed z-[60]", isOpen ? "inset-0 md:inset-auto md:bottom-4 md:right-4 md:flex md:flex-col md:items-end" : "bottom-20 md:bottom-4 right-4 flex flex-col items-end", className)} data-testid="ai-chat-widget">
+    <div className={cn("fixed z-[60]", isOpen ? "inset-0 md:inset-auto md:bottom-4 md:right-4 md:flex md:flex-col md:items-end" : "pointer-events-none", className)} data-testid="ai-chat-widget">
       {isOpen && (
         <div className="w-full h-full md:mb-3 md:w-[480px] md:h-[600px] bg-background md:border md:border-border md:rounded-2xl md:shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 md:slide-in-from-bottom-5 fade-in duration-300">
           <div className="flex items-center justify-between px-4 py-3 md:py-2.5 border-b border-border bg-card shrink-0 safe-area-top">
@@ -737,14 +857,17 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
         </div>
       )}
 
-      {!isOpen && (
-        <Button
-          onClick={toggleOpen}
-          className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 p-0 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105"
+      {!isOpen && fabPos.x >= 0 && fabPos.y >= 0 && (
+        <button
+          ref={fabRef}
+          onMouseDown={(e) => { e.preventDefault(); handleDragStart(e.clientX, e.clientY); }}
+          onTouchStart={(e) => { handleDragStart(e.touches[0].clientX, e.touches[0].clientY); }}
+          className="fixed h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300 p-0 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center select-none touch-none cursor-grab active:cursor-grabbing z-[60]"
+          style={{ left: fabPos.x, top: fabPos.y }}
           data-testid="button-toggle-chat"
         >
-          <MessageSquare className="h-6 w-6" />
-        </Button>
+          <MessageSquare className="h-6 w-6 pointer-events-none" />
+        </button>
       )}
     </div>
   );
