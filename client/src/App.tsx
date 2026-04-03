@@ -28,6 +28,7 @@ const Community = lazy(() => import("@/pages/community"));
 const ClubsList = lazy(() => import("@/pages/community/clubs-list"));
 const ClubDetails = lazy(() => import("@/pages/community/club-details"));
 const DiscussionThread = lazy(() => import("@/pages/community/discussion-thread"));
+const CommunityLists = lazy(() => import("@/pages/community/community-lists"));
 const ListDetail = lazy(() => import("@/pages/list-detail"));
 const Notifications = lazy(() => import("@/pages/notifications"));
 
@@ -72,6 +73,7 @@ function Router() {
             <Route path="/community/clubs" component={ClubsList} />
             <Route path="/community/clubs/:id" component={ClubDetails} />
             <Route path="/community/clubs/threads/:id" component={DiscussionThread} />
+            <Route path="/community/lists" component={CommunityLists} />
             <Route path="/lists/:id" component={ListDetail} />
             <Route path="/notifications" component={Notifications} />
             <Route path="/profile/:userId" component={Profile} />

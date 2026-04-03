@@ -155,6 +155,7 @@ urlpatterns = [
     path('ratings/<int:review_id>', social_api.manage_rating, name='api_manage_rating'),
     path('ratings/create', social_api.create_rating, name='api_create_rating'),
     path('community/top-reviews', social_api.get_top_reviews, name='api_top_reviews'),
+    path('community/lists/public', social_api.get_public_lists, name='api_public_lists'),
     path('community/lists', social_api.create_list, name='api_create_list'),
     path('community/lists/<int:list_id>', social_api.manage_community_list, name='api_manage_community_list'),
     path('community/lists/<int:list_id>/items', social_api.add_list_item, name='api_add_list_item'),

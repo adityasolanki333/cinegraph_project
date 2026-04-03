@@ -10,12 +10,15 @@ from .models import Club, ClubMember, ClubThread, ClubPost
 
 
 @require_http_methods(["GET", "POST"])
-@api_auth_required
+@csrf_exempt
 def clubs_list(request):
     """
-    GET: List all clubs (with optional search)
-    POST: Create a new club
+    GET: List all clubs (with optional search) — public
+    POST: Create a new club — requires auth
     """
+    if request.method == "POST" and not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
     if request.method == "GET":
         query = request.GET.get('q', '')
         clubs = Club.objects.filter(is_public=True)

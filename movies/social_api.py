@@ -3,7 +3,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET, require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
-from django.db.models import Count, Avg
+from django.db.models import Count, Avg, Q
 from .models import (
     UserFollow, UserList, ListItem, Notification, UserProfile,
     ReviewComment, ReviewAward, ReviewInteraction, ListFollow,
@@ -155,6 +155,49 @@ def get_user_lists(request, user_id):
                 'lastName': user.last_name,
             }
         } for lst in lists]
+    })
+
+
+@require_GET
+def get_public_lists(request):
+    """Return all public curated lists, ordered by follower count."""
+    from django.db.models import Count
+    q = request.GET.get('q', '').strip()
+    sort = request.GET.get('sort', 'popular')
+    offset = int(request.GET.get('offset', 0))
+    limit = min(int(request.GET.get('limit', 24)), 50)
+
+    lists = UserList.objects.filter(is_public=True).select_related('user')
+    if q:
+        lists = lists.filter(Q(title__icontains=q) | Q(description__icontains=q))
+
+    if sort == 'newest':
+        lists = lists.order_by('-created_at')
+    elif sort == 'most_items':
+        lists = lists.annotate(item_cnt=Count('items')).order_by('-item_cnt')
+    else:
+        lists = lists.order_by('-follower_count', '-created_at')
+
+    total = lists.count()
+    lists = lists[offset:offset + limit]
+
+    return JsonResponse({
+        'lists': [{
+            'id': lst.id,
+            'title': lst.title,
+            'description': lst.description,
+            'followerCount': lst.follower_count,
+            'itemCount': lst.items.count(),
+            'createdAt': lst.created_at.isoformat(),
+            'user': {
+                'id': str(lst.user.id),
+                'firstName': lst.user.first_name or lst.user.username,
+                'lastName': lst.user.last_name,
+            }
+        } for lst in lists],
+        'total': total,
+        'offset': offset,
+        'hasMore': offset + limit < total,
     })
 
 
