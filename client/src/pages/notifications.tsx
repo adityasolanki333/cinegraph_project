@@ -86,7 +86,7 @@ export default function NotificationsPage() {
     if (notification.relatedTmdbId && notification.relatedMediaType) {
       setLocation(`/${notification.relatedMediaType}/${notification.relatedTmdbId}`);
     } else if (notification.type === 'follow' && notification.relatedUserId) {
-      setLocation(`/profile`);
+      setLocation(`/profile/${notification.relatedUserId}`);
     }
   };
 

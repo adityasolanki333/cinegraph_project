@@ -71,7 +71,7 @@ export function NotificationBell() {
       setLocation(`/${notification.relatedMediaType}/${notification.relatedTmdbId}`);
       setIsOpen(false);
     } else if (notification.type === 'follow' && notification.relatedUserId) {
-      setLocation(`/profile`);
+      setLocation(`/profile/${notification.relatedUserId}`);
       setIsOpen(false);
     } else {
       setIsOpen(false);
