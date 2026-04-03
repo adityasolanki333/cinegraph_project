@@ -25,9 +25,10 @@ import {
   Award,
   Clock,
   Search,
-  Trophy
+  Trophy,
+  Clapperboard
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { getLevelBadge, AWARD_TYPES, userIdToUsername } from "@shared/helpers";
@@ -51,6 +52,7 @@ export default function Community() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<'lists' | 'users'>('lists');
   const { user } = useAuth();
+  const [, navigate] = useLocation();
 
   const { data: activityPrompts, isLoading: promptsLoading } = useQuery<any[]>({
     queryKey: [`/api/community/activity-prompts/${user?.id}`],
@@ -212,7 +214,7 @@ export default function Community() {
       {/* Main Content */}
       <Tabs defaultValue="feed" className="w-full">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <TabsList className={`w-full sm:w-auto grid ${user ? 'grid-cols-7' : 'grid-cols-6'} sm:flex`} data-testid="tabs-community">
+          <TabsList className="w-full sm:w-auto grid grid-cols-8 sm:flex" data-testid="tabs-community">
             <TabsTrigger value="feed" data-testid="tab-activity-feed">
               <Clock className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Activity Feed</span>
@@ -242,6 +244,24 @@ export default function Community() {
               <Trophy className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Leaderboards</span>
               <span className="sm:hidden">Leaders</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="clubs"
+              data-testid="tab-clubs"
+              onClick={() => navigate('/community/clubs')}
+            >
+              <Clapperboard className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Clubs</span>
+              <span className="sm:hidden">Clubs</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="lists"
+              data-testid="tab-lists"
+              onClick={() => navigate('/community/lists')}
+            >
+              <List className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Lists</span>
+              <span className="sm:hidden">Lists</span>
             </TabsTrigger>
           </TabsList>
 
