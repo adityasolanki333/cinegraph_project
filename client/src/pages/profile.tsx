@@ -337,9 +337,11 @@ export default function Profile() {
               <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-1" data-testid="text-user-name">
                 {displayName}
               </h1>
-              <p className="text-sm text-muted-foreground mb-2" data-testid="text-user-email">
-                {displayUser?.email || ""}
-              </p>
+              {isOwnProfile && displayUser?.email && (
+                <p className="text-sm text-muted-foreground mb-2" data-testid="text-user-email">
+                  {displayUser.email}
+                </p>
+              )}
 
               {displayUser?.bio && (
                 <p className="text-sm text-muted-foreground mb-3 max-w-md text-center" data-testid="text-user-bio">

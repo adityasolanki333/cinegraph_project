@@ -71,10 +71,12 @@ def get_profile(request, user_id):
     
     avg_rating = UserReview.objects.filter(user=user).aggregate(avg=Avg('rating'))['avg'] or 0
     
+    is_own_profile = request.user.is_authenticated and request.user.id == user.id
+
     return JsonResponse({
         'user': {
             'id': str(user.id),
-            'email': user.email,
+            'email': user.email if is_own_profile else '',
             'firstName': user.first_name,
             'lastName': user.last_name,
             'bio': profile.bio,
@@ -904,12 +906,14 @@ def get_user_by_username(request, username):
 
     profile, _ = UserProfile.objects.get_or_create(user=user)
 
+    is_own_profile = request.user.is_authenticated and request.user.id == user.id
+
     return JsonResponse({
         'id': str(user.id),
         'username': user.username,
         'firstName': user.first_name,
         'lastName': user.last_name,
-        'email': user.email,
+        'email': user.email if is_own_profile else '',
         'profileImageUrl': profile.profile_image_url or '',
         'bio': profile.bio or '',
         'followersCount': UserFollow.objects.filter(following=user).count(),
