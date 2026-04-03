@@ -246,25 +246,33 @@ def semantic_search(request):
                         'explanation': item.get('explanation')
                     })
 
-                # Enrich missing poster paths from TMDB concurrently
-                missing = [i for i, r in enumerate(formatted_results) if not r.get('posterPath')]
-                if missing:
-                    from . import api as tmdb_api
-                    import concurrent.futures
-                    def fetch_poster(idx):
-                        tmdb_id = formatted_results[idx].get('tmdbId')
-                        if not tmdb_id:
-                            return idx, ''
-                        try:
-                            detail = tmdb_api.tmdb_request(f'/movie/{tmdb_id}', {'append_to_response': ''})
-                            return idx, detail.get('poster_path') or ''
-                        except Exception:
-                            return idx, ''
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                        futures = {executor.submit(fetch_poster, i): i for i in missing}
-                        for future in concurrent.futures.as_completed(futures):
-                            idx, poster = future.result()
-                            formatted_results[idx]['posterPath'] = poster
+                # Enrich all items from TMDB to get complete metadata
+                from . import api as tmdb_api
+                import concurrent.futures
+
+                def fetch_tmdb_full(idx):
+                    tmdb_id = formatted_results[idx].get('tmdbId')
+                    if not tmdb_id:
+                        return idx, {}
+                    try:
+                        detail = tmdb_api.tmdb_request(f'/movie/{tmdb_id}')
+                        return idx, detail
+                    except Exception:
+                        return idx, {}
+
+                needs_enrich = [i for i, r in enumerate(formatted_results)
+                                if not r.get('posterPath') or r.get('voteAverage', 0) == 0]
+                with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                    for idx, detail in executor.map(fetch_tmdb_full, needs_enrich):
+                        if detail:
+                            formatted_results[idx]['posterPath'] = detail.get('poster_path') or formatted_results[idx].get('posterPath', '')
+                            formatted_results[idx]['voteAverage'] = detail.get('vote_average') or 0
+                            formatted_results[idx]['overview'] = detail.get('overview') or formatted_results[idx].get('overview', '')
+                            formatted_results[idx]['releaseDate'] = detail.get('release_date') or formatted_results[idx].get('releaseDate', '')
+                            formatted_results[idx]['genres'] = [g['name'] for g in detail.get('genres', [])]
+
+                # Filter out items with no poster
+                formatted_results = [r for r in formatted_results if r.get('posterPath')]
 
                 return JsonResponse({
                     'results': formatted_results,
@@ -1103,23 +1111,29 @@ def get_similar_movies_semantic(request, tmdb_id):
                     for r in results if str(r.get('id')) != str(tmdb_id)
                 ]
 
-                # Enrich missing poster_paths from TMDB concurrently
-                missing = [i for i, item in enumerate(similar_items) if not item['poster_path']]
-                if missing:
-                    import concurrent.futures
-                    from . import api as tmdb_api
+                # Enrich all items from TMDB to get full metadata (poster, rating, overview, genres)
+                import concurrent.futures
+                from . import api as tmdb_api
 
-                    def fetch_poster(idx):
-                        item = similar_items[idx]
-                        try:
-                            detail = tmdb_api.tmdb_request(f"/{media_type}/{item['tmdb_id']}")
-                            return idx, detail.get('poster_path') or ''
-                        except Exception:
-                            return idx, ''
+                def fetch_tmdb_detail(idx):
+                    item = similar_items[idx]
+                    try:
+                        detail = tmdb_api.tmdb_request(f"/{media_type}/{item['tmdb_id']}")
+                        return idx, detail
+                    except Exception:
+                        return idx, {}
 
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                        for idx, poster in executor.map(fetch_poster, missing):
-                            similar_items[idx]['poster_path'] = poster
+                with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                    for idx, detail in executor.map(fetch_tmdb_detail, range(len(similar_items))):
+                        if detail:
+                            similar_items[idx]['poster_path'] = detail.get('poster_path') or similar_items[idx]['poster_path']
+                            similar_items[idx]['overview'] = detail.get('overview') or ''
+                            similar_items[idx]['vote_average'] = detail.get('vote_average') or 0
+                            similar_items[idx]['release_date'] = detail.get('release_date') or detail.get('first_air_date') or ''
+                            similar_items[idx]['genres'] = [g['name'] for g in detail.get('genres', [])]
+
+                # Filter out items with no poster
+                similar_items = [item for item in similar_items if item.get('poster_path')]
 
         except Exception as e:
             print(f"Pinecone search error: {e}")

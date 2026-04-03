@@ -16,6 +16,15 @@ import { apiRequest } from "@/lib/queryClient";
 import type { Movie } from "@shared/schema";
 import { ChevronUp, Brain } from "lucide-react";
 
+const TMDB_GENRE_MAP: Record<number, string> = {
+  28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
+  99: 'Documentary', 18: 'Drama', 10751: 'Family', 14: 'Fantasy', 36: 'History',
+  27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance',
+  878: 'Sci-Fi', 10770: 'TV Movie', 53: 'Thriller', 10752: 'War', 37: 'Western',
+  10759: 'Action & Adventure', 10762: 'Kids', 10763: 'News', 10764: 'Reality',
+  10765: 'Sci-Fi & Fantasy', 10766: 'Soap', 10767: 'Talk', 10768: 'War & Politics',
+};
+
 export interface MediaItem {
   id: number | string;
   title?: string;
@@ -28,6 +37,7 @@ export interface MediaItem {
   release_date?: string;
   genre?: string;
   genres?: Array<{ id: number; name: string }>;
+  genre_ids?: number[];
   duration?: number;
   number_of_seasons?: number;
   synopsis?: string;
@@ -100,7 +110,9 @@ export function MediaCard({
 
   const synopsis = item.synopsis || item.overview || '';
   const posterUrl = item.posterUrl || (item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : undefined);
-  const genreDisplay = item.genre || (item.genres && item.genres.length > 0 ? item.genres[0].name : '');
+  const genreDisplay = item.genre
+    || (item.genres && item.genres.length > 0 ? item.genres[0].name : '')
+    || (item.genre_ids && item.genre_ids.length > 0 ? TMDB_GENRE_MAP[item.genre_ids[0]] || '' : '');
 
   const movie = {
     id: item.id.toString(),

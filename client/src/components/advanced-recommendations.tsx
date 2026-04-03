@@ -151,7 +151,7 @@ export function AdvancedRecommendations() {
             release_date: result.releaseDate,
             vote_average: result.voteAverage,
             popularity: result.popularity,
-            genre_ids: result.genres,
+            genre: Array.isArray(result.genres) && result.genres.length > 0 ? result.genres[0] : '',
             media_type: 'movie'
           },
           matchScore: Math.round(result.similarity * 100), // Convert 0-1 to 0-100
@@ -408,10 +408,11 @@ export function AdvancedRecommendations() {
                         id: rec.movie.id,
                         title: title,
                         name: rec.movie.name,
-                        rating: rec.movie.vote_average || 7.0,
+                        rating: rec.movie.vote_average || 0,
                         year: year,
                         synopsis: rec.movie.overview,
                         poster_path: rec.movie.poster_path,
+                        genre: rec.movie.genre,
                         type: mediaType,
                         media_type: mediaType,
                         first_air_date: rec.movie.first_air_date,

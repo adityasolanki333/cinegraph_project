@@ -956,6 +956,8 @@ function SemanticSimilarMovies({
           poster_path: item.poster_path || null,
           vote_average: item.vote_average ?? (item.similarity_score ? item.similarity_score * 10 : 0),
           release_date: item.release_date || '',
+          overview: item.overview || '',
+          genre: Array.isArray(item.genres) && item.genres.length > 0 ? item.genres[0] : '',
           similarity: item.similarity_score ?? item.similarity ?? null,
           explanation: item.explanation || null,
         })),
@@ -1024,7 +1026,9 @@ function SemanticSimilarMovies({
                 vote_average: movie.vote_average,
                 poster_path: movie.poster_path,
                 type: 'movie',
-                release_date: movie.release_date
+                release_date: movie.release_date,
+                synopsis: movie.overview,
+                genre: movie.genre,
               }}
               mediaType="movie"
             />
