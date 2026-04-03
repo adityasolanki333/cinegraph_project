@@ -137,36 +137,28 @@ class ExplainabilityEngine:
             
             # Enhancing with Gemini if possible (Level 3 Explanation)
             try:
-                # Only use Gemini if we have a basic reason to start with, to avoid hallucination on empty context
-                if feature_importance:
-                    source_title = context.item_details.get('title', '')
-                    source_overview = context.item_details.get('overview', '')
-                    # For comparison, we need a source movie (the user liked).
-                    # 'context.similar_movies' has titles, but we might need more details.
-                    # As a fallback, we can ask Gemini to explain why this movie fits the USER profile generally.
-                    
-                    # If similar_movies is populated (from UserReview high ratings), use the first one as anchor
-                    anchor_movie = context.similar_movies[0] if context.similar_movies else None
-                    
-                    if anchor_movie:
-                         # We don't have anchor overview easily here without another fetch, 
-                         # but we can try with just title or modify generate_gemini_explanation to handle "User Context"
-                         pass
-                    
-                    # For now, let's inject a "Smart Summary" using Gemini if we have the movie details
-                    # calling a new method or overloading the existing one
-                    if source_title:
-                        gemini_text = self.generate_gemini_explanation(
-                            source_title="User Preferences", 
-                            source_overview="User likes " + ", ".join(context.user_preferences.get('preferred_genres', []) if context.user_preferences else []),
-                            recommended_title=source_title, 
-                            recommended_overview=source_overview
-                        )
-                        if gemini_text:
-                            explanation_text = gemini_text
-            except Exception as e:
-                pass 
-                # Fallback to template explanation
+                rec_title = context.item_details.get('title') or context.item_details.get('name', '') if context.item_details else ''
+                rec_overview = context.item_details.get('overview', '') if context.item_details else ''
+
+                if rec_title:
+                    # Build rich user context for a personalized prompt
+                    preferred_genres = []
+                    if context.user_preferences:
+                        preferred_genres = context.user_preferences.get('preferred_genres', [])
+
+                    top_movies = context.similar_movies[:3] if context.similar_movies else []
+
+                    gemini_text = self.generate_personalized_explanation(
+                        recommended_title=rec_title,
+                        recommended_overview=rec_overview,
+                        preferred_genres=preferred_genres,
+                        top_rated_movies=top_movies,
+                        feature_reasons=[f.human_readable for f in feature_importance[:3]]
+                    )
+                    if gemini_text:
+                        explanation_text = gemini_text
+            except Exception:
+                pass  # Fall through to template explanation
             
             # Create visual breakdown
             visual_breakdown = self._create_visual_breakdown(feature_importance)
@@ -437,23 +429,46 @@ class ExplainabilityEngine:
         
         return sorted(importance, key=lambda x: x.percentage_contribution, reverse=True)
     
-    def _generate_explanation_text(self, context: ExplanationContext, 
+    def _generate_explanation_text(self, context: ExplanationContext,
                                     importance: List[FeatureImportance]) -> str:
-        """Generate full explanation text using templates"""
-        title = context.item_details.get('title') if context.item_details else None
-        title = title or context.item_details.get('name', 'this item') if context.item_details else 'this item'
-        top_factors = importance[:5]
-        
-        explanation = f'We recommended "{title}" because:\n\n'
-        
-        for index, factor in enumerate(top_factors):
-            percentage = f"{factor.percentage_contribution:.0f}"
-            explanation += f"{index + 1}. {percentage}% - {factor.human_readable}\n"
-        
-        if not top_factors:
-            explanation += "This matches your general viewing preferences and has positive reviews."
-        
-        return explanation
+        """Generate rich, narrative explanation text using templates"""
+        if context.item_details:
+            title = context.item_details.get('title') or context.item_details.get('name', 'this title')
+            vote_avg = context.item_details.get('vote_average', 0)
+            overview = context.item_details.get('overview', '')
+        else:
+            title = 'this title'
+            vote_avg = 0
+            overview = ''
+
+        if not importance:
+            return (
+                f'"{title}" is a critically acclaimed title that aligns with your viewing history. '
+                'Our AI identified strong signals from your past ratings and genre preferences.'
+            )
+
+        top = importance[0]
+        second = importance[1] if len(importance) > 1 else None
+        third = importance[2] if len(importance) > 2 else None
+
+        # Build a flowing narrative
+        parts = [f'"{title}" rose to the top of your recommendations because {top.human_readable.lower()}.']
+
+        if second:
+            parts.append(f'On top of that, {second.human_readable.lower()}.')
+
+        if third:
+            parts.append(f'Finally, {third.human_readable.lower()}.')
+        elif vote_avg >= 7.5:
+            parts.append(f'With a strong audience score of {vote_avg:.1f}/10, this is a well-loved pick.')
+
+        if overview:
+            snippet = overview[:120].rstrip()
+            if len(overview) > 120:
+                snippet += '…'
+            parts.append(f'In brief: {snippet}')
+
+        return ' '.join(parts)
     
     def _create_visual_breakdown(self, importance: List[FeatureImportance]) -> List[Dict[str, Any]]:
         """Create visual breakdown for UI"""
@@ -521,69 +536,100 @@ class ExplainabilityEngine:
             'explanation_text': explanation.explanation_text
         }
     
-    def generate_gemini_explanation(self, source_title: str, source_overview: str,
-                                   recommended_title: str, recommended_overview: str) -> Optional[str]:
-        """
-        Generate a compelling, AI-powered explanation using Gemini API (Level 3).
-        Creates a single sentence that explains why two movies are similar.
-        
-        Args:
-            source_title: Title of the movie user liked
-            source_overview: Overview of source movie
-            recommended_title: Title of recommended movie
-            recommended_overview: Overview of recommended movie
-            
-        Returns:
-            A compelling explanation string, or None if API call fails
-        """
+    def _call_gemini(self, prompt: str, cache_key: str, cache_ttl: int = 86400) -> Optional[str]:
+        """Call Gemini API with model fallback (gemma-3-12b-it → gemini-2.0-flash)."""
         try:
             from google import genai
-            
+
             gemini_key = os.environ.get('GEMINI_API_KEY', '')
             if not gemini_key:
                 return None
-            
-            # Create deterministic cache key
-            key_str = f"{source_title}:{source_overview[:50]}:{recommended_title}:{recommended_overview[:50]}"
-            cache_key = f"gemini_expl_{hashlib.md5(key_str.encode()).hexdigest()}"
-            
-            cached_result = cache.get(cache_key)
-            if cached_result:
-                return cached_result
-            
+
+            cached = cache.get(cache_key)
+            if cached:
+                return cached
+
             client = genai.Client(api_key=gemini_key)
-            
-            prompt = f"""You are a movie recommendation expert. A user liked "{source_title}" and we're recommending "{recommended_title}".
 
-Source movie: {source_title}
-Summary: {source_overview[:200]}
+            MODELS = ['gemma-3-12b-it', 'gemini-2.0-flash']
+            for model in MODELS:
+                try:
+                    response = client.models.generate_content(model=model, contents=prompt)
+                    if response and response.text:
+                        result = response.text.strip()
+                        cache.set(cache_key, result, cache_ttl)
+                        return result
+                except Exception as model_err:
+                    if '429' in str(model_err) or 'RESOURCE_EXHAUSTED' in str(model_err):
+                        continue  # Try next model
+                    raise
 
-Recommended movie: {recommended_title}
-Summary: {recommended_overview[:200]}
-
-Write ONE compelling sentence (max 150 characters) explaining why someone who liked the source movie would enjoy the recommended one. Focus on shared themes, emotions, or storytelling style. Be engaging and specific."""
-            
-            response = client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=prompt
-            )
-            
-            if response and response.text:
-                explanation = response.text.strip()
-                if explanation:
-                    result = explanation[:200]
-                    # Cache for 24 hours
-                    cache.set(cache_key, result, 86400)
-                    return result
-            else:
-                return None
-                    
         except ImportError:
             logger.warning("google-genai not installed")
         except Exception as e:
-            logger.warning(f"Gemini explanation generation failed: {e}")
-        
+            logger.warning(f"Gemini call failed: {e}")
+
         return None
+
+    def generate_personalized_explanation(
+        self,
+        recommended_title: str,
+        recommended_overview: str,
+        preferred_genres: list,
+        top_rated_movies: list,
+        feature_reasons: list,
+    ) -> Optional[str]:
+        """
+        Generate a rich, personalized explanation for why this specific movie
+        was recommended to this specific user.
+        """
+        key_str = f"personalized:{recommended_title}:{','.join(preferred_genres[:3])}:{','.join(top_rated_movies[:2])}"
+        cache_key = f"gemini_pers_{hashlib.md5(key_str.encode()).hexdigest()}"
+
+        genres_str = ', '.join(preferred_genres[:5]) if preferred_genres else 'various genres'
+        top_str = ', '.join(f'"{m}"' for m in top_rated_movies[:3]) if top_rated_movies else 'several critically acclaimed titles'
+        reasons_str = '\n'.join(f'- {r}' for r in feature_reasons) if feature_reasons else '- Strong genre alignment\n- High critical rating'
+
+        prompt = f"""You are an expert film critic and recommendation analyst. Write a concise, enthusiastic 2-3 sentence explanation for why this movie was recommended to a specific user.
+
+User Profile:
+- Favourite genres: {genres_str}
+- Highly rated films they loved: {top_str}
+
+Recommended Movie: "{recommended_title}"
+Synopsis: {recommended_overview[:300]}
+
+Key matching signals:
+{reasons_str}
+
+Instructions:
+- Write exactly 2-3 sentences, no bullet points, no headers.
+- Start with what makes this film special, then connect it to the user's taste.
+- Be specific and enthusiastic. Avoid generic phrases like "you might enjoy" or "this film is for you".
+- Keep it under 250 characters total."""
+
+        return self._call_gemini(prompt, cache_key)
+
+    def generate_gemini_explanation(self, source_title: str, source_overview: str,
+                                    recommended_title: str, recommended_overview: str) -> Optional[str]:
+        """
+        Generate a compelling explanation comparing two movies.
+        (Legacy method - prefer generate_personalized_explanation for user-aware context.)
+        """
+        key_str = f"{source_title}:{source_overview[:50]}:{recommended_title}:{recommended_overview[:50]}"
+        cache_key = f"gemini_expl_{hashlib.md5(key_str.encode()).hexdigest()}"
+
+        prompt = f"""You are a movie recommendation expert. A user enjoyed "{source_title}" and we are recommending "{recommended_title}".
+
+Source: {source_title}
+{source_overview[:200]}
+
+Recommended: {recommended_title}
+{recommended_overview[:200]}
+
+Write ONE compelling sentence (max 180 characters) explaining the connection — shared themes, tone, or storytelling style. Be specific and engaging."""
+
+        return self._call_gemini(prompt, cache_key)
 
 
     def get_feature_importance(self, user_id: Optional[str] = None) -> Dict[str, Any]:
