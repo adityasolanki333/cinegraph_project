@@ -19,6 +19,7 @@ urlpatterns = [
     path('auth/login', auth_views.LoginView.as_view(), name='api_login'),
     path('auth/logout', auth_views.LogoutView.as_view(), name='api_logout'),
     path('auth/me', auth_views.MeView.as_view(), name='api_me'),
+    path('auth/delete-account', auth_views.DeleteAccountView.as_view(), name='api_delete_account'),
     path('auth/forgot-password', auth_views.ForgotPasswordView.as_view(), name='api_forgot_password'),
     path('auth/reset-password', auth_views.ResetPasswordView.as_view(), name='api_reset_password'),
 

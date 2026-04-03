@@ -5,9 +5,22 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Settings as SettingsIcon, Bell, Globe, Shield, Palette } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Settings as SettingsIcon, Bell, Globe, Shield, Palette, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { deleteAccount } from "@/hooks/useAuth";
 
 interface UserSettings {
   notifications: boolean;
@@ -37,8 +50,10 @@ export default function Settings() {
   const [language, setLanguage] = useState(defaultSettings.language);
   const [theme, setTheme] = useState(defaultSettings.theme);
   const [dataSharing, setDataSharing] = useState(defaultSettings.dataSharing);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  // Load settings from localStorage on mount
   useEffect(() => {
     const savedSettings = localStorage.getItem("userSettings");
     if (savedSettings) {
@@ -55,23 +70,18 @@ export default function Settings() {
     }
   }, []);
 
-  // Apply theme immediately when it changes
   useEffect(() => {
     const root = document.documentElement;
     
-    // Remove all theme classes
     root.classList.remove("dark", "system");
     
-    // Apply the selected theme class
     if (theme === "dark") {
       root.classList.add("dark");
     } else if (theme === "system") {
       root.classList.add("system");
     }
-    // light theme has no class (uses default :root styles)
   }, [theme]);
 
-  // Auto-save settings to localStorage whenever they change
   useEffect(() => {
     const settings: UserSettings = {
       notifications,
@@ -101,6 +111,31 @@ export default function Settings() {
     });
   };
 
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation !== "DELETE") return;
+
+    setIsDeleting(true);
+    const result = await deleteAccount(deleteConfirmation);
+    setIsDeleting(false);
+
+    if (result.success) {
+      setDeleteDialogOpen(false);
+      setDeleteConfirmation("");
+      toast({
+        title: "Account deleted",
+        description: "Your account and all associated data have been permanently deleted.",
+      });
+      window.history.pushState({}, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    } else {
+      toast({
+        title: "Error",
+        description: result.error || "Failed to delete account. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center space-x-3 mb-8">
@@ -109,7 +144,6 @@ export default function Settings() {
       </div>
 
       <div className="space-y-6">
-        {/* Notifications Settings */}
         <Card data-testid="card-notifications">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -152,7 +186,6 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* Display & Language Settings */}
         <Card data-testid="card-display">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -193,7 +226,6 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* Privacy Settings */}
         <Card data-testid="card-privacy">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -224,14 +256,65 @@ export default function Settings() {
                 <Globe className="h-4 w-4 mr-2" />
                 Download My Data
               </Button>
-              <Button variant="outline" className="w-full" data-testid="button-delete-account">
-                Delete Account
-              </Button>
+              <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
+                setDeleteDialogOpen(open);
+                if (!open) setDeleteConfirmation("");
+              }}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="w-full" data-testid="button-delete-account">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Account
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle data-testid="title-delete-dialog">Delete Account</AlertDialogTitle>
+                    <AlertDialogDescription className="space-y-3" asChild>
+                      <div>
+                        <p data-testid="text-delete-warning">
+                          This action is <strong>permanent and cannot be undone</strong>. All of your data will be permanently deleted, including:
+                        </p>
+                        <ul className="list-disc list-inside text-sm space-y-1 mt-2">
+                          <li>Your profile and preferences</li>
+                          <li>Watchlist and favorites</li>
+                          <li>Viewing history</li>
+                          <li>Reviews and ratings</li>
+                          <li>Lists and follows</li>
+                          <li>Notifications</li>
+                        </ul>
+                        <p className="mt-3">
+                          Type <strong>DELETE</strong> below to confirm:
+                        </p>
+                        <Input
+                          value={deleteConfirmation}
+                          onChange={(e) => setDeleteConfirmation(e.target.value)}
+                          placeholder="Type DELETE to confirm"
+                          className="mt-2"
+                          data-testid="input-delete-confirmation"
+                        />
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleDeleteAccount();
+                      }}
+                      disabled={deleteConfirmation !== "DELETE" || isDeleting}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      data-testid="button-confirm-delete"
+                    >
+                      {isDeleting ? "Deleting..." : "Delete Account"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </CardContent>
         </Card>
 
-        {/* Save Button */}
         <div className="flex justify-end">
           <Button className="min-w-32" data-testid="button-save-settings" onClick={handleSaveSettings}>
             Save Changes

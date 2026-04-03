@@ -173,3 +173,62 @@ class ResetPasswordView(APIView):
             return Response({'error': 'Invalid reset link', 'code': 'VALIDATION_ERROR'}, status=400)
         except User.DoesNotExist:
             return Response({'error': 'User not found', 'code': 'NOT_FOUND'}, status=404)
+
+
+class DeleteAccountSerializer(serializers.Serializer):
+    confirmation = serializers.CharField()
+
+
+class DeleteAccountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        serializer = DeleteAccountSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({'error': serializer.errors, 'code': 'VALIDATION_ERROR'}, status=400)
+
+        confirmation = serializer.validated_data['confirmation']
+        if confirmation != 'DELETE':
+            return Response({'error': 'Please type DELETE to confirm account deletion', 'code': 'VALIDATION_ERROR'}, status=400)
+
+        user = request.user
+
+        from movies.models import (
+            UserProfile, UserPreferences, UserWatchlist, UserFavorites,
+            ViewingHistory, UserReview, UserFollow, UserList,
+            UserActivityStats, UserBadge, UserCommunity, DiversityMetrics,
+        )
+        from movies.models.notifications import Notification, NotificationSettings
+        from movies.models.social import ListItem, ListFollow
+
+        from django.db import transaction
+
+        try:
+            with transaction.atomic():
+                UserProfile.objects.filter(user=user).delete()
+                UserPreferences.objects.filter(user=user).delete()
+                UserWatchlist.objects.filter(user=user).delete()
+                UserFavorites.objects.filter(user=user).delete()
+                ViewingHistory.objects.filter(user=user).delete()
+                UserReview.objects.filter(user=user).delete()
+                UserFollow.objects.filter(follower=user).delete()
+                UserFollow.objects.filter(following=user).delete()
+                user_lists = UserList.objects.filter(user=user)
+                for user_list in user_lists:
+                    ListItem.objects.filter(list=user_list).delete()
+                    ListFollow.objects.filter(list=user_list).delete()
+                user_lists.delete()
+                Notification.objects.filter(user=user).delete()
+                NotificationSettings.objects.filter(user=user).delete()
+                UserActivityStats.objects.filter(user=user).delete()
+                UserBadge.objects.filter(user=user).delete()
+                UserCommunity.objects.filter(user=user).delete()
+                DiversityMetrics.objects.filter(user=user).delete()
+
+                logout(request)
+                user.delete()
+
+            return Response({'success': True, 'message': 'Account permanently deleted'})
+        except Exception as e:
+            logger.error('Error deleting account for user %s: %s', user.id, str(e))
+            return Response({'error': 'Failed to delete account', 'code': 'SERVER_ERROR'}, status=500)

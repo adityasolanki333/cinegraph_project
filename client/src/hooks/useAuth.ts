@@ -130,6 +130,37 @@ export async function logout() {
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
+export async function deleteAccount(confirmation: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const csrfToken = await ensureCsrfToken();
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (csrfToken) {
+      headers['X-CSRFToken'] = csrfToken;
+    }
+
+    const response = await fetch('/api/auth/delete-account', {
+      method: 'DELETE',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify({ confirmation }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      window.dispatchEvent(new CustomEvent('auth-change'));
+      return { success: true };
+    } else {
+      return { success: false, error: data.error || 'Failed to delete account' };
+    }
+  } catch (error) {
+    return { success: false, error: 'Network error' };
+  }
+}
+
 export function getAuthToken(): string | null {
   return null;
 }
