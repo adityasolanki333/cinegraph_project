@@ -4,6 +4,7 @@ Provides Python-based ML recommendation services
 """
 
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
@@ -13,6 +14,67 @@ from .models import (
     UserReview, ViewingHistory, UserWatchlist, UserFavorites,
     Recommendation, RecommendationMetrics, FeatureContribution
 )
+
+
+def _fetch_tmdb_metadata(tmdb_id, media_type='movie'):
+    """Fetch a single movie/tv item's metadata from TMDB."""
+    try:
+        from . import api as tmdb_api
+        endpoint = f"/{media_type}/{tmdb_id}"
+        data = tmdb_api.tmdb_request(endpoint)
+        if data and 'id' in data:
+            return tmdb_id, data
+        # Try the other type if first fails
+        alt = 'tv' if media_type == 'movie' else 'movie'
+        data = tmdb_api.tmdb_request(f"/{alt}/{tmdb_id}")
+        if data and 'id' in data:
+            return tmdb_id, {**data, '_resolved_type': alt}
+    except Exception:
+        pass
+    return tmdb_id, None
+
+
+def enrich_recommendations_with_tmdb(recommendations, default_media_type='movie', max_workers=8):
+    """
+    Given a list of recommendation dicts with at least 'tmdb_id', fetch
+    TMDB metadata for each and merge title, poster_path, overview, etc.
+    Items whose metadata cannot be fetched are dropped from the result.
+    """
+    if not recommendations:
+        return recommendations
+
+    # Build a map from tmdb_id → rec dict
+    id_to_rec = {r['tmdb_id']: r for r in recommendations}
+    ids = list(id_to_rec.keys())
+
+    enriched = {}
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(ids))) as executor:
+        futures = {
+            executor.submit(_fetch_tmdb_metadata, tmdb_id, id_to_rec[tmdb_id].get('media_type', default_media_type)): tmdb_id
+            for tmdb_id in ids
+        }
+        for future in as_completed(futures):
+            tmdb_id, meta = future.result()
+            if not meta:
+                continue
+            rec = dict(id_to_rec[tmdb_id])
+            resolved_type = meta.pop('_resolved_type', None) or rec.get('media_type', default_media_type)
+            rec['media_type'] = resolved_type
+            rec['title'] = meta.get('title') or meta.get('name', '')
+            rec['poster_path'] = meta.get('poster_path')
+            rec['backdrop_path'] = meta.get('backdrop_path')
+            rec['overview'] = meta.get('overview', '')
+            rec['vote_average'] = round(meta.get('vote_average', 0), 1)
+            rec['vote_count'] = meta.get('vote_count', 0)
+            rec['release_date'] = meta.get('release_date') or meta.get('first_air_date', '')
+            rec['genre_ids'] = [g['id'] for g in meta.get('genres', [])] or meta.get('genre_ids', [])
+            rec['popularity'] = meta.get('popularity', 0)
+            rec['runtime'] = meta.get('runtime')
+            rec['number_of_seasons'] = meta.get('number_of_seasons')
+            enriched[tmdb_id] = rec
+
+    # Preserve original ordering, skip items without metadata
+    return [enriched[r['tmdb_id']] for r in recommendations if r['tmdb_id'] in enriched]
 
 
 @require_GET
@@ -43,12 +105,21 @@ def get_hybrid_recommendations(request, user_id):
                         'media_type': item.get('media_type', 'movie'),
                         'title': item.get('title') or item.get('name', ''),
                         'poster_path': item.get('poster_path'),
+                        'backdrop_path': item.get('backdrop_path'),
+                        'overview': item.get('overview', ''),
+                        'vote_average': round(item.get('vote_average', 0), 1),
+                        'release_date': item.get('release_date') or item.get('first_air_date', ''),
+                        'genre_ids': item.get('genre_ids', []),
                         'score': item.get('vote_average', 7.0) / 10,
-                        'type': 'trending'
+                        'type': 'trending',
+                        'reason': 'Trending this week'
                     }
                     for item in trending['results'][:limit]
                 ]
-        
+        else:
+            # Enrich ML-generated recommendations with TMDB metadata
+            recommendations = enrich_recommendations_with_tmdb(recommendations)
+
         return JsonResponse({
             "user_id": user_id,
             "recommendations": recommendations,
@@ -77,17 +148,20 @@ def get_collaborative_recommendations(request, user_id):
             recommendation_engine.compute_user_similarity()
             raw_recs = recommendation_engine.get_collaborative_recommendations(user_id, limit)
             
-            recommendations = [
+            raw_list = [
                 {
                     'tmdb_id': tmdb_id,
                     'predicted_rating': round(score, 2),
-                    'type': 'collaborative'
+                    'score': round(score / 5, 4),
+                    'type': 'collaborative',
+                    'reason': 'Users with similar taste loved this'
                 }
                 for tmdb_id, score in raw_recs
             ]
+            recommendations = enrich_recommendations_with_tmdb(raw_list)
         except Exception as e:
             recommendations = []
-        
+
         return JsonResponse({
             "user_id": user_id,
             "recommendations": recommendations,
@@ -592,14 +666,18 @@ def apply_diversity(request):
         
         metrics = diversity_engine.calculate_metrics(diversified, user_genre_preferences)
         
+        # Build a lookup map from the original candidates to restore metadata
+        candidate_meta = {str(c.get('id', c.get('tmdb_id'))): c for c in candidates}
+
         return JsonResponse({
             "diversified_results": [
                 {
+                    **candidate_meta.get(c.id, {}),
                     "id": c.id,
                     "tmdb_id": c.tmdb_id,
                     "media_type": c.media_type,
                     "score": round(c.score, 4),
-                    "genres": c.genres
+                    "genres": c.genres,
                 }
                 for c in diversified
             ],

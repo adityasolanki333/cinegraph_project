@@ -399,7 +399,16 @@ export default function Recommendations() {
           });
           if (divResp.ok) {
             const divData = await divResp.json();
-            recs = divData.diversified_results || recs;
+            const diversifiedOrder = divData.diversified_results || [];
+            if (diversifiedOrder.length > 0) {
+              // Re-merge original metadata by tmdb_id — diversity engine may strip poster/title fields
+              const recsById = new Map(recs.map((r: any) => [String(r.tmdb_id || r.id), r]));
+              recs = diversifiedOrder.map((d: any) => ({
+                ...recsById.get(String(d.tmdb_id || d.id)) || {},
+                ...d,
+                score: d.score,
+              }));
+            }
           }
         } catch (e) {
           console.warn("Diversity engine failed, using base recommendations");
@@ -459,52 +468,59 @@ export default function Recommendations() {
     const combined: any[] = [];
     const seenIds = new Set<number>();
 
-    // Helper to normalize score to 0-1 range
     const normalizeScore = (score: number | undefined): number => {
       if (score === undefined || score === null) return 0;
-      // If score is already in 0-1 range, use it
       if (score >= 0 && score <= 1) return score;
-      // If score is in 0-100 range, convert it
       if (score > 1 && score <= 100) return score / 100;
-      // If score is out of bounds, cap it
       if (score > 100) return 1;
-      if (score < 0) return 0;
       return 0;
     };
 
-    // Add hybrid recommendations
-    if (pipelineRecommendations?.recommendations) {
+    // Add personalized hybrid/collaborative recommendations (logged-in users)
+    if (pipelineRecommendations?.recommendations?.length) {
       for (const rec of pipelineRecommendations.recommendations) {
         const tmdbId = rec.tmdb_id || rec.tmdbId;
         if (!tmdbId || seenIds.has(tmdbId)) continue;
         seenIds.add(tmdbId);
 
-        // Convert to Movie format
-        const movie: any = {
+        combined.push({
           id: tmdbId.toString(),
           type: rec.media_type || rec.mediaType || 'movie',
           title: rec.title,
           posterUrl: rec.poster_path ? `https://image.tmdb.org/t/p/w500${rec.poster_path}` : undefined,
           rating: rec.vote_average || 0,
-          year: rec.year || (rec.release_date ? new Date(rec.release_date).getFullYear() : 0),
+          year: rec.release_date ? new Date(rec.release_date).getFullYear() : (rec.year || 0),
           genre: '',
+          genre_ids: rec.genre_ids || [],
           synopsis: rec.overview || undefined,
           director: undefined,
           cast: undefined,
-          duration: undefined,
-          seasons: undefined,
+          duration: rec.runtime || undefined,
+          seasons: rec.number_of_seasons || undefined,
           score: normalizeScore(rec.score),
           strategy: rec.type || 'Hybrid',
           reason: rec.reason || 'Based on your viewing history',
-          source: 'hybrid'
-        };
-
-        combined.push(movie);
+          source: 'hybrid',
+        });
+      }
+    } else if (trendingData?.length) {
+      // Fallback: show trending for non-logged-in users
+      for (const item of trendingData.slice(0, 24)) {
+        const tmdbId = Number(item.id);
+        if (!tmdbId || seenIds.has(tmdbId)) continue;
+        seenIds.add(tmdbId);
+        combined.push({
+          ...item,
+          score: normalizeScore((item.rating || 0) / 10),
+          strategy: 'Trending',
+          reason: 'Trending globally this week',
+          source: 'trending',
+        });
       }
     }
 
     return combined;
-  }, [pipelineRecommendations]);
+  }, [pipelineRecommendations, trendingData]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -634,32 +650,13 @@ export default function Recommendations() {
                 ) : unifiedRecommendations.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                     {unifiedRecommendations.map((rec: any) => {
-                      // Defensive guard: ensure we have a valid ID
-                      const rawId = rec.tmdbId ?? rec.id ?? rec.movieId;
-                      if (!rawId) {
-                        console.warn('[Recommendations] Skipping item without valid ID:', rec);
-                        return null;
-                      }
-
-                      const movie: Movie = {
-                        id: rawId.toString(),
-                        type: rec.type || rec.mediaType || 'movie',
-                        title: rec.title,
-                        posterUrl: rec.posterUrl || (rec.posterPath ? tmdbService.getImageUrl(rec.posterPath, 'poster') : undefined),
-                        rating: rec.rating || rec.metadata?.vote_average || 0,
-                        year: rec.year || (rec.metadata?.release_date ? new Date(rec.metadata.release_date).getFullYear() : 0) || (rec.metadata?.first_air_date ? new Date(rec.metadata.first_air_date).getFullYear() : 0),
-                        genre: rec.genre || rec.metadata?.genres?.[0]?.name || '',
-                        synopsis: rec.synopsis || rec.metadata?.overview || undefined,
-                        director: undefined,
-                        cast: undefined,
-                        duration: rec.duration || rec.metadata?.runtime || undefined,
-                        seasons: rec.seasons || rec.metadata?.number_of_seasons || undefined,
-                      };
+                      const rawId = rec.id ?? rec.tmdbId ?? rec.movieId;
+                      if (!rawId) return null;
 
                       return (
                         <MediaCard
                           key={rawId}
-                          movie={movie}
+                          movie={rec}
                           showFeedback={true}
                           recommendationScore={rec.score}
                           recommendationStrategy={rec.strategy}

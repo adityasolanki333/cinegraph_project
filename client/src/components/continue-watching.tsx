@@ -39,6 +39,11 @@ export function ContinueWatching() {
   // Fetch viewing history
   const { data: viewingHistoryData, isLoading: historyLoading } = useQuery<{items: ViewingHistoryItem[]} | ViewingHistoryItem[]>({
     queryKey: ['/api/users', user?.id, 'watched'],
+    queryFn: async () => {
+      const res = await fetch(`/api/users/${user?.id}/watched`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: !!user?.id,
   });
   
