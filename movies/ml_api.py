@@ -1073,7 +1073,7 @@ def get_similar_movies_semantic(request, tmdb_id):
                     {
                         'tmdb_id': r.get('id'),
                         'title': r.get('title', ''),
-                        'poster_path': r.get('poster_path'),
+                        'poster_path': r.get('poster_path') or '',
                         'similarity_score': round(r.get('similarity', 0.0), 3),
                         'media_type': media_type,
                         'type': 'semantic_vector',
@@ -1081,6 +1081,25 @@ def get_similar_movies_semantic(request, tmdb_id):
                     }
                     for r in results if str(r.get('id')) != str(tmdb_id)
                 ]
+
+                # Enrich missing poster_paths from TMDB concurrently
+                missing = [i for i, item in enumerate(similar_items) if not item['poster_path']]
+                if missing:
+                    import concurrent.futures
+                    from . import api as tmdb_api
+
+                    def fetch_poster(idx):
+                        item = similar_items[idx]
+                        try:
+                            detail = tmdb_api.tmdb_request(f"/{media_type}/{item['tmdb_id']}")
+                            return idx, detail.get('poster_path') or ''
+                        except Exception:
+                            return idx, ''
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                        for idx, poster in executor.map(fetch_poster, missing):
+                            similar_items[idx]['poster_path'] = poster
+
         except Exception as e:
             print(f"Pinecone search error: {e}")
 
