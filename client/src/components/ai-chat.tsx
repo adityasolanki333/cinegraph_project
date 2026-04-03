@@ -482,13 +482,13 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   return (
     <div className={cn("fixed bottom-20 md:bottom-4 right-4 z-40 flex flex-col items-end", className)} data-testid="ai-chat-widget">
       {isOpen && (
-        <div className="mb-3 w-[92vw] sm:w-[420px] md:w-[480px] h-[70vh] sm:h-[560px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+        <div className="mb-3 w-[92vw] sm:w-[420px] md:w-[480px] h-[75vh] sm:h-[600px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card shrink-0">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+              <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center shrink-0">
                 <Bot className="h-4 w-4 text-primary-foreground" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-foreground">AI Movie Assistant</h3>
                 <p className="text-[10px] text-muted-foreground">Ask me for recommendations</p>
               </div>
@@ -497,7 +497,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
               variant="ghost"
               size="sm"
               onClick={toggleOpen}
-              className="h-8 w-8 p-0 rounded-full hover:bg-muted"
+              className="h-8 w-8 p-0 rounded-full hover:bg-muted shrink-0"
               data-testid="button-close-chat"
             >
               <X className="h-4 w-4" />
@@ -505,7 +505,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
           </div>
 
           <div className="flex-1 relative min-h-0 overflow-hidden">
-            <ScrollArea ref={scrollAreaRef} className="h-full max-h-full px-3 py-2">
+            <ScrollArea ref={scrollAreaRef} className="h-full px-3 py-2">
               <div className="space-y-3 pb-2">
                 {messages.map((message) => (
                   <div
@@ -526,7 +526,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                         "rounded-2xl px-3 py-2",
                         message.type === "user"
                           ? "bg-primary text-primary-foreground max-w-[80%] rounded-br-md"
-                          : "bg-muted text-foreground max-w-[90%] rounded-bl-md"
+                          : "bg-muted text-foreground max-w-[95%] rounded-bl-md"
                       )}
                     >
                       {message.isStreaming && !message.content && !message.statusMessage && (
@@ -574,14 +574,22 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                             </div>
                           )}
 
-                          <div className="grid grid-cols-4 gap-1.5">
-                            {message.movies && message.movies.slice(0, 8).map((movie: any) => {
+                          <div className="grid grid-cols-2 gap-2">
+                            {message.movies && message.movies.slice(0, 4).map((movie: any) => {
                               const mediaType = movie.media_type === 'tv' ? 'tv' : 'movie';
                               const title = movie.title || movie.name || 'Untitled';
                               const posterUrl = movie.poster_path
-                                ? `https://image.tmdb.org/t/p/w185${movie.poster_path}`
+                                ? `https://image.tmdb.org/t/p/w342${movie.poster_path}`
                                 : null;
                               const rating = movie.vote_average || 0;
+                              const year = movie.release_date
+                                ? new Date(movie.release_date).getFullYear()
+                                : movie.first_air_date
+                                  ? new Date(movie.first_air_date).getFullYear()
+                                  : '';
+                              const genre = movie.genre_ids?.length
+                                ? TMDB_GENRE_MAP[movie.genre_ids[0]] || ''
+                                : '';
                               const detailPath = mediaType === 'tv' ? `/tv/${movie.id}` : `/movie/${movie.id}`;
 
                               return (
@@ -599,18 +607,21 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                                         />
                                       ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[9px]">
+                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
                                           No Poster
                                         </div>
                                       )}
-                                      <div className="absolute top-0.5 right-0.5 flex items-center gap-px bg-black/70 text-yellow-400 text-[8px] font-bold px-1 py-px rounded">
-                                        <Star className="h-2 w-2 fill-yellow-400" />
+                                      <div className="absolute top-1 right-1 flex items-center gap-0.5 bg-black/70 text-yellow-400 text-[10px] font-semibold px-1.5 py-0.5 rounded">
+                                        <Star className="h-2.5 w-2.5 fill-yellow-400" />
                                         {rating.toFixed(1)}
                                       </div>
                                     </div>
-                                    <div className="px-1 py-1">
-                                      <p className="font-medium text-[9px] leading-tight text-foreground line-clamp-2 group-hover:text-primary transition-colors">
+                                    <div className="px-1.5 py-1">
+                                      <p className="font-medium text-[11px] leading-tight text-foreground line-clamp-2 group-hover:text-primary transition-colors">
                                         {title}
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                                        {[year, genre].filter(Boolean).join(' \u2022 ')}
                                       </p>
                                     </div>
                                   </div>
@@ -623,7 +634,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                                   <div key={`skeleton-${i}`} data-testid={`movie-skeleton-${i}`}>
                                     <div className="rounded-lg overflow-hidden border border-border/40 bg-card animate-pulse">
                                       <div className="aspect-[2/3] bg-muted" />
-                                      <div className="px-1 py-1">
+                                      <div className="px-1 py-0.5">
                                         <div className="h-2 bg-muted rounded w-3/4" />
                                       </div>
                                     </div>

@@ -610,8 +610,8 @@ def ai_chat(request):
                 logger.warning(f"TMDB search failed for '{title}': {e}")
             return None
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-            future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:8]}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:4]}
             for future in concurrent.futures.as_completed(future_to_title):
                 try:
                     result = future.result()
@@ -717,10 +717,10 @@ def ai_chat_stream(request):
                     return
 
                 if movie_titles:
-                    yield f"data: {json.dumps({'type': 'movies_loading', 'count': min(len(movie_titles), 8)})}\n\n"
+                    yield f"data: {json.dumps({'type': 'movies_loading', 'count': min(len(movie_titles), 4)})}\n\n"
 
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-                        future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:8]}
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                        future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:4]}
                         for future in concurrent.futures.as_completed(future_to_title):
                             try:
                                 result = future.result()
