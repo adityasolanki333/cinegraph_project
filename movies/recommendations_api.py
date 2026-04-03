@@ -111,9 +111,9 @@ def fetch_current_movies():
 
 
 GEMINI_MODELS = [
-    "gemma-3-12b-it",
     "gemini-2.0-flash",
-    "gemini-1.5-flash",
+    "gemini-2.0-flash-lite",
+    "gemma-3-12b-it",
 ]
 
 
@@ -134,13 +134,16 @@ def call_gemini_api(prompt, max_retries=2):
                         return response.text, None
                 except Exception as e:
                     error_str = str(e).lower()
-                    if '429' in error_str or 'quota' in error_str or 'rate' in error_str or 'resource_exhausted' in error_str:
+                    if '429' in error_str or 'quota' in error_str or 'rate' in error_str or 'resource_exhausted' in error_str or '503' in error_str or 'unavailable' in error_str:
                         if attempt < max_retries - 1:
                             time.sleep(2 ** attempt)
                             continue
                         else:
-                            logger.warning(f"Model {model} rate limited, trying next")
+                            logger.warning(f"Model {model} rate limited/unavailable, trying next")
                             break
+                    elif '404' in error_str or 'not_found' in error_str:
+                        logger.warning(f"Model {model} not found, skipping")
+                        break
                     else:
                         logger.warning(f"Gemini {model} error: {e}")
                         break
@@ -164,10 +167,11 @@ def call_gemini_api(prompt, max_retries=2):
                     data = response.json()
                     text = data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
                     return text, None
-                elif response.status_code == 429:
+                elif response.status_code in (429, 503):
                     if attempt < max_retries - 1:
                         time.sleep(2 ** attempt)
                         continue
+                    logger.warning(f"Model {model} returned {response.status_code}, trying next")
                     break
                 elif response.status_code >= 400:
                     logger.warning(f"Gemini REST API error {response.status_code} for model {model}")
@@ -195,8 +199,11 @@ def call_gemini_streaming(prompt):
             return response
         except Exception as e:
             error_str = str(e).lower()
-            if '429' in error_str or 'quota' in error_str or 'rate' in error_str:
-                logger.warning(f"Streaming: Model {model} rate limited, trying next")
+            if '429' in error_str or 'quota' in error_str or 'rate' in error_str or '503' in error_str or 'unavailable' in error_str:
+                logger.warning(f"Streaming: Model {model} rate limited/unavailable, trying next")
+                continue
+            elif '404' in error_str or 'not_found' in error_str:
+                logger.warning(f"Streaming: Model {model} not found, skipping")
                 continue
             else:
                 logger.warning(f"Streaming: Gemini {model} error: {e}")
