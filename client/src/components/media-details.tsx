@@ -22,7 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MediaCard } from "@/components/media-card";
 import { ExpandableText } from "@/components/expandable-text";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getAuthHeaders } from "@/lib/queryClient";
 import { TrailerDialog } from "@/components/trailer-dialog";
 import { AddToListButton } from "@/components/add-to-list-button";
 import { ListCard } from "@/components/list-card";
@@ -112,7 +112,9 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
   const { data: userFavorites } = useQuery({
     queryKey: ['/api/users', user?.id, 'favorites'],
     queryFn: async () => {
-      const response = await fetch(`/api/users/${user?.id}/favorites`);
+      const response = await fetch(`/api/users/${user?.id}/favorites`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return [];
       const data = await response.json();
       return Array.isArray(data) ? data : (data.items || data.favorites || []);
@@ -123,7 +125,9 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
   const { data: userWatched } = useQuery({
     queryKey: ['/api/users', user?.id, 'watched'],
     queryFn: async () => {
-      const response = await fetch(`/api/users/${user?.id}/watched`);
+      const response = await fetch(`/api/users/${user?.id}/watched`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return [];
       const data = await response.json();
       return Array.isArray(data) ? data : (data.items || data.watched || []);
@@ -389,41 +393,41 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
 
                 <div className="grid grid-cols-2 gap-2 sm:contents">
                   <Button
-                    variant="outline"
+                    variant={isInFavorites ? "default" : "outline"}
                     size="sm"
                     onClick={handleFavoritesToggle}
                     disabled={favoritesMutation.isPending}
                     data-testid="button-favorites"
-                    className="w-full sm:w-auto"
+                    className={`w-full sm:w-auto ${isInFavorites ? 'bg-red-500 hover:bg-red-600 text-white border-red-500' : ''}`}
                   >
                     <Heart className={`h-4 w-4 md:h-5 md:w-5 mr-2 ${isInFavorites ? 'fill-current' : ''}`} />
-                    <span className="hidden md:inline">{isInFavorites ? 'Remove from Favorites' : 'Add to Favorites'}</span>
-                    <span className="md:hidden">{isInFavorites ? 'Unfavorite' : 'Favorite'}</span>
+                    <span className="hidden md:inline">{isInFavorites ? 'Favorited' : 'Add to Favorites'}</span>
+                    <span className="md:hidden">{isInFavorites ? 'Favorited' : 'Favorite'}</span>
                   </Button>
 
                   <Button
-                    variant="outline"
+                    variant={isInUserWatchlist ? "default" : "outline"}
                     size="sm"
                     onClick={handleWatchlistToggle}
                     data-testid="button-watchlist"
-                    className="w-full sm:w-auto"
+                    className={`w-full sm:w-auto ${isInUserWatchlist ? 'bg-blue-500 hover:bg-blue-600 text-white border-blue-500' : ''}`}
                   >
                     <Bookmark className={`h-4 w-4 md:h-5 md:w-5 mr-2 ${isInUserWatchlist ? 'fill-current' : ''}`} />
-                    <span className="hidden md:inline">{isInUserWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}</span>
-                    <span className="md:hidden">{isInUserWatchlist ? 'Remove' : 'Watchlist'}</span>
+                    <span className="hidden md:inline">{isInUserWatchlist ? 'In Watchlist' : 'Add to Watchlist'}</span>
+                    <span className="md:hidden">{isInUserWatchlist ? 'Listed' : 'Watchlist'}</span>
                   </Button>
 
                   <Button
-                    variant="outline"
+                    variant={isWatched ? "default" : "outline"}
                     size="sm"
                     onClick={handleWatchedToggle}
                     disabled={watchedMutation.isPending}
                     data-testid="button-watched"
-                    className="w-full sm:w-auto"
+                    className={`w-full sm:w-auto ${isWatched ? 'bg-green-500 hover:bg-green-600 text-white border-green-500' : ''}`}
                   >
                     <CheckCircle className={`h-4 w-4 md:h-5 md:w-5 mr-2 ${isWatched ? 'fill-current' : ''}`} />
-                    <span className="hidden md:inline">{isWatched ? 'Mark as Unwatched' : 'Mark as Watched'}</span>
-                    <span className="md:hidden">{isWatched ? 'Unwatched' : 'Watched'}</span>
+                    <span className="hidden md:inline">{isWatched ? 'Watched' : 'Mark as Watched'}</span>
+                    <span className="md:hidden">{isWatched ? 'Watched' : 'Watch'}</span>
                   </Button>
 
                   <AddToListButton
