@@ -940,6 +940,12 @@ export default function TVShowDetailsPage() {
                         tmdbId={parseInt(tvId || '0')}
                         mediaType="tv"
                         currentUserId={user?.id}
+                        sentimentMap={Object.fromEntries(
+                          ((sentimentData as any)?.reviews || []).map((r: any) => [
+                            r.id,
+                            { sentiment: r.sentiment, sentimentScore: r.sentimentScore }
+                          ])
+                        )}
                       />
                     </CardContent>
                   </Card>

@@ -799,6 +799,12 @@ export default function MovieDetailsPage() {
                         tmdbId={parseInt(movieId || '0')}
                         mediaType="movie"
                         currentUserId={user?.id}
+                        sentimentMap={Object.fromEntries(
+                          ((sentimentData as any)?.reviews || []).map((r: any) => [
+                            r.id,
+                            { sentiment: r.sentiment, sentimentScore: r.sentimentScore }
+                          ])
+                        )}
                       />
                     </CardContent>
                   </Card>

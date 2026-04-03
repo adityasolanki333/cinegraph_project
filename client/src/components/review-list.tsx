@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RatingStars } from "./rating-stars";
 import { ReviewCardEnhanced } from "./review-card-enhanced";
@@ -14,9 +15,10 @@ interface ReviewListProps {
   tmdbId: number;
   mediaType: "movie" | "tv";
   currentUserId?: string;
+  sentimentMap?: Record<string, { sentiment: string; sentimentScore: number }>;
 }
 
-export function ReviewList({ tmdbId, mediaType, currentUserId }: ReviewListProps) {
+export function ReviewList({ tmdbId, mediaType, currentUserId, sentimentMap = {} }: ReviewListProps) {
   const [tmdbSortBy, setTmdbSortBy] = useState<'latest' | 'popular'>('latest');
   const [tmdbPage, setTmdbPage] = useState(1);
 
@@ -145,14 +147,28 @@ export function ReviewList({ tmdbId, mediaType, currentUserId }: ReviewListProps
                             {formatDistanceToNow(new Date(review.created_at))} ago
                           </p>
                         </div>
-                        {review.author_details?.rating && (
-                          <RatingStars 
-                            rating={review.author_details.rating} 
-                            readonly 
-                            size="sm"
-                            showValue={false}
-                          />
-                        )}
+                        <div className="flex items-center gap-2">
+                          {sentimentMap[review.id] && (() => {
+                            const s = sentimentMap[review.id].sentiment;
+                            return (
+                              <Badge
+                                variant={s === "positive" ? "default" : s === "negative" ? "destructive" : "secondary"}
+                                className="text-xs capitalize"
+                                data-testid={`badge-review-sentiment-${review.id}`}
+                              >
+                                {s === "positive" ? "😊" : s === "negative" ? "😞" : "😐"} {s}
+                              </Badge>
+                            );
+                          })()}
+                          {review.author_details?.rating && (
+                            <RatingStars 
+                              rating={review.author_details.rating} 
+                              readonly 
+                              size="sm"
+                              showValue={false}
+                            />
+                          )}
+                        </div>
                       </div>
                       <p className="text-gray-700 dark:text-gray-300">
                         {review.content.length > 500 
