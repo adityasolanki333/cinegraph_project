@@ -183,7 +183,8 @@ export default function MovieDetailsPage() {
     queryFn: async () => {
       const response = await fetch(`/api/community/lists/containing/${movieId}/movie`);
       if (!response.ok) return [];
-      return response.json();
+      const data = await response.json();
+      return data.lists || [];
     },
     enabled: !!movieId
   });

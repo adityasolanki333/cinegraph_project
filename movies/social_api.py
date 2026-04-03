@@ -475,7 +475,9 @@ def lists_containing_content(request, tmdb_id, media_type):
             'id': item.list.id,
             'title': item.list.title,
             'description': item.list.description,
+            'isPublic': item.list.is_public,
             'itemCount': item.list.items.count(),
+            'followerCount': item.list.follower_count,
             'user': {
                 'id': str(item.list.user.id),
                 'firstName': item.list.user.first_name,
