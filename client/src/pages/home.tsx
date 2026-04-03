@@ -79,12 +79,16 @@ const moodOptions = [
 ];
 
 export default function Home() {
-  const [currentSlide, setCurrentSlide] = useState(0);
+  const [stripIndex, setStripIndex] = useState(1); // position in allSlides (0=clone-last, 1..N=real, N+1=clone-first)
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [dragX, setDragX] = useState(0);
+  const isAnimating = useRef(false);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'movie' | 'tv'>('movie');
   const [refreshKey, setRefreshKey] = useState(0);
   const [isTrailerOpen, setIsTrailerOpen] = useState(false);
-  const heroScrollRef = useRef<HTMLDivElement>(null);
   const { isInWatchlist } = useWatchlist();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -236,23 +240,77 @@ export default function Home() {
 
   // Auto-advance slider removed - users navigate manually
 
+  // allSlides = [clone_last, slide0…slideN, clone_first] — built after featuredMovies is ready
+  // currentSlide = real 0-based index derived from stripIndex
+  const total = featuredMovies.length;
+  const currentSlide = total === 0 ? 0
+    : stripIndex <= 0 ? total - 1
+    : stripIndex >= total + 1 ? 0
+    : stripIndex - 1;
+
+  const animate = useCallback((direction: 'next' | 'prev') => {
+    if (isAnimating.current || total < 2) return;
+    isAnimating.current = true;
+    setIsTransitioning(true);
+    setDragX(0);
+    setStripIndex(prev => direction === 'next' ? prev + 1 : prev - 1);
+    setTimeout(() => {
+      // Snap back to the real slide (no transition) to enable infinite loop
+      setIsTransitioning(false);
+      setStripIndex(prev => {
+        if (prev >= total + 1) return 1;
+        if (prev <= 0) return total;
+        return prev;
+      });
+      setTimeout(() => { isAnimating.current = false; }, 30);
+    }, 360);
+  }, [total]);
+
   const goToSlide = useCallback((index: number) => {
-    if (!heroScrollRef.current) return;
-    heroScrollRef.current.scrollTo({
-      left: index * heroScrollRef.current.offsetWidth,
-      behavior: 'smooth',
-    });
-  }, []);
+    if (isAnimating.current || index === currentSlide || total < 2) return;
+    const fwd = (index - currentSlide + total) % total;
+    const bwd = (currentSlide - index + total) % total;
+    if (fwd <= bwd) animate('next');
+    else animate('prev');
+    // Override target after animation
+    setTimeout(() => {
+      setStripIndex(index + 1);
+    }, 365);
+  }, [animate, currentSlide, total]);
 
-  const nextSlide = () => goToSlide((currentSlide + 1) % featuredMovies.length);
-  const prevSlide = () => goToSlide((currentSlide - 1 + featuredMovies.length) % featuredMovies.length);
+  const nextSlide = useCallback(() => animate('next'), [animate]);
+  const prevSlide = useCallback(() => animate('prev'), [animate]);
 
-  const handleHeroScroll = useCallback(() => {
-    if (!heroScrollRef.current) return;
-    const { scrollLeft, offsetWidth } = heroScrollRef.current;
-    const index = Math.round(scrollLeft / offsetWidth);
-    setCurrentSlide(index);
-  }, []);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isAnimating.current) return;
+    touchStartX.current = e.targetTouches[0].clientX;
+    touchStartY.current = e.targetTouches[0].clientY;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartX.current || !touchStartY.current || isAnimating.current) return;
+    const dx = e.targetTouches[0].clientX - touchStartX.current;
+    const dy = Math.abs(e.targetTouches[0].clientY - touchStartY.current);
+    if (Math.abs(dx) > dy) setDragX(dx);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const sx = touchStartX.current;
+    const sy = touchStartY.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+    if (!sx || !sy || isAnimating.current) { setDragX(0); return; }
+    const dx = e.changedTouches[0].clientX - sx;
+    const dy = Math.abs(e.changedTouches[0].clientY - sy);
+    if (Math.abs(dx) >= 50 && Math.abs(dx) > dy && total > 1) {
+      if (dx < 0) animate('next');
+      else animate('prev');
+    } else {
+      setIsTransitioning(true);
+      setDragX(0);
+      setTimeout(() => setIsTransitioning(false), 360);
+    }
+  };
 
   const currentMovie = featuredMovies[currentSlide] || featuredMovies[0];
   const [trailerInfo, setTrailerInfo] = useState<{ id: string; type: 'movie' | 'tv'; title: string } | null>(null);
@@ -414,21 +472,30 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Section — native scroll-snap carousel */}
-      {featuredMovies.length > 0 && (
+      {/* Hero Section — transform-based infinite circular carousel */}
+      {featuredMovies.length > 0 && (() => {
+        const allSlides = total > 1
+          ? [featuredMovies[total - 1], ...featuredMovies, featuredMovies[0]]
+          : featuredMovies;
+        return (
         <div
-          className="relative h-[150vw] max-h-[100vh] sm:h-[70vh] lg:h-[80vh] bg-black select-none"
+          className="relative h-[150vw] max-h-[100vh] sm:h-[70vh] lg:h-[80vh] overflow-hidden bg-black select-none"
           data-testid="hero-section"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
-          {/* ── Native scroll strip ── */}
+          {/* ── Sliding strip ── */}
           <div
-            ref={heroScrollRef}
-            onScroll={handleHeroScroll}
-            className="flex h-full w-full overflow-x-scroll scrollbar-none"
-            style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}
+            className="flex h-full"
+            style={{
+              transform: `translateX(calc(-${stripIndex * 100}vw + ${dragX}px))`,
+              transition: isTransitioning ? 'transform 0.36s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
+              willChange: 'transform',
+            }}
           >
-            {featuredMovies.map((movie: any, index: number) => (
-              <div key={movie.id} className="flex-shrink-0 w-full h-full relative" style={{ scrollSnapAlign: 'start' }}>
+            {allSlides.map((movie: any, index: number) => (
+              <div key={`${movie.id}-${index}`} className="flex-none w-screen h-full relative">
                 {/* Mobile: blurred bg + centred poster */}
                 <div className="sm:hidden absolute inset-0">
                   <img
@@ -567,7 +634,8 @@ export default function Home() {
             </>
           )}
         </div>
-      )}
+        );
+      })()}
 
 
       {/* Content Sections */}
