@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -84,11 +84,7 @@ export default function Home() {
   const [mediaType, setMediaType] = useState<'movie' | 'tv'>('movie');
   const [refreshKey, setRefreshKey] = useState(0);
   const [isTrailerOpen, setIsTrailerOpen] = useState(false);
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
-  const [dragX, setDragX] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const heroScrollRef = useRef<HTMLDivElement>(null);
   const { isInWatchlist } = useWatchlist();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -240,67 +236,23 @@ export default function Home() {
 
   // Auto-advance slider removed - users navigate manually
 
-  const goToSlide = (index: number) => {
-    setIsTransitioning(true);
-    setDragX(0);
+  const goToSlide = useCallback((index: number) => {
+    if (!heroScrollRef.current) return;
+    heroScrollRef.current.scrollTo({
+      left: index * heroScrollRef.current.offsetWidth,
+      behavior: 'smooth',
+    });
+  }, []);
+
+  const nextSlide = () => goToSlide((currentSlide + 1) % featuredMovies.length);
+  const prevSlide = () => goToSlide((currentSlide - 1 + featuredMovies.length) % featuredMovies.length);
+
+  const handleHeroScroll = useCallback(() => {
+    if (!heroScrollRef.current) return;
+    const { scrollLeft, offsetWidth } = heroScrollRef.current;
+    const index = Math.round(scrollLeft / offsetWidth);
     setCurrentSlide(index);
-    setTimeout(() => setIsTransitioning(false), 380);
-  };
-
-  const nextSlide = () => {
-    goToSlide((currentSlide + 1) % featuredMovies.length);
-  };
-
-  const prevSlide = () => {
-    goToSlide((currentSlide - 1 + featuredMovies.length) % featuredMovies.length);
-  };
-
-  // Touch handlers for swipe with live drag
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-    setTouchStartY(e.targetTouches[0].clientY);
-    setIsTransitioning(false);
-    setDragX(0);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    const currentX = e.targetTouches[0].clientX;
-    const currentY = e.targetTouches[0].clientY;
-    setTouchEnd(currentX);
-    if (touchStart !== null && touchStartY !== null) {
-      const xDist = currentX - touchStart;
-      const yDist = Math.abs(currentY - touchStartY);
-      if (Math.abs(xDist) > yDist) {
-        setDragX(xDist);
-      }
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStart === null || touchEnd === null || touchStartY === null) {
-      setDragX(0);
-      return;
-    }
-
-    const xDistance = touchStart - touchEnd;
-    const yDistance = Math.abs(e.changedTouches[0].clientY - touchStartY);
-
-    setIsTransitioning(true);
-    setDragX(0);
-
-    if (Math.abs(xDistance) >= yDistance && Math.abs(xDistance) >= 50 && featuredMovies.length > 1) {
-      if (xDistance > 0) {
-        setCurrentSlide(prev => (prev + 1) % featuredMovies.length);
-      } else {
-        setCurrentSlide(prev => (prev - 1 + featuredMovies.length) % featuredMovies.length);
-      }
-    }
-
-    setTouchStart(null);
-    setTouchEnd(null);
-    setTimeout(() => setIsTransitioning(false), 380);
-  };
+  }, []);
 
   const currentMovie = featuredMovies[currentSlide] || featuredMovies[0];
   const [trailerInfo, setTrailerInfo] = useState<{ id: string; type: 'movie' | 'tv'; title: string } | null>(null);
@@ -462,26 +414,21 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Section — sliding strip carousel */}
+      {/* Hero Section — native scroll-snap carousel */}
       {featuredMovies.length > 0 && (
         <div
-          className="relative h-[150vw] max-h-[100vh] sm:h-[70vh] lg:h-[80vh] overflow-hidden bg-black select-none"
+          className="relative h-[150vw] max-h-[100vh] sm:h-[70vh] lg:h-[80vh] bg-black select-none"
           data-testid="hero-section"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
         >
-          {/* ── Sliding strip: all slides side-by-side ── */}
+          {/* ── Native scroll strip ── */}
           <div
-            className="flex h-full w-full"
-            style={{
-              transform: `translateX(calc(-${currentSlide * 100}% + ${dragX}px))`,
-              transition: isTransitioning ? 'transform 0.38s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
-              willChange: 'transform',
-            }}
+            ref={heroScrollRef}
+            onScroll={handleHeroScroll}
+            className="flex h-full w-full overflow-x-scroll scrollbar-none"
+            style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}
           >
             {featuredMovies.map((movie: any, index: number) => (
-              <div key={movie.id} className="flex-shrink-0 w-full h-full relative">
+              <div key={movie.id} className="flex-shrink-0 w-full h-full relative" style={{ scrollSnapAlign: 'start' }}>
                 {/* Mobile: blurred bg + centred poster */}
                 <div className="sm:hidden absolute inset-0">
                   <img
