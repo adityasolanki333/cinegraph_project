@@ -489,7 +489,7 @@ def get_user_similarity(request, user_id):
 
 @csrf_exempt
 def semantic_search(request):
-    """Semantic search for movies/TV shows with TF-IDF similarity scores"""
+    """Semantic search for movies/TV shows with hybrid re-ranking"""
     if request.method not in ['POST', 'GET']:
         return JsonResponse({"error": "Method not allowed"}, status=405)
     
@@ -502,6 +502,7 @@ def semantic_search(request):
             query = body.get('query', '')
             limit = min(body.get('limit', 20), 100)
             filters = body.get('filters', {})
+            sort_by = body.get('sortBy', 'relevance')
         else:
             query = request.GET.get('query', '')
             try:
@@ -509,12 +510,33 @@ def semantic_search(request):
             except ValueError:
                 limit = 20
             filters = {}
+            sort_by = request.GET.get('sortBy', 'relevance')
         
         if not query:
             return JsonResponse({"error": "query is required"}, status=400)
+
         from .ml.pinecone_service import pinecone_service
+        search_method = "pinecone_semantic"
+
         if pinecone_service.is_initialized():
-            pinecone_results = pinecone_service.search(query, k=limit)
+            pinecone_filters = None
+            if filters:
+                pinecone_filters = {}
+                if filters.get('yearRange'):
+                    yr = filters['yearRange']
+                    if isinstance(yr, list) and len(yr) == 2:
+                        pinecone_filters["release_year"] = {
+                            "$gte": str(yr[0]),
+                            "$lte": str(yr[1]),
+                        }
+                if filters.get('minRating') and filters['minRating'] > 0:
+                    pinecone_filters["vote_average"] = {"$gte": float(filters['minRating'])}
+                if filters.get('languages') and len(filters['languages']) > 0:
+                    pinecone_filters["original_language"] = {"$in": filters['languages']}
+                if not pinecone_filters:
+                    pinecone_filters = None
+
+            pinecone_results = pinecone_service.search(query, k=limit, filters=pinecone_filters)
             if pinecone_results:
                 formatted_results = []
                 for item in pinecone_results:
@@ -525,13 +547,17 @@ def semantic_search(request):
                         'posterPath': item.get('poster_path'),
                         'releaseDate': item.get('release_date'),
                         'voteAverage': item.get('vote_average'),
-                        'genres': [],
+                        'popularity': item.get('popularity', 0),
+                        'genres': item.get('genres', '').split(', ') if item.get('genres') else [],
                         'mediaType': 'movie',
-                        'similarity': item.get('similarity'),
-                        'explanation': item.get('explanation')
+                        'similarity': item.get('composite_score', item.get('similarity', 0)),
+                        'rawSimilarity': item.get('similarity', 0),
+                        'explanation': item.get('explanation', ''),
+                        'matchQuality': item.get('match_quality', ''),
+                        'recencyBoost': item.get('recency_boost', 0),
+                        'popularityBoost': item.get('popularity_boost', 0),
                     })
 
-                # Enrich all items from TMDB to get complete metadata
                 from . import api as tmdb_api
                 import concurrent.futures
 
@@ -554,113 +580,145 @@ def semantic_search(request):
                             formatted_results[idx]['voteAverage'] = detail.get('vote_average') or 0
                             formatted_results[idx]['overview'] = detail.get('overview') or formatted_results[idx].get('overview', '')
                             formatted_results[idx]['releaseDate'] = detail.get('release_date') or formatted_results[idx].get('releaseDate', '')
-                            formatted_results[idx]['genres'] = [g['name'] for g in detail.get('genres', [])]
+                            if not formatted_results[idx].get('genres') or formatted_results[idx]['genres'] == []:
+                                formatted_results[idx]['genres'] = [g['name'] for g in detail.get('genres', [])]
+                            formatted_results[idx]['popularity'] = detail.get('popularity') or formatted_results[idx].get('popularity', 0)
 
-                # Filter out items with no poster
                 formatted_results = [r for r in formatted_results if r.get('posterPath')]
+
+                if sort_by == 'release_date':
+                    formatted_results.sort(key=lambda x: x.get('releaseDate') or '', reverse=True)
+                elif sort_by == 'rating':
+                    formatted_results.sort(key=lambda x: x.get('voteAverage') or 0, reverse=True)
+
+                search_time = time.time() - start_time
 
                 return JsonResponse({
                     'results': formatted_results,
                     'query': query,
-                    'count': len(formatted_results)
+                    'count': len(formatted_results),
+                    'totalMatches': len(formatted_results),
+                    'searchTime': round(search_time, 3),
+                    'searchMethod': search_method,
                 })
 
+        search_method = "tfidf_local"
         from . import api
         from .ml.embedding_service import semantic_embedding_service
-        
-        params = {"query": query, "page": 1}
-        
-        media_types = filters.get('mediaType', [])
-        if media_types and len(media_types) == 1:
-            if 'movie' in media_types:
-                endpoint = "/search/movie"
-            elif 'tv' in media_types:
-                endpoint = "/search/tv"
+        from .models import TmdbTrainingData
+
+        local_items = []
+        try:
+            qs = TmdbTrainingData.objects.exclude(overview__isnull=True).exclude(overview='')
+            year_range = filters.get('yearRange')
+            min_rating = filters.get('minRating', 0)
+            max_rating = filters.get('maxRating', 10)
+
+            if year_range and isinstance(year_range, list) and len(year_range) == 2:
+                qs = qs.filter(release_date__gte=str(year_range[0]), release_date__lte=str(year_range[1]) + '-12-31')
+            if min_rating and min_rating > 0:
+                qs = qs.filter(vote_average__gte=min_rating)
+            if max_rating and max_rating < 10:
+                qs = qs.filter(vote_average__lte=max_rating)
+
+            qs = qs.order_by('-popularity')[:limit * 10]
+
+            for row in qs:
+                local_items.append({
+                    'id': row.tmdb_id,
+                    'title': row.title or '',
+                    'overview': row.overview or '',
+                    'vote_average': row.vote_average or 0,
+                    'popularity': row.popularity or 0,
+                    'release_date': row.release_date or '',
+                    'poster_path': row.poster_path or '',
+                    'genres': row.genres or '',
+                    'media_type': 'movie',
+                })
+        except Exception:
+            local_items = []
+
+        if not local_items:
+            params = {"query": query, "page": 1}
+            media_types = filters.get('mediaType', [])
+            if media_types and len(media_types) == 1:
+                if 'movie' in media_types:
+                    endpoint = "/search/movie"
+                elif 'tv' in media_types:
+                    endpoint = "/search/tv"
+                else:
+                    endpoint = "/search/multi"
             else:
                 endpoint = "/search/multi"
-        else:
-            endpoint = "/search/multi"
-        
-        result = api.tmdb_request(endpoint, params)
-        
-        if 'results' in result:
-            raw_results = result['results'][:limit * 2]
-            
-            filtered_results = []
-            for item in raw_results:
-                item_type = item.get('media_type', 'movie')
-                if item_type == 'person':
-                    continue
-                    
-                year_range = filters.get('yearRange')
-                if year_range:
-                    release_date = item.get('release_date') or item.get('first_air_date', '')
-                    if release_date:
-                        try:
-                            year = int(release_date[:4])
-                            if year < year_range[0] or year > year_range[1]:
-                                continue
-                        except (ValueError, IndexError):
-                            pass
-                
-                min_rating = filters.get('minRating', 0)
-                max_rating = filters.get('maxRating', 10)
-                vote_avg = item.get('vote_average', 0)
-                if vote_avg < min_rating or vote_avg > max_rating:
-                    continue
-                
-                filtered_results.append(item)
-            
+
+            result = api.tmdb_request(endpoint, params)
+            if 'results' in result:
+                for item in result['results'][:limit * 2]:
+                    if item.get('media_type') == 'person':
+                        continue
+                    local_items.append(item)
+
+        if local_items:
             ranked_results = semantic_embedding_service.search_with_similarity(
-                query, filtered_results, top_k=limit
+                query, local_items, top_k=limit, apply_reranking=True
             )
-            
+
             formatted_results = []
             for item, similarity in ranked_results:
                 title = item.get('title') or item.get('name', '')
-                overview = item.get('overview', '')
-                
-                query_lower = query.lower()
-                title_boost = 0.15 if query_lower in title.lower() else 0
-                final_similarity = min(1.0, similarity + title_boost)
-                
+
+                match_pct = int(similarity * 100)
+                labels = []
+                if similarity >= 0.7:
+                    labels.append("Semantic match")
+                vote_avg = item.get('vote_average', 0)
+                if vote_avg and vote_avg >= 7.0:
+                    labels.append("Popular")
+                match_quality = ", ".join(labels) if labels else "Related"
+
                 formatted_results.append({
                     'tmdbId': item.get('id'),
                     'title': title,
-                    'overview': overview,
+                    'overview': item.get('overview', ''),
                     'posterPath': item.get('poster_path'),
                     'releaseDate': item.get('release_date') or item.get('first_air_date'),
-                    'voteAverage': item.get('vote_average'),
+                    'voteAverage': vote_avg,
                     'popularity': item.get('popularity'),
-                    'genres': item.get('genre_ids', []),
+                    'genres': item.get('genre_ids', item.get('genres', [])),
                     'mediaType': item.get('media_type', 'movie'),
-                    'similarity': round(final_similarity, 3),
-                    'explanation': f"TF-IDF semantic match for '{query}'"
+                    'similarity': round(similarity, 3),
+                    'explanation': f"{match_pct}% match — {match_quality}",
+                    'matchQuality': match_quality,
                 })
+
+            if sort_by == 'release_date':
+                formatted_results.sort(key=lambda x: x.get('releaseDate') or '', reverse=True)
+            elif sort_by == 'rating':
+                formatted_results.sort(key=lambda x: x.get('voteAverage') or 0, reverse=True)
             
             search_time = time.time() - start_time
-            
+
             return JsonResponse({
                 "query": query,
                 "results": formatted_results,
                 "totalMatches": len(formatted_results),
                 "searchTime": round(search_time, 3),
-                "searchMethod": "tfidf_semantic",
+                "searchMethod": search_method,
                 "queryAnalysis": {
                     "originalQuery": query,
                     "filters": filters
                 }
             })
-        else:
-            return JsonResponse({
-                "query": query,
-                "results": [],
-                "totalMatches": 0,
-                "searchTime": 0,
-                "searchMethod": "tfidf_semantic",
-                "queryAnalysis": {"originalQuery": query, "filters": filters}
-            })
-        
+
+        return JsonResponse({
+            "query": query,
+            "results": [],
+            "totalMatches": 0,
+            "searchTime": round(time.time() - start_time, 3),
+            "searchMethod": search_method,
+            "queryAnalysis": {"originalQuery": query, "filters": filters}
+        })
+
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
     except Exception as e:

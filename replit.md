@@ -26,8 +26,11 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 │   │   ├── diversity_engine.py       # MMR, DPP, serendipity
 │   │   ├── contextual_bandits.py     # Thompson Sampling
 │   │   ├── explainability_engine.py  # Recommendation explanations
-│   │   ├── embedding_service.py      # TF-IDF semantic embeddings
+│   │   ├── embedding_service.py      # TF-IDF semantic embeddings with DB pre-fitting
+│   │   ├── pinecone_service.py      # Pinecone vector search with hybrid re-ranking
 │   │   └── pattern_recognition.py    # Viewing pattern analysis
+│   ├── management/commands/
+│   │   └── refresh_pinecone.py      # TMDB→Pinecone refresh pipeline
 │   └── decorators.py         # Auth/ownership decorators
 ├── client/                   # React frontend
 │   ├── src/                  # React source code

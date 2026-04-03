@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
-import { Sparkles, Search, Star, TrendingUp, Brain, ExternalLink, Lightbulb, ChevronDown, ChevronUp, Tag, Film } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sparkles, Search, Brain, ChevronDown, ChevronUp, ArrowUpDown, Clock, Star, TrendingUp, Zap, SearchX } from 'lucide-react';
 import { PreferenceWizard } from './preference-wizard';
 import { useQuery } from '@tanstack/react-query';
 import { MediaCard } from '@/components/media-card';
@@ -32,6 +32,37 @@ function ExplanationLoader({ movieId, mediaType, initialReason }: { movieId: num
   return <ExplanationVisualizer explanation={explanation} className="text-xs" />;
 }
 
+function MatchQualityBadge({ matchQuality, similarity }: { matchQuality: string; similarity: number }) {
+  const pct = Math.round(similarity * 100);
+
+  const getColor = () => {
+    if (pct >= 80) return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+    if (pct >= 60) return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-800';
+    if (pct >= 40) return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+    return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+  };
+
+  const getIcon = () => {
+    if (matchQuality.includes('Semantic match')) return <Zap className="h-3 w-3" />;
+    if (matchQuality.includes('Popular')) return <TrendingUp className="h-3 w-3" />;
+    if (matchQuality.includes('Recent')) return <Clock className="h-3 w-3" />;
+    if (matchQuality.includes('Title match')) return <Search className="h-3 w-3" />;
+    return <Sparkles className="h-3 w-3" />;
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap" data-testid="match-quality-badges">
+      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 gap-1 font-semibold border ${getColor()}`} data-testid="badge-match-score">
+        {getIcon()}
+        {pct}% match
+      </Badge>
+      {matchQuality && matchQuality !== 'Related' && (
+        <span className="text-[10px] text-muted-foreground">{matchQuality}</span>
+      )}
+    </div>
+  );
+}
+
 interface UserPreferences {
   mediaType: string[];
   releaseYearRange: [number, number];
@@ -42,18 +73,57 @@ interface UserPreferences {
   runtime: string;
 }
 
+interface RecommendedMovie {
+  id: number;
+  title: string;
+  name?: string;
+  overview: string;
+  poster_path: string;
+  release_date: string;
+  first_air_date?: string;
+  vote_average: number;
+  popularity: number;
+  genre: string;
+  media_type: string;
+  number_of_seasons?: number;
+}
+
 interface AdvancedRecommendation {
-  movie: any;
+  movie: RecommendedMovie;
   matchScore: number;
   reasons: string[];
   searchContext: string[];
   relatedMovies: string[];
+  matchQuality?: string;
+  similarity?: number;
+}
+
+interface SemanticSearchApiResult {
+  tmdbId: number;
+  title: string;
+  overview: string;
+  posterPath: string;
+  releaseDate: string;
+  voteAverage: number;
+  popularity: number;
+  genres: string[];
+  mediaType: string;
+  similarity: number;
+  explanation: string;
+  matchQuality: string;
+}
+
+interface SearchResponse {
+  recommendations: AdvancedRecommendation[];
+  totalMatches: number;
+  searchTime: number;
+  searchMethod: string;
+  queryAnalysis?: Record<string, unknown>;
 }
 
 export function AdvancedRecommendations() {
   const [showWizard, setShowWizard] = useState(false);
 
-  // Load saved preferences and search query from sessionStorage
   const [preferences, setPreferences] = useState<UserPreferences | null>(() => {
     const saved = sessionStorage.getItem('advancedRecommendations_preferences');
     return saved ? JSON.parse(saved) : null;
@@ -63,14 +133,11 @@ export function AdvancedRecommendations() {
     return sessionStorage.getItem('advancedRecommendations_query') || '';
   });
 
-  // Use a trigger to control when to search - only increments when user clicks button
   const [searchTrigger, setSearchTrigger] = useState(0);
   const [lastSearchedQuery, setLastSearchedQuery] = useState('');
-
-  // Track which recommendation details are expanded
+  const [sortBy, setSortBy] = useState('relevance');
   const [expandedRecommendations, setExpandedRecommendations] = useState<Set<number>>(new Set());
 
-  // Persist state to sessionStorage whenever it changes
   React.useEffect(() => {
     if (preferences) {
       sessionStorage.setItem('advancedRecommendations_preferences', JSON.stringify(preferences));
@@ -83,13 +150,11 @@ export function AdvancedRecommendations() {
     sessionStorage.setItem('advancedRecommendations_query', searchQuery);
   }, [searchQuery]);
 
-  // Semantic search query using Universal Sentence Encoder
   const { data: recommendations, isLoading, error, isFetching } = useQuery({
-    queryKey: ['/api/recommendations/semantic-search', lastSearchedQuery, preferences, searchTrigger],
+    queryKey: ['/api/recommendations/semantic-search', lastSearchedQuery, preferences, searchTrigger, sortBy],
     enabled: searchTrigger > 0 && !!lastSearchedQuery,
     queryFn: async () => {
-      // Build filters from preferences
-      const filters: any = {};
+      const filters: Record<string, string[] | number[] | [number, number] | number | string> = {};
 
       if (preferences) {
         if (preferences.genres && preferences.genres.length > 0) {
@@ -124,25 +189,23 @@ export function AdvancedRecommendations() {
         body: JSON.stringify({
           query: lastSearchedQuery,
           limit: 20,
-          filters
+          filters,
+          sortBy,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-
         if (response.status === 429) {
           throw new Error(errorData.message || 'Too many requests. Please wait a moment before trying again.');
         }
-
         throw new Error(errorData.message || 'Failed to perform semantic search');
       }
 
       const data = await response.json();
 
-      // Transform semantic search results to match expected format
       return {
-        recommendations: data.results.map((result: any) => ({
+        recommendations: data.results.map((result: SemanticSearchApiResult) => ({
           movie: {
             id: result.tmdbId,
             title: result.title,
@@ -152,16 +215,19 @@ export function AdvancedRecommendations() {
             vote_average: result.voteAverage,
             popularity: result.popularity,
             genre: Array.isArray(result.genres) && result.genres.length > 0 ? result.genres[0] : '',
-            media_type: 'movie'
+            media_type: result.mediaType || 'movie'
           },
-          matchScore: Math.round(result.similarity * 100), // Convert 0-1 to 0-100
+          matchScore: Math.round((result.similarity || 0) * 100),
           reasons: [result.explanation],
-          searchContext: [`Similarity: ${(result.similarity * 100).toFixed(1)}%`],
-          relatedMovies: []
+          searchContext: [`Similarity: ${((result.similarity || 0) * 100).toFixed(1)}%`],
+          relatedMovies: [],
+          matchQuality: result.matchQuality || '',
+          similarity: result.similarity || 0,
         })),
         totalMatches: data.totalMatches,
         searchTime: data.searchTime,
-        queryAnalysis: data.queryAnalysis
+        searchMethod: data.searchMethod,
+        queryAnalysis: data.queryAnalysis,
       };
     },
   });
@@ -184,18 +250,6 @@ export function AdvancedRecommendations() {
     }
   };
 
-  const getMatchScoreColor = (score: number) => {
-    if (score >= 80) return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100';
-    if (score >= 60) return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100';
-    return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100';
-  };
-
-  const getMatchScoreLabel = (score: number) => {
-    if (score >= 80) return 'Excellent Match';
-    if (score >= 60) return 'Good Match';
-    return 'Partial Match';
-  };
-
   const toggleRecommendationDetails = (movieId: number) => {
     setExpandedRecommendations(prev => {
       const newSet = new Set(prev);
@@ -214,12 +268,9 @@ export function AdvancedRecommendations() {
         <PreferenceWizard
           onComplete={handlePreferencesComplete}
           onSkip={() => {
-            // Don't set preferences when skipping - just close the wizard
-            // This way the preferences card won't show
             setShowWizard(false);
           }}
           onReset={() => {
-            // Clear preferences and go back to advanced finder
             setPreferences(null);
             sessionStorage.removeItem('userPreferences');
             setShowWizard(false);
@@ -231,7 +282,6 @@ export function AdvancedRecommendations() {
 
   return (
     <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 sm:mb-8">
         <div className="flex items-center space-x-2 sm:space-x-3">
           <Brain className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
@@ -250,7 +300,6 @@ export function AdvancedRecommendations() {
         </Button>
       </div>
 
-      {/* Search Interface */}
       <Card className="mb-4 sm:mb-8">
         <CardHeader className="p-4 sm:p-6 pb-3">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -284,14 +333,13 @@ export function AdvancedRecommendations() {
           {!preferences && (
             <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                💡 Optional: Set preferences to filter results by genre, year, rating, and language
+                Optional: Set preferences to filter results by genre, year, rating, and language
               </p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Preferences Summary */}
       {preferences && (
         <Card className="mb-4 sm:mb-8">
           <CardHeader className="p-4 sm:p-6">
@@ -343,16 +391,20 @@ export function AdvancedRecommendations() {
         </Card>
       )}
 
-      {/* Loading State */}
-      {isLoading && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
-          {Array.from({ length: 10 }, (_, i) => (
-            <MediaCardSkeleton key={i} />
-          ))}
+      {(isLoading || isFetching) && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm">Searching with AI semantic matching...</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
+            {Array.from({ length: 10 }, (_, i) => (
+              <MediaCardSkeleton key={i} />
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Error State */}
       {error && (
         <Card>
           <CardContent className="py-8 text-center">
@@ -360,8 +412,8 @@ export function AdvancedRecommendations() {
               <div className="text-red-600 dark:text-red-400">
                 <p className="font-semibold mb-2">
                   {error.message.includes('Too many requests') || error.message.includes('rate limit')
-                    ? '⏱️ Rate Limit Reached'
-                    : '❌ Error'}
+                    ? 'Rate Limit Reached'
+                    : 'Error'}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {error.message}
@@ -377,32 +429,59 @@ export function AdvancedRecommendations() {
         </Card>
       )}
 
-      {/* Results - Advanced Search */}
-      {recommendations && recommendations.recommendations && (
+      {recommendations && recommendations.recommendations && recommendations.recommendations.length > 0 && !isLoading && !isFetching && (
         <div className="space-y-6">
-          {/* Movie Recommendations Grid */}
           <div className="space-y-3 sm:space-y-4">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold">
-                {preferences?.mediaType.includes('both') || (preferences?.mediaType.includes('movies') && preferences?.mediaType.includes('tv'))
-                  ? 'Recommended Movies & TV Shows'
-                  : preferences?.mediaType.includes('tv')
-                    ? 'Recommended TV Shows'
-                    : 'Recommended Movies'}
-              </h2>
-              <Badge variant="secondary" className="text-xs sm:text-sm">
-                {recommendations.recommendations.length}
-              </Badge>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg sm:text-xl lg:text-2xl font-bold" data-testid="text-results-heading">
+                  {preferences?.mediaType.includes('both') || (preferences?.mediaType.includes('movies') && preferences?.mediaType.includes('tv'))
+                    ? 'Recommended Movies & TV Shows'
+                    : preferences?.mediaType.includes('tv')
+                      ? 'Recommended TV Shows'
+                      : 'Recommended Movies'}
+                </h2>
+                <Badge variant="secondary" className="text-xs sm:text-sm" data-testid="badge-result-count">
+                  {recommendations.recommendations.length} results
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                {recommendations.searchTime && (
+                  <span className="text-xs text-muted-foreground" data-testid="text-search-time">
+                    {recommendations.searchTime}s
+                  </span>
+                )}
+                <Select value={sortBy} onValueChange={(val) => { setSortBy(val); if (searchTrigger > 0) setSearchTrigger(prev => prev + 1); }}>
+                  <SelectTrigger className="w-[160px] h-8 text-xs" data-testid="select-sort-by">
+                    <ArrowUpDown className="h-3 w-3 mr-1" />
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="relevance">Relevance</SelectItem>
+                    <SelectItem value="release_date">Release Date</SelectItem>
+                    <SelectItem value="rating">Rating</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
+            {recommendations.searchMethod && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant="outline" className="text-[10px]" data-testid="badge-search-method">
+                  {recommendations.searchMethod === 'pinecone_semantic' ? 'Vector Search' : 'TF-IDF Search'}
+                </Badge>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
               {recommendations.recommendations.map((rec: AdvancedRecommendation, index: number) => {
                 const mediaType = rec.movie.media_type || (rec.movie.name ? 'tv' : 'movie');
                 const title = rec.movie.title || rec.movie.name;
                 const releaseDate = rec.movie.release_date || rec.movie.first_air_date;
-                const year = releaseDate ? new Date(releaseDate).getFullYear().toString() : '2024';
+                const year = releaseDate ? new Date(releaseDate).getFullYear().toString() : '';
 
                 return (
-                  <div key={`${rec.movie.id}-${index}`} className="relative">
+                  <div key={`${rec.movie.id}-${index}`} className="relative" data-testid={`card-result-${rec.movie.id}`}>
                     <MediaCard
                       item={{
                         id: rec.movie.id,
@@ -421,7 +500,11 @@ export function AdvancedRecommendations() {
                       }}
                       mediaType={mediaType}
                     >
-                      <div className="pt-2">
+                      <div className="pt-2 space-y-1.5">
+                        <MatchQualityBadge
+                          matchQuality={rec.matchQuality || ''}
+                          similarity={rec.similarity || rec.matchScore / 100}
+                        />
                         <Button
                           variant="ghost"
                           size="sm"
@@ -431,6 +514,7 @@ export function AdvancedRecommendations() {
                             e.stopPropagation();
                             toggleRecommendationDetails(rec.movie.id);
                           }}
+                          data-testid={`button-why-${rec.movie.id}`}
                         >
                           <Brain className="h-3 w-3" />
                           {expandedRecommendations.has(rec.movie.id) ? 'Hide Insights' : 'Why this?'}
@@ -456,18 +540,32 @@ export function AdvancedRecommendations() {
         </div>
       )}
 
-      {/* Empty State */}
       {searchTrigger > 0 && !isLoading && !isFetching && !error && (!recommendations || !recommendations.recommendations?.length) && (
-        <Card>
+        <Card data-testid="card-empty-state">
           <CardContent className="py-12 text-center">
-            <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No recommendations found</h3>
-            <p className="text-muted-foreground mb-4">
-              Try adjusting your preferences or using different search terms
+            <SearchX className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No results found for "{lastSearchedQuery}"</h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              Try describing what you're looking for differently, or use broader terms. You can also adjust your preferences to widen the search.
             </p>
-            <Button onClick={() => setShowWizard(true)} variant="outline">
-              Update Preferences
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Button
+                onClick={() => {
+                  setSearchQuery('');
+                  setLastSearchedQuery('');
+                  setSearchTrigger(0);
+                }}
+                variant="outline"
+                data-testid="button-clear-search"
+              >
+                Clear Search
+              </Button>
+              {preferences && (
+                <Button onClick={() => setShowWizard(true)} variant="outline" data-testid="button-update-preferences">
+                  Update Preferences
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

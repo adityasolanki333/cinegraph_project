@@ -46,22 +46,43 @@ PINECONE_API_KEY = (
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-def build_text_soup(row) -> str:
-    """Combine relevant fields into a single rich text for embedding."""
-    title    = str(row.get("title",    "") or "")
-    overview = str(row.get("overview", "") or "")
-    genres   = str(row.get("genres",   "") or "")
-    tagline  = str(row.get("tagline",  "") or "")
-    director = str(row.get("director", "") or "")
-    cast     = str(row.get("cast",     "") or "")[:120]   # cap cast length
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    return (
-        f"{title}. {overview} "
-        f"Genres: {genres}. "
-        f"Tagline: {tagline}. "
-        f"Director: {director}. "
-        f"Cast: {cast}."
-    ).strip()
+try:
+    from movies.ml.embedding_text import build_enriched_text
+except ImportError:
+    def build_enriched_text(movie_data):
+        title = str(movie_data.get("title", "") or "")
+        overview = str(movie_data.get("overview", "") or "")
+        genres = str(movie_data.get("genres", "") or "")
+        director = str(movie_data.get("director", "") or "")
+        cast = str(movie_data.get("cast", "") or "")[:120]
+        keywords = str(movie_data.get("keywords", "") or "")
+        tagline = str(movie_data.get("tagline", "") or "")
+        release_date = str(movie_data.get("release_date", "") or "")
+        release_year = str(movie_data.get("release_year", "") or "")
+        if not release_year and release_date and len(release_date) >= 4:
+            release_year = release_date[:4]
+        themes_parts = [t for t in [keywords, tagline] if t]
+        themes = ", ".join(themes_parts)
+        parts = [f"Title: {title}."]
+        if release_year:
+            parts.append(f"Year: {release_year}.")
+        if overview:
+            parts.append(f"Overview: {overview}")
+        if genres:
+            parts.append(f"Genres: {genres}.")
+        if themes:
+            parts.append(f"Themes: {themes}.")
+        if director:
+            parts.append(f"Director: {director}.")
+        if cast:
+            parts.append(f"Cast: {cast}.")
+        return " ".join(parts).strip()
+
+
+def build_text_soup(row) -> str:
+    return build_enriched_text(row)
 
 
 def safe_float(val, default=0.0) -> float:
@@ -103,10 +124,25 @@ def build_metadata(row) -> dict:
             # Pinecone metadata string limit is 40 KB; cap overview just in case
             meta[key] = val[:1000] if key == "overview" else val
 
-    # Numeric — only add if non-zero and not NaN
+    release_date = safe_str(row.get("release_date"))
+    if release_date and len(release_date) >= 4:
+        meta["release_year"] = release_date[:4]
+
     val = safe_float(row.get("imdb_rating"))
-    if val and val == val:   # val==val is False for NaN
+    if val and val == val:
         meta["imdb_rating"] = val
+
+    pop_val = safe_float(row.get("popularity"))
+    if pop_val and pop_val == pop_val:
+        meta["popularity"] = pop_val
+
+    vote_val = safe_float(row.get("vote_average"))
+    if vote_val and vote_val == vote_val:
+        meta["vote_average"] = vote_val
+
+    poster = safe_str(row.get("poster_path"))
+    if poster:
+        meta["poster_path"] = poster
 
     return meta
 
