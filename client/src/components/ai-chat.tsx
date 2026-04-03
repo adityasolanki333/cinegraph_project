@@ -527,11 +527,14 @@ export default function AIChat({ className }: AIChatProps) {
                           const hasMovieCards = message.movies && message.movies.length > 0;
                           if (hasMovieCards && !message.isStreaming) {
                             const lines = message.content.split('\n');
-                            const firstNumberedIdx = lines.findIndex(l => /^\s*\d+[\.\)]\s/.test(l));
-                            if (firstNumberedIdx > 0) {
-                              const intro = lines.slice(0, firstNumberedIdx).join('\n').trim();
-                              return intro || message.content;
+                            const introLines: string[] = [];
+                            for (const line of lines) {
+                              if (/^\s*(\d+[\.\)\-:]|\*\*\d+|[-•*]\s)/.test(line)) break;
+                              introLines.push(line);
                             }
+                            const intro = introLines.join('\n').trim();
+                            if (intro) return intro;
+                            return '';
                           }
                           return message.content;
                         })()}
