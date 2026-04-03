@@ -93,43 +93,43 @@ export function MediaCard({
   children,
 }: MediaCardProps) {
   const item = propItem || propMovie;
-  if (!item) return null;
 
-  const type = mediaType || item.type || item.media_type || (item.name ? 'tv' : 'movie');
-  const title = item.title || item.name || 'Untitled';
-  const rating = item.rating || item.vote_average || 0;
+  const type = mediaType || item?.type || item?.media_type || (item?.name ? 'tv' : 'movie');
+  const title = item?.title || item?.name || 'Untitled';
+  const rating = item?.rating || item?.vote_average || 0;
 
-  let yearStr = item.year || '';
+  let yearStr: string | number = item?.year || '';
   if (!yearStr) {
     if (type === 'tv') {
-      if (item.last_air_date) {
+      if (item?.last_air_date) {
         yearStr = new Date(item.last_air_date).getFullYear().toString();
-      } else if (item.first_air_date) {
+      } else if (item?.first_air_date) {
         yearStr = new Date(item.first_air_date).getFullYear().toString();
       }
-    } else if (item.release_date) {
+    } else if (item?.release_date) {
       yearStr = new Date(item.release_date).getFullYear().toString();
     }
   }
 
-  const synopsis = item.synopsis || item.overview || '';
-  const posterUrl = item.posterUrl || (item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : undefined);
-  const genreDisplay = item.genre
-    || (item.genres && item.genres.length > 0 ? item.genres[0].name : '')
-    || (item.genre_ids && item.genre_ids.length > 0 ? TMDB_GENRE_MAP[item.genre_ids[0]] || '' : '');
+  const synopsis = item?.synopsis || item?.overview || '';
+  const posterUrl = item?.posterUrl || (item?.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : undefined);
+  const genreDisplay = item?.genre
+    || (item?.genres && item.genres.length > 0 ? item.genres[0].name : '')
+    || (item?.genre_ids && item.genre_ids.length > 0 ? TMDB_GENRE_MAP[item.genre_ids[0]] || '' : '');
 
   const movie = {
-    id: item.id.toString(),
+    id: item ? item.id.toString() : '',
     title: title,
-    year: parseInt(yearStr) || new Date().getFullYear(),
+    year: parseInt(String(yearStr)) || new Date().getFullYear(),
     genre: genreDisplay || 'Unknown',
     rating: rating,
     synopsis: synopsis,
     posterUrl: posterUrl,
     type: type,
-    seasons: item.number_of_seasons || item.seasons || undefined,
-    duration: item.duration || undefined,
+    seasons: item?.number_of_seasons || item?.seasons || undefined,
+    duration: item?.duration || undefined,
   };
+
   const [hoveredRating, setHoveredRating] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [isTrailerOpen, setIsTrailerOpen] = useState(false);
@@ -141,14 +141,14 @@ export function MediaCard({
   const { addToWatchlist, removeFromWatchlist, isInWatchlist: hookIsInWatchlist } = useWatchlist();
   const { toast } = useToast();
 
-  // Use the hook's watchlist state if no prop is provided
   const isInWatchlist = propIsInWatchlist ?? hookIsInWatchlist(movie.id);
 
-  // Fetch trailer data when needed
   const { data: trailerData, isLoading: trailerLoading } = useQuery({
-    queryKey: ['/api/tmdb', movie.type, movie.id],
-    enabled: shouldFetchTrailer && !!movie.id,
+    queryKey: [`/api/tmdb/${movie.type}/${movie.id}`],
+    enabled: shouldFetchTrailer && !!movie.id && !!item,
   });
+
+  if (!item) return null;
 
   // Extract trailers from the API response
   const trailers = (trailerData as any)?.videos?.results?.filter((video: any) =>
