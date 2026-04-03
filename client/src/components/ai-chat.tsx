@@ -26,6 +26,9 @@ interface ChatMessage {
   source?: string;
   timestamp: Date;
   isStreaming?: boolean;
+  statusMessage?: string;
+  moviesLoading?: number;
+  moviesDone?: boolean;
 }
 
 interface AIChatProps {
@@ -86,7 +89,13 @@ export default function AIChat({ className }: AIChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const toSave = messages.map(m => ({ ...m, isStreaming: false }));
+    const toSave = messages.map(m => ({
+      ...m,
+      isStreaming: false,
+      statusMessage: undefined,
+      moviesLoading: undefined,
+      moviesDone: true,
+    }));
     sessionStorage.setItem('aiChat_messages', JSON.stringify(toSave));
   }, [messages]);
 
@@ -203,23 +212,69 @@ export default function AIChat({ className }: AIChatProps) {
               try {
                 const event = JSON.parse(line.slice(6));
 
-                if (event.type === 'chunk') {
+                if (event.type === 'status') {
                   setMessages(prev => prev.map(m =>
                     m.id === streamingMsgId
-                      ? { ...m, content: m.content + event.content }
+                      ? { ...m, statusMessage: event.message }
+                      : m
+                  ));
+                } else if (event.type === 'chunk') {
+                  setMessages(prev => prev.map(m =>
+                    m.id === streamingMsgId
+                      ? { ...m, content: m.content + event.content, statusMessage: undefined }
+                      : m
+                  ));
+                  scrollToBottom();
+                } else if (event.type === 'movies_loading') {
+                  setMessages(prev => prev.map(m =>
+                    m.id === streamingMsgId
+                      ? { ...m, moviesLoading: event.count, moviesDone: false, movies: [] }
+                      : m
+                  ));
+                  scrollToBottom();
+                } else if (event.type === 'movie') {
+                  setMessages(prev => prev.map(m =>
+                    m.id === streamingMsgId
+                      ? { ...m, movies: [...(m.movies || []), event.movie] }
                       : m
                   ));
                   scrollToBottom();
                 } else if (event.type === 'done') {
                   setMessages(prev => prev.map(m =>
                     m.id === streamingMsgId
-                      ? { ...m, movies: event.movies || [], isStreaming: false }
+                      ? {
+                          ...m,
+                          movies: event.movies || m.movies || [],
+                          isStreaming: false,
+                          moviesDone: true,
+                          moviesLoading: undefined,
+                        }
+                      : m
+                  ));
+                } else if (event.type === 'fallback') {
+                  setMessages(prev => prev.map(m =>
+                    m.id === streamingMsgId
+                      ? {
+                          ...m,
+                          content: event.response || m.content,
+                          movies: event.movies || m.movies || [],
+                          source: 'fallback',
+                          isStreaming: false,
+                          moviesDone: true,
+                        }
                       : m
                   ));
                 } else if (event.type === 'error') {
                   setMessages(prev => prev.map(m =>
                     m.id === streamingMsgId
-                      ? { ...m, content: event.message || 'Something went wrong. Please try again.', isStreaming: false }
+                      ? {
+                          ...m,
+                          content: event.message || 'Something went wrong. Please try again.',
+                          isStreaming: false,
+                          moviesDone: true,
+                          moviesLoading: undefined,
+                          statusMessage: undefined,
+                        }
                       : m
                   ));
                 }
@@ -230,7 +285,15 @@ export default function AIChat({ className }: AIChatProps) {
         }
 
         setMessages(prev => prev.map(m =>
-          m.id === streamingMsgId ? { ...m, isStreaming: false } : m
+          m.id === streamingMsgId
+            ? {
+                ...m,
+                isStreaming: false,
+                moviesDone: true,
+                moviesLoading: undefined,
+                statusMessage: undefined,
+              }
+            : m
         ));
 
       } else {
@@ -245,6 +308,7 @@ export default function AIChat({ className }: AIChatProps) {
                   movies: data.movies || [],
                   source: 'fallback',
                   isStreaming: false,
+                  moviesDone: true,
                 }
               : m
           ));
@@ -256,6 +320,7 @@ export default function AIChat({ className }: AIChatProps) {
                   content: data.response || data.error || 'No response received.',
                   movies: data.movies || [],
                   isStreaming: false,
+                  moviesDone: true,
                 }
               : m
           ));
@@ -296,6 +361,9 @@ export default function AIChat({ className }: AIChatProps) {
                 movies: data.movies || [],
                 source: data.source,
                 isStreaming: false,
+                moviesDone: true,
+                moviesLoading: undefined,
+                statusMessage: undefined,
               }
             : m
         ));
@@ -307,6 +375,7 @@ export default function AIChat({ className }: AIChatProps) {
           movies: data.movies || [],
           source: data.source,
           timestamp: new Date(),
+          moviesDone: true,
         }]);
       }
     } catch {
@@ -314,7 +383,14 @@ export default function AIChat({ className }: AIChatProps) {
       if (existingMsgId) {
         setMessages(prev => prev.map(m =>
           m.id === existingMsgId
-            ? { ...m, content: fallbackContent, isStreaming: false }
+            ? {
+                ...m,
+                content: fallbackContent,
+                isStreaming: false,
+                moviesDone: true,
+                moviesLoading: undefined,
+                statusMessage: undefined,
+              }
             : m
         ));
       } else {
@@ -394,14 +470,23 @@ export default function AIChat({ className }: AIChatProps) {
                         : "bg-muted text-muted-foreground max-w-full sm:max-w-[95%]"
                     )}
                   >
-                    <p className="text-sm whitespace-pre-line">
-                      {message.content}
-                      {message.isStreaming && (
-                        <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-middle" />
-                      )}
-                    </p>
+                    {message.statusMessage && !message.content && (
+                      <div className="flex items-center space-x-2 text-sm text-muted-foreground" data-testid={`status-message-${message.id}`}>
+                        <Sparkles className="h-3.5 w-3.5 animate-pulse text-accent" />
+                        <span className="animate-pulse">{message.statusMessage}</span>
+                      </div>
+                    )}
 
-                    {message.movies && message.movies.length > 0 && (
+                    {(message.content || !message.statusMessage) && (
+                      <p className="text-sm whitespace-pre-line">
+                        {message.content}
+                        {message.isStreaming && (
+                          <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse align-middle" />
+                        )}
+                      </p>
+                    )}
+
+                    {((message.movies && message.movies.length > 0) || (message.moviesLoading && !message.moviesDone)) && (
                       <div className="mt-3 sm:mt-4 bg-gradient-to-r from-muted/30 to-muted/10 rounded-lg p-2 sm:p-3 md:p-4 border border-border/50" data-testid={`movie-cards-${message.id}`}>
                         <div className="flex flex-wrap items-center gap-2 mb-3 sm:mb-4">
                           <div className="flex items-center gap-1.5 sm:gap-2">
@@ -410,14 +495,23 @@ export default function AIChat({ className }: AIChatProps) {
                               AI Movie Recommendations
                             </span>
                           </div>
-                          <Badge variant="secondary" className="text-[10px] sm:text-xs px-1.5 py-0.5 sm:px-2">
-                            {Math.min(message.movies.length, 8)} movies
-                          </Badge>
+                          {message.movies && message.movies.length > 0 ? (
+                            <Badge variant="secondary" className="text-[10px] sm:text-xs px-1.5 py-0.5 sm:px-2">
+                              {message.moviesDone
+                                ? `${Math.min(message.movies.length, 8)} movies`
+                                : `Loading... ${message.movies.length}/${message.moviesLoading || '?'}`
+                              }
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-[10px] sm:text-xs px-1.5 py-0.5 sm:px-2 animate-pulse">
+                              Finding movies...
+                            </Badge>
+                          )}
                         </div>
 
                         <div className="w-full overflow-hidden">
                           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-                            {message.movies.slice(0, 8).map((movie: any, index: number) => {
+                            {message.movies && message.movies.slice(0, 8).map((movie: any) => {
                               const formattedMovie = {
                                 id: movie.id.toString(),
                                 title: movie.title || movie.name,
@@ -441,6 +535,25 @@ export default function AIChat({ className }: AIChatProps) {
                                 </div>
                               );
                             })}
+                            {message.moviesLoading && !message.moviesDone && (
+                              <>
+                                {Array.from({ length: Math.max(0, (message.moviesLoading || 4) - (message.movies?.length || 0)) }).map((_, i) => (
+                                  <div key={`skeleton-${i}`} className="w-full min-w-0" data-testid={`movie-skeleton-${i}`}>
+                                    <div className="rounded-lg overflow-hidden border border-border/50 bg-card animate-pulse">
+                                      <div className="aspect-[2/3] bg-muted" />
+                                      <div className="p-2 space-y-2">
+                                        <div className="h-3 bg-muted rounded w-3/4" />
+                                        <div className="h-2 bg-muted rounded w-1/2" />
+                                        <div className="flex items-center gap-1">
+                                          <Star className="h-3 w-3 text-muted" />
+                                          <div className="h-2 bg-muted rounded w-8" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -456,15 +569,17 @@ export default function AIChat({ className }: AIChatProps) {
               ))}
 
               {isLoading && !messages.some(m => m.isStreaming) && (
-                <div className="flex items-start space-x-3">
+                <div className="flex items-start space-x-3" data-testid="loading-indicator">
                   <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg bg-accent">
                     <Bot className="h-4 w-4 text-accent-foreground" />
                   </div>
                   <div className="bg-muted rounded-lg p-3">
-                    <div className="flex space-x-1">
-                      <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" />
-                      <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
-                      <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                    <div className="flex items-center space-x-2">
+                      <div className="flex space-x-1">
+                        <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" />
+                        <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
+                        <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                      </div>
                     </div>
                   </div>
                 </div>

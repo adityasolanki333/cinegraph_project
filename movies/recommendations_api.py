@@ -68,7 +68,14 @@ def get_user_context(user):
     return context
 
 
+_current_movies_cache = {'data': None, 'timestamp': 0}
+_CURRENT_MOVIES_TTL = 300
+
 def fetch_current_movies():
+    now = time.time()
+    if _current_movies_cache['data'] and (now - _current_movies_cache['timestamp']) < _CURRENT_MOVIES_TTL:
+        return _current_movies_cache['data']
+
     def format_movie(item):
         title = item.get('title') or item.get('name', 'Unknown')
         year = ''
@@ -81,36 +88,44 @@ def fetch_current_movies():
         genres = [g for g in genres if g]
         return f"{title} ({year}) - Rating: {rating}/10 - Genres: {', '.join(genres) if genres else 'N/A'}"
 
-    trending = []
-    now_playing = []
-    upcoming = []
+    def fetch_trending():
+        try:
+            data = tmdb_request("/trending/movie/week")
+            return [format_movie(item) for item in data.get('results', [])[:8]]
+        except Exception as e:
+            logger.warning(f"Failed to fetch trending movies: {e}")
+            return []
 
-    try:
-        trending_data = tmdb_request("/trending/movie/week")
-        for item in trending_data.get('results', [])[:8]:
-            trending.append(format_movie(item))
-    except Exception as e:
-        logger.warning(f"Failed to fetch trending movies: {e}")
+    def fetch_now_playing():
+        try:
+            data = tmdb_request("/movie/now_playing", {"page": 1})
+            return [format_movie(item) for item in data.get('results', [])[:6]]
+        except Exception as e:
+            logger.warning(f"Failed to fetch now playing movies: {e}")
+            return []
 
-    try:
-        now_playing_data = tmdb_request("/movie/now_playing", {"page": 1})
-        for item in now_playing_data.get('results', [])[:6]:
-            now_playing.append(format_movie(item))
-    except Exception as e:
-        logger.warning(f"Failed to fetch now playing movies: {e}")
+    def fetch_upcoming():
+        try:
+            data = tmdb_request("/movie/upcoming", {"page": 1})
+            return [format_movie(item) for item in data.get('results', [])[:5]]
+        except Exception as e:
+            logger.warning(f"Failed to fetch upcoming movies: {e}")
+            return []
 
-    try:
-        upcoming_data = tmdb_request("/movie/upcoming", {"page": 1})
-        for item in upcoming_data.get('results', [])[:5]:
-            upcoming.append(format_movie(item))
-    except Exception as e:
-        logger.warning(f"Failed to fetch upcoming movies: {e}")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        trending_future = executor.submit(fetch_trending)
+        now_playing_future = executor.submit(fetch_now_playing)
+        upcoming_future = executor.submit(fetch_upcoming)
 
-    return {
-        'trending': trending,
-        'now_playing': now_playing,
-        'upcoming': upcoming,
-    }
+        result = {
+            'trending': trending_future.result(),
+            'now_playing': now_playing_future.result(),
+            'upcoming': upcoming_future.result(),
+        }
+
+    _current_movies_cache['data'] = result
+    _current_movies_cache['timestamp'] = time.time()
+    return result
 
 
 GEMINI_MODELS = [
@@ -596,33 +611,6 @@ def ai_chat_stream(request):
         if not user_message:
             return error_response('Message is required', 'VALIDATION_ERROR', 400)
 
-        if user:
-            user_context = get_user_context(user)
-        else:
-            user_context = {
-                'recent_ratings': [],
-                'watchlist': [],
-                'favorites': [],
-                'recently_watched': [],
-                'preferred_genres': [],
-                'disliked_genres': []
-            }
-
-        current_movies = fetch_current_movies()
-        prompt = build_chat_prompt(user_message, user_context, conversation_history, current_movies)
-
-        stream = call_gemini_streaming(prompt)
-
-        if stream is None:
-            fallback_movies = get_fallback_trending_movies()
-            fallback_data = {
-                'type': 'fallback',
-                'response': "I'm experiencing high demand right now, but here are some trending movies you might enjoy!",
-                'movies': fallback_movies,
-                'source': 'fallback'
-            }
-            return JsonResponse(fallback_data)
-
         def search_movie(title):
             try:
                 search_data = tmdb_request("/search/multi", {"query": title, "page": 1})
@@ -643,21 +631,43 @@ def ai_chat_stream(request):
                 logger.warning(f"TMDB search failed for '{title}': {e}")
             return None
 
-        def fetch_movies_for_titles(movie_titles):
-            movies = []
-            if movie_titles:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-                    future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:8]}
-                    for future in concurrent.futures.as_completed(future_to_title):
-                        try:
-                            result = future.result()
-                            if result:
-                                movies.append(result)
-                        except Exception as e:
-                            logger.warning(f"Movie search thread error: {e}")
-            return movies
-
         def event_stream():
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Searching for movies...'})}\n\n"
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as prep_executor:
+                if user:
+                    user_ctx_future = prep_executor.submit(get_user_context, user)
+                else:
+                    user_ctx_future = None
+                movies_future = prep_executor.submit(fetch_current_movies)
+
+                if user_ctx_future:
+                    user_context = user_ctx_future.result()
+                else:
+                    user_context = {
+                        'recent_ratings': [],
+                        'watchlist': [],
+                        'favorites': [],
+                        'recently_watched': [],
+                        'preferred_genres': [],
+                        'disliked_genres': []
+                    }
+                current_movies = movies_future.result()
+
+            prompt = build_chat_prompt(user_message, user_context, conversation_history, current_movies)
+            stream = call_gemini_streaming(prompt)
+
+            if stream is None:
+                fallback_movies = get_fallback_trending_movies()
+                fallback_data = {
+                    'type': 'fallback',
+                    'response': "I'm experiencing high demand right now, but here are some trending movies you might enjoy!",
+                    'movies': fallback_movies,
+                    'source': 'fallback'
+                }
+                yield f"data: {json.dumps(fallback_data)}\n\n"
+                return
+
             full_text = ""
             try:
                 for chunk in stream:
@@ -668,13 +678,26 @@ def ai_chat_stream(request):
                 movie_titles = extract_movie_titles_structured(full_text)
                 if not movie_titles:
                     movie_titles = parse_movie_recommendations(full_text)
-                movies = fetch_movies_for_titles(movie_titles)
 
-                if not full_text and not movies:
+                if not full_text and not movie_titles:
                     fallback = get_fallback_trending_movies()
                     yield f"data: {json.dumps({'type': 'done', 'movies': fallback})}\n\n"
-                else:
-                    yield f"data: {json.dumps({'type': 'done', 'movies': movies})}\n\n"
+                    return
+
+                if movie_titles:
+                    yield f"data: {json.dumps({'type': 'movies_loading', 'count': min(len(movie_titles), 8)})}\n\n"
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+                        future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:8]}
+                        for future in concurrent.futures.as_completed(future_to_title):
+                            try:
+                                result = future.result()
+                                if result:
+                                    yield f"data: {json.dumps({'type': 'movie', 'movie': result})}\n\n"
+                            except Exception as e:
+                                logger.warning(f"Movie search thread error: {e}")
+
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
             except Exception as e:
                 logger.error(f"Streaming error: {e}", exc_info=True)
@@ -684,8 +707,18 @@ def ai_chat_stream(request):
                     if response_text and not api_error:
                         yield f"data: {json.dumps({'type': 'chunk', 'content': response_text})}\n\n"
                         movie_titles = parse_movie_recommendations(response_text)
-                        movies = fetch_movies_for_titles(movie_titles)
-                        yield f"data: {json.dumps({'type': 'done', 'movies': movies})}\n\n"
+                        if movie_titles:
+                            yield f"data: {json.dumps({'type': 'movies_loading', 'count': min(len(movie_titles), 8)})}\n\n"
+                            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+                                future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:8]}
+                                for future in concurrent.futures.as_completed(future_to_title):
+                                    try:
+                                        result = future.result()
+                                        if result:
+                                            yield f"data: {json.dumps({'type': 'movie', 'movie': result})}\n\n"
+                                    except Exception:
+                                        pass
+                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
                         return
                 except Exception as fallback_err:
                     logger.warning(f"Non-streaming fallback also failed: {fallback_err}")
