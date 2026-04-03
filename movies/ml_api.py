@@ -245,6 +245,27 @@ def semantic_search(request):
                         'similarity': item.get('similarity'),
                         'explanation': item.get('explanation')
                     })
+
+                # Enrich missing poster paths from TMDB concurrently
+                missing = [i for i, r in enumerate(formatted_results) if not r.get('posterPath')]
+                if missing:
+                    from . import api as tmdb_api
+                    import concurrent.futures
+                    def fetch_poster(idx):
+                        tmdb_id = formatted_results[idx].get('tmdbId')
+                        if not tmdb_id:
+                            return idx, ''
+                        try:
+                            detail = tmdb_api.tmdb_request(f'/movie/{tmdb_id}', {'append_to_response': ''})
+                            return idx, detail.get('poster_path') or ''
+                        except Exception:
+                            return idx, ''
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                        futures = {executor.submit(fetch_poster, i): i for i in missing}
+                        for future in concurrent.futures.as_completed(futures):
+                            idx, poster = future.result()
+                            formatted_results[idx]['posterPath'] = poster
+
                 return JsonResponse({
                     'results': formatted_results,
                     'query': query,
