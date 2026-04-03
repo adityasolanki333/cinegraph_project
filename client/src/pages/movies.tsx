@@ -257,7 +257,7 @@ export default function Movies() {
         total_pages: discoverResults.total_pages
       };
     },
-    enabled: !!genresData || !selectedGenre || selectedGenre === "all"
+    enabled: selectedGenre === "all" || !!searchQuery || !!genresData
   });
 
   const movies = moviesData?.results || [];

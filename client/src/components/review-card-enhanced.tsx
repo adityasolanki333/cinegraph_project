@@ -30,6 +30,7 @@ import { AWARD_TYPES } from "@shared/helpers";
 
 interface ReviewCardEnhancedProps {
   review: UserRating & {
+    userName?: string;
     user?: {
       firstName: string;
       lastName: string;
@@ -300,13 +301,30 @@ export function ReviewCardEnhanced({
   const displayMediaType = review.mediaType || mediaType;
 
   return (
-    <Card data-testid={`review-${review.id}`}>
+    <Card data-testid={`review-${review.id}`} className="overflow-hidden">
       <CardContent className="pt-4">
+        {displayPosterPath && displayTitle && (
+          <Link href={`/${displayMediaType || 'movie'}/${review.tmdbId}`}>
+            <div className="flex items-center gap-3 mb-3 p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+              <img
+                src={`https://image.tmdb.org/t/p/w92${displayPosterPath}`}
+                alt={displayTitle}
+                className="w-10 h-14 rounded object-cover flex-shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="font-semibold text-sm line-clamp-1">{displayTitle}</p>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5">
+                  {displayMediaType === 'tv' ? 'TV Show' : 'Movie'}
+                </Badge>
+              </div>
+            </div>
+          </Link>
+        )}
         <div className="flex items-start gap-3">
           <Avatar data-testid={`avatar-user-${review.userId}`}>
             <AvatarImage src={review.user?.profileImageUrl} />
             <AvatarFallback>
-              {review.user?.firstName?.[0] || String(review.userId) === String(currentUserId) ? "Me" : "U"}
+              {review.user?.firstName?.[0] || review.userName?.[0] || (String(review.userId) === String(currentUserId) ? "Me" : "U")}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
@@ -315,6 +333,8 @@ export function ReviewCardEnhanced({
                 <p className="font-medium" data-testid={`text-user-name-${review.id}`}>
                   {review.user?.firstName
                     ? `${review.user.firstName} ${review.user.lastName || ''}`.trim()
+                    : review.userName
+                    ? review.userName
                     : String(review.userId) === String(currentUserId) ? "Your Review" : "Anonymous User"}
                 </p>
                 <p className="text-sm text-muted-foreground">

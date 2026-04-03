@@ -444,7 +444,7 @@ class TopReviewsView(APIView):
 
     def get(self, request):
         sort_by = request.query_params.get('sortBy', 'awards')
-        reviews = UserReview.objects.filter(is_public=True).select_related('user')
+        reviews = UserReview.objects.filter(is_public=True).select_related('user', 'user__profile')
 
         if sort_by == 'awards':
             reviews = reviews.annotate(award_count=Count('awards')).order_by('-award_count', '-created_at')
@@ -459,6 +459,11 @@ class TopReviewsView(APIView):
             'reviews': [{
                 'id': r.id, 'userId': str(r.user.id),
                 'userName': r.user.first_name or r.user.email,
+                'user': {
+                    'firstName': r.user.first_name or '',
+                    'lastName': r.user.last_name or '',
+                    'profileImageUrl': getattr(r.user.profile, 'profile_image_url', None) if hasattr(r.user, 'profile') else None,
+                },
                 'tmdbId': r.tmdb_id, 'mediaType': r.media_type,
                 'title': r.title, 'posterPath': r.poster_path,
                 'rating': r.rating, 'review': r.review_text,

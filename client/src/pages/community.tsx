@@ -537,36 +537,49 @@ export default function Community() {
             </div>
           ) : trendingData?.pages?.[0]?.data && trendingData.pages.some(page => page.data.length > 0) ? (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                {trendingData.pages.flatMap(page => page.data).map((item: TrendingContent) => (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
+                {trendingData.pages.flatMap(page => page.data).map((item: TrendingContent, index: number) => (
                   <Link
                     key={`${item.tmdbId}-${item.mediaType}`}
                     href={`/${item.mediaType}/${item.tmdbId}`}
                     className="group"
                     data-testid={`trending-item-${item.tmdbId}`}
                   >
-                    <div className="relative aspect-[2/3] overflow-hidden rounded-lg">
+                    <div className="relative aspect-[2/3] overflow-hidden rounded-xl shadow-md group-hover:shadow-xl transition-shadow duration-300">
                       {item.posterPath ? (
                         <img
                           src={`https://image.tmdb.org/t/p/w342${item.posterPath}`}
                           alt={item.title}
                           loading="lazy"
-                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                         />
                       ) : (
                         <div className="w-full h-full bg-muted flex items-center justify-center">
-                          <TrendingUp className="h-12 w-12 text-muted-foreground" />
+                          <Clapperboard className="h-12 w-12 text-muted-foreground" />
                         </div>
                       )}
-                      <div className="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-sm">
-                        <Star className="h-3 w-3 inline mr-1" />
-                        {item.avgRating ? Number(item.avgRating).toFixed(1) : 'N/A'}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity" />
+                      <div className="absolute top-2 left-2">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${index < 3 ? 'bg-yellow-500' : 'bg-white/20 backdrop-blur-sm'}`}>
+                          {index + 1}
+                        </div>
+                      </div>
+                      <Badge className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 bg-primary/90 text-primary-foreground border-0">
+                        {item.mediaType === 'tv' ? 'TV' : 'Movie'}
+                      </Badge>
+                      <div className="absolute bottom-0 left-0 right-0 p-3">
+                        <h3 className="font-semibold text-white text-sm line-clamp-2 leading-tight mb-1.5">{item.title}</h3>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 bg-yellow-500/90 text-black px-1.5 py-0.5 rounded text-xs font-bold">
+                            <Star className="h-3 w-3 fill-current" />
+                            {item.avgRating ? Number(item.avgRating).toFixed(1) : '—'}
+                          </div>
+                          <span className="text-white/70 text-xs">
+                            {item.ratingCount || 0} {(item.ratingCount || 0) === 1 ? 'rating' : 'ratings'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <h3 className="font-medium mt-2 line-clamp-2 text-sm">{item.title}</h3>
-                    <p className="text-xs text-muted-foreground dark:text-muted-foreground">
-                      {item.ratingCount} {item.ratingCount === 1 ? 'rating' : 'ratings'}
-                    </p>
                   </Link>
                 ))}
               </div>
