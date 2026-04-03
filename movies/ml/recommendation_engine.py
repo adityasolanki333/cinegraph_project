@@ -89,10 +89,12 @@ class RecommendationEngine:
 
         self.user_means = np.zeros(n_users)
         for u in range(n_users):
-            row = self.user_item_matrix[u].toarray().flatten()
-            nonzero = row[row > 0]
-            if len(nonzero) > 0:
-                self.user_means[u] = nonzero.mean()
+            row = self.user_item_matrix.getrow(u)
+            data = row.data
+            if len(data) > 0:
+                positives = data[data > 0]
+                if len(positives) > 0:
+                    self.user_means[u] = positives.mean()
 
         self._last_build_count = len(list(reviews))
         
@@ -101,13 +103,15 @@ class RecommendationEngine:
     def _mean_centered_matrix(self):
         if self.user_item_matrix is None:
             return None
-        dense = self.user_item_matrix.toarray()
-        centered = dense.copy()
+        centered = self.user_item_matrix.copy().tolil()
         for u in range(centered.shape[0]):
-            nonzero_mask = centered[u] > 0
-            if nonzero_mask.any():
-                centered[u][nonzero_mask] -= self.user_means[u]
-        return centered
+            row = centered.getrowview(u)
+            cols = row.rows[0]
+            data = row.data[0]
+            for j, idx in enumerate(cols):
+                if data[j] > 0:
+                    data[j] -= self.user_means[u]
+        return centered.tocsr()
     
     def compute_user_similarity(self):
         if self.user_item_matrix is None:
@@ -129,7 +133,7 @@ class RecommendationEngine:
         if self.user_item_matrix is None or self.user_item_matrix.shape[1] < 2:
             return np.array([[1.0]])
         
-        self.item_similarity_matrix = cosine_similarity(self.user_item_matrix.T.toarray())
+        self.item_similarity_matrix = cosine_similarity(self.user_item_matrix.T)
         return self.item_similarity_matrix
     
     def get_collaborative_recommendations(self, user_id, n_recommendations=20):
@@ -191,14 +195,14 @@ class RecommendationEngine:
         item_idx = self.item_id_to_idx[tmdb_id]
         decay = _time_decay_factor(created_at) if created_at else 1.0
 
-        dense = self.user_item_matrix.toarray()
-        dense[user_idx, item_idx] = rating * decay
-        self.user_item_matrix = csr_matrix(dense)
+        lil = self.user_item_matrix.tolil()
+        lil[user_idx, item_idx] = rating * decay
+        self.user_item_matrix = lil.tocsr()
 
-        row = dense[user_idx]
-        nonzero = row[row > 0]
-        if len(nonzero) > 0:
-            self.user_means[user_idx] = nonzero.mean()
+        row_data = self.user_item_matrix.getrow(user_idx).data
+        positives = row_data[row_data > 0]
+        if len(positives) > 0:
+            self.user_means[user_idx] = positives.mean()
 
         self.compute_user_similarity()
     

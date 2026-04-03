@@ -101,16 +101,7 @@ def get_hybrid_recommendations(request, user_id):
     from . import api as tmdb_api
     from .models import UserPreferences, TmdbMovieCache
 
-    GENRE_NAME_TO_ID = {
-        'Action': 28, 'Adventure': 12, 'Animation': 16, 'Comedy': 35,
-        'Crime': 80, 'Documentary': 99, 'Drama': 18, 'Family': 10751,
-        'Fantasy': 14, 'History': 36, 'Horror': 27, 'Music': 10402,
-        'Mystery': 9648, 'Romance': 10749, 'Science Fiction': 878,
-        'Sci-Fi': 878, 'Thriller': 53, 'War': 10752, 'Western': 37,
-        'Action & Adventure': 10759, 'Sci-Fi & Fantasy': 10765,
-    }
-
-    GENRE_ID_TO_NAME = {v: k for k, v in GENRE_NAME_TO_ID.items()}
+    from movies.ml.utils import GENRE_NAME_TO_ID, GENRE_MAP as GENRE_ID_TO_NAME
 
     try:
         user = User.objects.filter(id=user_id).first()

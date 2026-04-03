@@ -5,6 +5,7 @@ Drop-in companion to chroma_service.py — same public API.
 Used by ml_api.py for semantic search and similar-movie lookups.
 """
 
+import logging
 import os
 import re
 import time
@@ -12,6 +13,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from sentence_transformers import SentenceTransformer
+
+logger = logging.getLogger(__name__)
 
 PINECONE_API_KEY = (
     os.environ.get("PINECONE_API_KEY") or
@@ -35,39 +38,7 @@ FRANCHISE_PATTERNS = [
 
 
 from movies.ml.embedding_text import build_enriched_text as _build_enriched_text
-
-
-def _extract_year(date_str: str) -> int:
-    if not date_str or len(date_str) < 4:
-        return 0
-    try:
-        return int(date_str[:4])
-    except (ValueError, TypeError):
-        return 0
-
-
-def _compute_recency_score(year: int) -> float:
-    if year <= 0:
-        return 0.0
-    current_year = datetime.now().year
-    age = max(0, current_year - year)
-    if age <= 2:
-        return 1.0
-    elif age <= 5:
-        return 0.8
-    elif age <= 10:
-        return 0.6
-    elif age <= 20:
-        return 0.4
-    elif age <= 40:
-        return 0.2
-    return 0.1
-
-
-def _compute_popularity_score(vote_average: float, popularity: float = 0) -> float:
-    rating_score = min(1.0, max(0.0, (vote_average - 5.0) / 5.0)) if vote_average > 0 else 0.0
-    pop_score = min(1.0, popularity / 200.0) if popularity > 0 else 0.0
-    return 0.6 * rating_score + 0.4 * pop_score
+from movies.ml.utils import extract_year as _extract_year, recency_score as _compute_recency_score, popularity_score as _compute_popularity_score
 
 
 def _extract_franchise_name(title: str) -> Optional[str]:
@@ -125,7 +96,7 @@ class PineconeService:
         self._nn_cache_ttl = 300
 
         if not PINECONE_API_KEY:
-            print("PineconeService: PINECONE_API_KEY not set — service disabled.")
+            logger.warning("PineconeService: PINECONE_API_KEY not set — service disabled.")
             return
 
         try:
@@ -135,26 +106,26 @@ class PineconeService:
 
             existing = [idx.name for idx in pc.list_indexes()]
             if INDEX_NAME not in existing:
-                print(
-                    f"PineconeService: index '{INDEX_NAME}' not found. "
-                    "Run scripts/ingest_pinecone.py first."
+                logger.warning(
+                    "PineconeService: index '%s' not found. "
+                    "Run scripts/ingest_pinecone.py first.", INDEX_NAME
                 )
                 return
 
             self.index = pc.Index(INDEX_NAME)
 
-            print("PineconeService: loading sentence-transformer model...")
+            logger.info("PineconeService: loading sentence-transformer model...")
             self.model = SentenceTransformer("all-MiniLM-L6-v2")
 
             self._initialized = True
             stats = self.index.describe_index_stats()
-            print(
-                f"PineconeService: ready. "
-                f"Index has {stats.total_vector_count:,} vectors."
+            logger.info(
+                "PineconeService: ready. Index has %s vectors.",
+                f"{stats.total_vector_count:,}"
             )
 
         except Exception as e:
-            print(f"PineconeService init error: {e}")
+            logger.error("PineconeService init error: %s", e)
 
     def is_initialized(self) -> bool:
         return self._initialized and self.index is not None
@@ -191,7 +162,7 @@ class PineconeService:
             return reranked[:k]
 
         except Exception as e:
-            print(f"PineconeService.search error: {e}")
+            logger.error("PineconeService.search error: %s", e)
             return []
 
     def get_nearest_neighbors(
@@ -246,7 +217,7 @@ class PineconeService:
                         }
 
                         self.upsert_movie(movie_data)
-                        print(f"PineconeService: Auto-indexed missing movie: {movie_data['title']}")
+                        logger.info("PineconeService: Auto-indexed missing movie: %s", movie_data['title'])
 
                         fetch_result = self.index.fetch(ids=[str(tmdb_id)], namespace=NAMESPACE)
                         vectors = fetch_result.vectors
@@ -255,7 +226,7 @@ class PineconeService:
                     else:
                         return []
                 except Exception as e:
-                    print(f"Pinecone auto-ingest failed: {e}")
+                    logger.error("Pinecone auto-ingest failed: %s", e)
                     return []
 
             source_vec  = vectors[str(tmdb_id)].values
@@ -284,7 +255,7 @@ class PineconeService:
             return results[:k]
 
         except Exception as e:
-            print(f"PineconeService.get_nearest_neighbors error: {e}")
+            logger.error("PineconeService.get_nearest_neighbors error: %s", e)
             return []
 
     def upsert_movie(self, movie_data: Dict[str, Any]):
@@ -340,7 +311,7 @@ class PineconeService:
                 namespace=NAMESPACE,
             )
         except Exception as e:
-            print(f"PineconeService.upsert_movie error: {e}")
+            logger.error("PineconeService.upsert_movie error: %s", e)
 
     def _format_matches_v2(
         self,

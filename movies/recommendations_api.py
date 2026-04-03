@@ -12,18 +12,13 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import UserPreferences, UserReview, UserWatchlist, UserFavorites, ViewingHistory
 from .api import tmdb_request
 from .validation import error_response
+from movies.ml.utils import GENRE_MAP as _GENRE_ID_TO_NAME_MAP, GENRE_NAME_TO_ID as _GENRE_NAME_TO_ID_MAP
 
 logger = logging.getLogger(__name__)
 
-TMDB_GENRE_MAP = {
-    'Action': 28, 'Adventure': 12, 'Animation': 16, 'Comedy': 35,
-    'Crime': 80, 'Documentary': 99, 'Drama': 18, 'Family': 10751,
-    'Fantasy': 14, 'History': 36, 'Horror': 27, 'Music': 10402,
-    'Mystery': 9648, 'Romance': 10749, 'Science Fiction': 878,
-    'Thriller': 53, 'War': 10752, 'Western': 37
-}
+TMDB_GENRE_MAP = _GENRE_NAME_TO_ID_MAP
 
-GENRE_ID_TO_NAME = {v: k for k, v in TMDB_GENRE_MAP.items()}
+GENRE_ID_TO_NAME = _GENRE_ID_TO_NAME_MAP
 
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 

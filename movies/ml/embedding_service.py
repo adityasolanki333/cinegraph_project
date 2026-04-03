@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from datetime import datetime
 import hashlib
 
+from movies.ml.utils import extract_year as _extract_year, recency_score as _recency_score, popularity_score as _popularity_score
+
 
 @dataclass
 class EmbeddingResult:
@@ -19,39 +21,6 @@ class EmbeddingResult:
     media_type: str
     embedding: np.ndarray
     text_hash: str
-
-
-def _extract_year(date_str: str) -> int:
-    if not date_str or len(date_str) < 4:
-        return 0
-    try:
-        return int(date_str[:4])
-    except (ValueError, TypeError):
-        return 0
-
-
-def _recency_score(year: int) -> float:
-    if year <= 0:
-        return 0.0
-    current_year = datetime.now().year
-    age = max(0, current_year - year)
-    if age <= 2:
-        return 1.0
-    elif age <= 5:
-        return 0.8
-    elif age <= 10:
-        return 0.6
-    elif age <= 20:
-        return 0.4
-    elif age <= 40:
-        return 0.2
-    return 0.1
-
-
-def _popularity_score(vote_average: float, popularity: float = 0) -> float:
-    rating_score = min(1.0, max(0.0, (vote_average - 5.0) / 5.0)) if vote_average > 0 else 0.0
-    pop_score = min(1.0, popularity / 200.0) if popularity > 0 else 0.0
-    return 0.6 * rating_score + 0.4 * pop_score
 
 
 class SemanticEmbeddingService:

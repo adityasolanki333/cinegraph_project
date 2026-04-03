@@ -182,17 +182,24 @@ class DPPDiversifier:
         return matrix
     
     def _calculate_submatrix_score(self, matrix: np.ndarray, indices: List[int]) -> float:
-        """Calculate score of submatrix (simplified determinant proxy)"""
+        """Calculate DPP diversity score using log-determinant of the kernel submatrix.
+        Returns values in log-space for consistent comparison across subset sizes."""
         if len(indices) == 0:
-            return 1.0
+            return 0.0
         if len(indices) == 1:
-            return matrix[indices[0]][indices[0]]
+            val = matrix[indices[0]][indices[0]]
+            return math.log(max(val, 1e-12))
         
-        # Extract submatrix
         sub_matrix = matrix[np.ix_(indices, indices)]
         
-        # Use sum of absolute values as proxy for determinant (simplified)
-        return np.sum(np.abs(sub_matrix))
+        sign, logdet = np.linalg.slogdet(sub_matrix)
+        if sign <= 0 or not np.isfinite(logdet):
+            sub_matrix = sub_matrix + np.eye(len(indices)) * 1e-6
+            sign, logdet = np.linalg.slogdet(sub_matrix)
+            if sign <= 0 or not np.isfinite(logdet):
+                return -1e6
+        
+        return logdet
     
     def _genre_similarity(self, a: DiversityCandidate, b: DiversityCandidate) -> float:
         """Genre-based similarity (Jaccard)"""

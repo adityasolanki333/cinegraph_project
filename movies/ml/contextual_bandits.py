@@ -81,9 +81,31 @@ class ContextualBanditEngine:
         'preference_negative': -0.1,
     }
     
+    CONTEXT_BOOSTS = {
+        ('collaborative', 'day_of_week', 'weekend'): {
+            'value': 0.2,
+            'reason': 'Users engage more with collaborative recs on weekends',
+        },
+        ('trending', 'time_of_day', 'evening'): {
+            'value': 0.25,
+            'reason': 'Trending content performs better during evening sessions',
+        },
+        ('content_based', 'low_interactions', True): {
+            'value': 0.4,
+            'reason': 'Content-based works better for users with few interactions (cold start)',
+        },
+        ('exploration_random', 'short_session', True): {
+            'value': 0.3,
+            'reason': 'Short sessions benefit from exploration to capture interest quickly',
+        },
+        ('hybrid_ensemble', 'long_session', True): {
+            'value': 0.25,
+            'reason': 'Long sessions benefit from ensemble blending for sustained engagement',
+        },
+    }
+
     def __init__(self):
         self.arm_states: Dict[str, Dict[str, BanditArm]] = defaultdict(dict)
-        self.experiments: Dict[str, Dict] = {}
 
     def _db_key(self, arm_name: str) -> str:
         return f"bandit_arm_{arm_name}"
@@ -175,16 +197,22 @@ class ContextualBanditEngine:
         
         is_weekend = 'weekend' if day_of_week >= 5 else 'weekday'
         
-        user_experiments = [exp for exp_id, exp in self.experiments.items() 
-                          if exp.get('user_id') == user_id]
-        recent_count = len(user_experiments)
-        
+        recent_count = 0
         recent_genres = []
-        for exp in user_experiments[-10:]:
-            context = exp.get('context', {})
-            genres = context.get('genres', [])
-            recent_genres.extend(genres)
-        recent_genres = list(set(recent_genres))[:5]
+        try:
+            from movies.models import BanditExperiment
+            if str(user_id).isdigit():
+                experiments = BanditExperiment.objects.filter(
+                    user_id=int(user_id)
+                ).order_by('-created_at')
+                recent_count = experiments.count()
+                for exp in experiments[:10]:
+                    ctx = exp.context or {}
+                    genres = ctx.get('genres', [])
+                    recent_genres.extend(genres)
+                recent_genres = list(set(recent_genres))[:5]
+        except Exception:
+            pass
         
         return UserContext(
             user_id=user_id,
@@ -258,62 +286,81 @@ class ContextualBanditEngine:
     
     def _get_context_boost(self, arm_name: str, context: UserContext) -> float:
         boost = 0.0
-        
-        if arm_name == 'collaborative' and context.day_of_week == 'weekend':
-            boost += 0.2
-        
-        if arm_name == 'trending' and context.time_of_day == 'evening':
-            boost += 0.25
-        
-        if arm_name == 'content_based' and context.recent_interaction_count < 5:
-            boost += 0.4
-        
-        if arm_name == 'exploration_random' and context.session_duration < 5:
-            boost += 0.3
-        
-        if arm_name == 'hybrid_ensemble' and context.session_duration > 15:
-            boost += 0.25
-        
+
+        conditions = {
+            ('collaborative', 'day_of_week', 'weekend'): context.day_of_week == 'weekend',
+            ('trending', 'time_of_day', 'evening'): context.time_of_day == 'evening',
+            ('content_based', 'low_interactions', True): context.recent_interaction_count < 5,
+            ('exploration_random', 'short_session', True): context.session_duration < 5,
+            ('hybrid_ensemble', 'long_session', True): context.session_duration > 15,
+        }
+
+        for key, is_active in conditions.items():
+            if key[0] == arm_name and is_active and key in self.CONTEXT_BOOSTS:
+                boost += self.CONTEXT_BOOSTS[key]['value']
+
         return min(boost, 1.0)
     
     def log_experiment(self, user_id: str, arm_chosen: str, context: UserContext,
                        exploration_rate: float) -> str:
-        import uuid
-        experiment_id = str(uuid.uuid4())
-        
-        self.experiments[experiment_id] = {
-            'user_id': user_id,
-            'experiment_type': 'thompson_sampling',
-            'arm_chosen': arm_chosen,
-            'context': {
-                'time_of_day': context.time_of_day,
-                'day_of_week': context.day_of_week,
-                'session_duration': context.session_duration,
-                'genres': context.recent_genres,
-                'interaction_count': context.recent_interaction_count
-            },
-            'exploration_rate': exploration_rate,
-            'reward': None,
-            'created_at': datetime.now().isoformat()
-        }
-        
+        try:
+            from django.contrib.auth.models import User
+            from movies.models import BanditExperiment
+
+            user = User.objects.filter(id=int(user_id)).first() if str(user_id).isdigit() else None
+            if user is None:
+                import uuid
+                return str(uuid.uuid4())
+
+            experiment = BanditExperiment.objects.create(
+                user=user,
+                experiment_type='thompson_sampling',
+                arm_chosen=arm_chosen,
+                context={
+                    'time_of_day': context.time_of_day,
+                    'day_of_week': context.day_of_week,
+                    'session_duration': context.session_duration,
+                    'genres': context.recent_genres,
+                    'interaction_count': context.recent_interaction_count,
+                },
+                exploration_rate=exploration_rate,
+            )
+            experiment_id = str(experiment.id)
+        except Exception as exc:
+            import uuid
+            import logging
+            logging.getLogger(__name__).warning("log_experiment DB persist failed: %s", exc)
+            experiment_id = str(uuid.uuid4())
+
         if user_id in self.arm_states and arm_chosen in self.arm_states[user_id]:
             self.arm_states[user_id][arm_chosen].pulls += 1
             self._persist_arm_state(user_id, arm_chosen)
-        
+
         return experiment_id
     
     def update_reward(self, feedback: RewardFeedback) -> None:
-        if feedback.experiment_id not in self.experiments:
+        try:
+            from movies.models import BanditExperiment
+
+            exp_id = feedback.experiment_id
+            if not str(exp_id).isdigit():
+                return
+            experiment = BanditExperiment.objects.filter(id=int(exp_id)).first()
+            if experiment is None:
+                return
+
+            experiment.reward = feedback.reward
+            experiment.save(update_fields=['reward'])
+
+            user_id = str(experiment.user_id)
+            arm_chosen = experiment.arm_chosen
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).debug("update_reward DB lookup failed: %s", exc)
             return
-        
-        experiment = self.experiments[feedback.experiment_id]
-        experiment['reward'] = feedback.reward
-        experiment['outcome_type'] = feedback.outcome_type
-        
-        user_id = experiment['user_id']
-        arm_chosen = experiment['arm_chosen']
-        
+
+        self._load_arm_states(user_id)
+
         if user_id in self.arm_states and arm_chosen in self.arm_states[user_id]:
             arm = self.arm_states[user_id][arm_chosen]
             if feedback.reward >= 0.5:
@@ -321,11 +368,25 @@ class ContextualBanditEngine:
                 arm.rewards += 1
             else:
                 arm.beta += 1
-            
+
             total = arm.alpha + arm.beta - 2
             arm.success_rate = arm.rewards / total if total > 0 else 0.0
             self._persist_arm_state(user_id, arm_chosen)
+
+        self._cleanup_old_experiments()
     
+    def _cleanup_old_experiments(self) -> None:
+        try:
+            from movies.models import BanditExperiment
+            cutoff = datetime.now() - timedelta(days=30)
+            BanditExperiment.objects.filter(
+                created_at__lt=cutoff,
+                reward__isnull=False,
+            ).delete()
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("_cleanup_old_experiments failed: %s", exc)
+
     def calculate_reward(self, outcome_type: str) -> float:
         return self.REWARD_MAP.get(outcome_type, 0.0)
     
