@@ -6,12 +6,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MediaCard } from "@/components/media-card";
-import { tmdbService } from "@/lib/tmdb";
-import { User, Heart, Star, Calendar, TrendingUp, Eye, Film, Tv, Settings, Edit3, BookOpen, Clock, ListChecks, Database, Key, Plus, Loader2, Users as UsersIcon, Trophy, List as ListIcon, UserPlus, UserMinus, Sparkles, Trash2 } from "lucide-react";
+import { User, Heart, Star, Calendar, TrendingUp, Eye, Film, Tv, Settings, Edit3, BookOpen, Clock, ListChecks, Database, Key, Plus, Loader2, Users as UsersIcon, Trophy, List as ListIcon, UserPlus, UserMinus, Sparkles, Trash2, Bookmark } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Movie } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
@@ -23,34 +22,30 @@ import { ListCard } from "@/components/list-card";
 import { UserBadges } from "@/components/UserBadges";
 import { UserImpactDashboard } from "@/components/user-impact-dashboard";
 import { PatternInsights } from "@/components/pattern-insights";
-import { getLevelBadge, getLevelProgress, userIdToUsername } from "@shared/helpers";
+import { getLevelBadge, getLevelProgress } from "@shared/helpers";
 
 export default function Profile() {
   const [, setLocation] = useLocation();
   const { user, isAuthenticated, isLoading: authLoading, refetchUser } = useAuth();
-  const [watchlist, setWatchlist] = useState<string[]>([]);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [bio, setBio] = useState("");
   const { toast } = useToast();
 
-  // Get username from route params (if viewing another user's profile)
   const [match, params] = useRoute("/profile/:username");
   const username = params?.username;
 
-  // Redirect if not authenticated (in useEffect to avoid render-time side effects)
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       setLocation('/login');
     }
   }, [authLoading, isAuthenticated, setLocation]);
 
-  // Fetch profile user data by username
   const { data: profileUser } = useQuery({
     queryKey: ['/api/users/by-username', username],
     queryFn: async () => {
-      if (!username) return user; // Own profile
+      if (!username) return user;
       const response = await fetch(`/api/users/by-username/${username}`);
       if (!response.ok) return null;
       return response.json();
@@ -62,32 +57,24 @@ export default function Profile() {
   const profileUserId = displayUser?.id;
   const isOwnProfile = !username || displayUser?.id === user?.id;
 
-
-  // Get user's name and initials
   const getDisplayName = () => {
     if (displayUser?.firstName && displayUser?.lastName) {
       return `${displayUser.firstName} ${displayUser.lastName}`;
     }
     if (displayUser?.email) {
-      // Extract username from email (part before @)
-      const username = displayUser.email.split('@')[0];
-      // Replace underscores and dots with spaces, capitalize first letter
-      return username
-        .replace(/[._]/g, ' ')
-        .split(' ')
-        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
+      const u = displayUser.email.split('@')[0];
+      return u.replace(/[._]/g, ' ').split(' ')
+        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     }
     return "User";
   };
 
   const displayName = getDisplayName();
-
   const initials = displayUser?.firstName && displayUser?.lastName
     ? `${displayUser.firstName[0]}${displayUser.lastName[0]}`
     : displayUser?.email?.[0]?.toUpperCase() || "U";
 
-  // Fetch user's real ratings from the database
+  // ── Ratings / Reviews ────────────────────────────────────────────────────
   const { data: userRatings, isLoading: ratingsLoading } = useQuery({
     queryKey: ['/api/users', profileUserId, 'reviews'],
     queryFn: async () => {
@@ -98,9 +85,10 @@ export default function Profile() {
       return data.ratings || data.reviews || (Array.isArray(data) ? data : []);
     },
     enabled: !!profileUserId,
+    refetchInterval: 30000,
   });
 
-  // Fetch user's real favorites from the database
+  // ── Favorites ────────────────────────────────────────────────────────────
   const { data: userFavorites, isLoading: favoritesLoading } = useQuery({
     queryKey: ['/api/users', profileUserId, 'favorites'],
     queryFn: async () => {
@@ -111,9 +99,10 @@ export default function Profile() {
       return data.items || (Array.isArray(data) ? data : []);
     },
     enabled: !!profileUserId,
+    refetchInterval: 30000,
   });
 
-  // Fetch user's watched items from the database
+  // ── Watched ──────────────────────────────────────────────────────────────
   const { data: userWatched, isLoading: watchedLoading } = useQuery({
     queryKey: ['/api/users', profileUserId, 'watched'],
     queryFn: async () => {
@@ -124,9 +113,10 @@ export default function Profile() {
       return data.items || (Array.isArray(data) ? data : []);
     },
     enabled: !!profileUserId,
+    refetchInterval: 30000,
   });
 
-  // Fetch user's watchlist from the database
+  // ── Watchlist ────────────────────────────────────────────────────────────
   const { data: userWatchlist, isLoading: watchlistLoading } = useQuery({
     queryKey: ['/api/users', profileUserId, 'watchlist'],
     queryFn: async () => {
@@ -139,9 +129,10 @@ export default function Profile() {
     enabled: !!profileUserId,
     staleTime: 0,
     refetchOnMount: true,
+    refetchInterval: 30000,
   });
 
-  // Fetch user's community stats (followers, following, level)
+  // ── Stats ────────────────────────────────────────────────────────────────
   const { data: userStats, isLoading: statsLoading } = useQuery<{
     experiencePoints: number;
     totalFollowers: number;
@@ -157,11 +148,13 @@ export default function Profile() {
       if (!profileUserId) return null;
       const response = await fetch(`/api/users/${profileUserId}/stats`);
       if (!response.ok) return null;
-      return response.json();
-    }
+      const data = await response.json();
+      return data.stats || data; // backend wraps in { stats: {...} }
+    },
+    refetchInterval: 30000,
   });
 
-  // Fetch user's lists
+  // ── User lists ───────────────────────────────────────────────────────────
   const { data: userLists, isLoading: listsLoading } = useQuery({
     queryKey: ['/api/community/users', profileUserId, 'lists'],
     queryFn: async () => {
@@ -174,97 +167,68 @@ export default function Profile() {
     enabled: !!profileUserId,
   });
 
-  // Check if current user is following the profile user
+  // ── Follow status ────────────────────────────────────────────────────────
   const { data: followStatus } = useQuery({
-    queryKey: ['/api/community/following', profileUserId],
+    queryKey: ['/api/users/is-following', user?.id, profileUserId],
     queryFn: async () => {
       if (isOwnProfile || !user?.id || !profileUserId) return { isFollowing: false };
-      const response = await fetch(`/api/community/${user.id}/following/${profileUserId}`);
+      const response = await fetch(`/api/users/${user.id}/is-following/${profileUserId}`);
       if (!response.ok) return { isFollowing: false };
       return response.json();
     },
     enabled: !isOwnProfile && !!user?.id && !!profileUserId,
   });
 
-  // Follow/Unfollow mutation
+  // ── Follow / Unfollow mutation ───────────────────────────────────────────
   const followMutation = useMutation({
     mutationFn: async (action: 'follow' | 'unfollow') => {
       if (!user?.id || !profileUserId) throw new Error("User not found");
-      const response = await apiRequest(
-        "POST",
-        `/api/community/follow`,
-        { targetUserId: profileUserId, action }
-      );
-      return response.json();
+      if (action === 'follow') {
+        const res = await apiRequest("POST", `/api/users/${user.id}/follow`, { targetUserId: profileUserId });
+        return res.json();
+      } else {
+        const res = await apiRequest("DELETE", `/api/users/${user.id}/follow/${profileUserId}`);
+        return res.json();
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/community/following', profileUserId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/community', profileUserId, 'stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/community', profileUserId, 'stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/community', user?.id, 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/users/is-following', user?.id, profileUserId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/users', profileUserId, 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'stats'] });
       if (user?.id) {
         queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
       }
+      toast({
+        title: followStatus?.isFollowing ? "Unfollowed" : "Following",
+        description: followStatus?.isFollowing
+          ? `You unfollowed ${displayName}.`
+          : `You are now following ${displayName}.`,
+      });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update follow status.", variant: "destructive" });
     },
   });
 
-  // Get trending data for recommendations
-  const { data: trendingData, isLoading: trendingLoading } = useQuery({
-    queryKey: ['/api/tmdb/trending'],
-    select: (data: any) => {
-      if (!data.results) return [];
-      return data.results.slice(0, 6).map((item: any) =>
-        tmdbService.convertToMovie(item, item.media_type || 'movie')
-      );
-    }
-  });
-
-  // Calculate real viewing stats from user data
+  // ── Viewing stats (computed) ─────────────────────────────────────────────
   const viewingStats = useMemo(() => {
     const ratings = userRatings || [];
     const favoriteItems = userFavorites || [];
     const watchedItems = userWatched || [];
     const watchlistItems = userWatchlist || [];
-
-    // Calculate average rating
     const avgRating = ratings.length > 0
       ? ratings.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / ratings.length
       : 0;
-
-    // Separate movies and TV shows from ratings
-    const ratedMovies = ratings.filter((r: any) => r.mediaType === 'movie');
-    const ratedTVShows = ratings.filter((r: any) => r.mediaType === 'tv');
-
     return {
       totalWatched: watchedItems.length,
-      totalHours: watchedItems.length * 2, // Estimate 2 hours per item
-      avgRating: avgRating,
+      avgRating,
       watchlistCount: watchlistItems.length,
       favoritesCount: favoriteItems.length,
       reviewsCount: ratings.filter((r: any) => r.review).length,
-      ratedMovies,
-      ratedTVShows
     };
   }, [userRatings, userFavorites, userWatched, userWatchlist]);
 
-  // Get user's favorite genres based on ratings
-  const favoriteGenres = useMemo(() => {
-    if (!userRatings || userRatings.length === 0) return [];
-
-    // This would ideally fetch genre data from TMDB for each rated item
-    // For now, return placeholder genres
-    return ["Action", "Sci-Fi", "Drama", "Comedy"];
-  }, [userRatings]);
-
-  const handleAddToWatchlist = (movieId: string) => {
-    setWatchlist(prev => [...prev, movieId]);
-  };
-
-  const handleRemoveFromWatchlist = (movieId: string) => {
-    setWatchlist(prev => prev.filter(id => id !== movieId));
-  };
-
-  // Mutation for updating user profile
+  // ── Update profile ───────────────────────────────────────────────────────
   const updateProfileMutation = useMutation({
     mutationFn: async (data: { firstName: string; lastName: string; bio?: string }) => {
       if (!user?.id) throw new Error("User not found");
@@ -272,41 +236,15 @@ export default function Profile() {
       return response.json();
     },
     onSuccess: async (updatedUser) => {
-      // Force refresh auth state
       await refetchUser();
-
-      // Update localStorage with the new user data (for demo mode persistence)
-      const demoUserStr = localStorage.getItem('demo-user');
-      if (demoUserStr) {
-        const currentUser = JSON.parse(demoUserStr);
-        const newUser = { ...currentUser, ...updatedUser };
-        localStorage.setItem('demo-user', JSON.stringify(newUser));
-      }
-
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
-        const currentUser = JSON.parse(storedUser);
-        const newUser = { ...currentUser, ...updatedUser };
-        localStorage.setItem('user', JSON.stringify(newUser));
+        localStorage.setItem('user', JSON.stringify({ ...JSON.parse(storedUser), ...updatedUser }));
       }
-
-      // Trigger a storage event to update other components
       window.dispatchEvent(new Event('storage'));
-
-      // Invalidate queries to refetch fresh data
-      await queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'ratings'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'favorites'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'watched'] });
-      if (user?.id) {
-        await queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
-      }
-
-      // Close dialog and show success message
+      await queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id] });
       setIsEditDialogOpen(false);
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been updated successfully.",
-      });
+      toast({ title: "Profile updated", description: "Your profile has been updated successfully." });
     },
     onError: (error) => {
       toast({
@@ -317,7 +255,6 @@ export default function Profile() {
     },
   });
 
-  // Handle opening the edit dialog
   const handleOpenEditDialog = () => {
     setFirstName(user?.firstName || "");
     setLastName(user?.lastName || "");
@@ -325,21 +262,16 @@ export default function Profile() {
     setIsEditDialogOpen(true);
   };
 
-  // Handle form submission
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
     if (!firstName.trim() || !lastName.trim()) {
-      toast({
-        title: "Error",
-        description: "First name and last name are required",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "First name and last name are required", variant: "destructive" });
       return;
     }
     updateProfileMutation.mutate({ firstName, lastName, bio });
   };
 
-  // Mutation for deleting a review
+  // ── Delete review ────────────────────────────────────────────────────────
   const deleteReviewMutation = useMutation({
     mutationFn: async (reviewId: number) => {
       if (!user?.id) throw new Error("User not found");
@@ -351,12 +283,9 @@ export default function Profile() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'ratings'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/community', user?.id, 'stats'] });
-      toast({
-        title: "Review deleted",
-        description: "Your review has been deleted successfully.",
-      });
+      queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'stats'] });
+      toast({ title: "Review deleted", description: "Your review has been deleted." });
     },
     onError: (error) => {
       toast({
@@ -367,23 +296,36 @@ export default function Profile() {
     },
   });
 
-
   const levelInfo = getLevelBadge(userStats?.experiencePoints || 0);
+  const isLoading = authLoading || statsLoading;
 
-  // Show loading state
-  if (authLoading || ratingsLoading || favoritesLoading || watchedLoading || watchlistLoading || statsLoading || listsLoading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+          <Card className="lg:w-1/3 w-full">
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center gap-3">
+                <Skeleton className="h-32 w-32 rounded-full" />
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-4 w-56" />
+                <Skeleton className="h-6 w-24" />
+              </div>
+            </CardContent>
+          </Card>
+          <div className="lg:w-2/3 grid grid-cols-2 md:grid-cols-3 gap-3">
+            {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-24" />)}
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <>
-      {/* Profile Header with Real User Data */}
+      {/* Profile Header */}
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 mb-8">
-        {/* User Info */}
+        {/* User Info Card */}
         <Card className="lg:w-1/3 w-full">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center text-center">
@@ -392,8 +334,12 @@ export default function Profile() {
                 <AvatarFallback className="text-xl sm:text-2xl">{initials}</AvatarFallback>
               </Avatar>
 
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-1" data-testid="text-user-name">{displayName}</h1>
-              <p className="text-sm text-muted-foreground mb-2" data-testid="text-user-email">{displayUser?.email || ""}</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-1" data-testid="text-user-name">
+                {displayName}
+              </h1>
+              <p className="text-sm text-muted-foreground mb-2" data-testid="text-user-email">
+                {displayUser?.email || ""}
+              </p>
 
               {displayUser?.bio && (
                 <p className="text-sm text-muted-foreground mb-3 max-w-md text-center" data-testid="text-user-bio">
@@ -401,8 +347,8 @@ export default function Profile() {
                 </p>
               )}
 
-              <Badge className={`${levelInfo.color} text-white mb-3 shadow-lg animate-in fade-in-50 slide-in-from-bottom-2`} data-testid="badge-user-level">
-                <Trophy className="h-3 w-3 mr-1 animate-pulse" />
+              <Badge className={`${levelInfo.color} text-white mb-3 shadow-lg`} data-testid="badge-user-level">
+                <Trophy className="h-3 w-3 mr-1" />
                 {levelInfo.name}
               </Badge>
 
@@ -415,33 +361,30 @@ export default function Profile() {
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
                     className={`h-full ${levelInfo.color} transition-all duration-500`}
-                    style={{
-                      width: `${getLevelProgress(userStats?.experiencePoints || 0)}%`
-                    }}
+                    style={{ width: `${getLevelProgress(userStats?.experiencePoints || 0)}%` }}
                   />
                 </div>
               </div>
 
               <div className="flex items-center text-sm text-muted-foreground mb-4">
                 <Calendar className="h-4 w-4 mr-2" />
-                <span>Joined {displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently'}</span>
+                <span>
+                  Joined {displayUser?.createdAt
+                    ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                    : 'Recently'}
+                </span>
               </div>
 
+              {/* Followers / Following */}
               <div className="flex items-center gap-6 mb-6 text-sm">
-                <Link href="/community" className="flex items-center gap-1 hover:underline">
-                  <span className="font-semibold" data-testid="stat-followers">{userStats?.totalFollowers || 0}</span>
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold" data-testid="stat-followers">{userStats?.totalFollowers ?? 0}</span>
                   <span className="text-muted-foreground">Followers</span>
-                </Link>
-                <Link href="/community" className="flex items-center gap-1 hover:underline">
-                  <span className="font-semibold" data-testid="stat-following">{userStats?.totalFollowing || 0}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold" data-testid="stat-following">{userStats?.totalFollowing ?? 0}</span>
                   <span className="text-muted-foreground">Following</span>
-                </Link>
-              </div>
-
-              <div className="flex gap-2 mb-4 flex-wrap justify-center">
-                {favoriteGenres.map((genre: string) => (
-                  <Badge key={genre} variant="secondary">{genre}</Badge>
-                ))}
+                </div>
               </div>
 
               {isOwnProfile ? (
@@ -451,62 +394,76 @@ export default function Profile() {
                     <span className="hidden sm:inline">Edit Profile</span>
                     <span className="sm:hidden">Edit</span>
                   </Button>
-                  <Button size="sm" variant="outline" data-testid="button-settings">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    data-testid="button-settings"
+                    onClick={() => setLocation('/settings')}
+                  >
                     <Settings className="h-4 w-4" />
                   </Button>
                 </div>
               ) : (
-                <div className="flex gap-2 w-full max-w-sm">
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    data-testid="button-follow"
-                    onClick={() => followMutation.mutate(followStatus?.isFollowing ? 'unfollow' : 'follow')}
-                    disabled={followMutation.isPending}
-                  >
-                    {followMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : followStatus?.isFollowing ? (
-                      <>
-                        <UserMinus className="h-4 w-4 mr-2" />
-                        <span className="hidden sm:inline">Unfollow</span>
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        <span className="hidden sm:inline">Follow</span>
-                      </>
-                    )}
-                    <span className="sm:hidden">{followStatus?.isFollowing ? 'Unfollow' : 'Follow'}</span>
-                  </Button>
-                </div>
+                <Button
+                  size="sm"
+                  className="w-full max-w-sm"
+                  data-testid="button-follow"
+                  onClick={() => followMutation.mutate(followStatus?.isFollowing ? 'unfollow' : 'follow')}
+                  disabled={followMutation.isPending}
+                  variant={followStatus?.isFollowing ? "outline" : "default"}
+                >
+                  {followMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : followStatus?.isFollowing ? (
+                    <UserMinus className="h-4 w-4 mr-2" />
+                  ) : (
+                    <UserPlus className="h-4 w-4 mr-2" />
+                  )}
+                  {followStatus?.isFollowing ? 'Unfollow' : 'Follow'}
+                </Button>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Viewing Stats - Real Data */}
+        {/* Stats Grid */}
         <div className="lg:w-2/3 w-full grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
           <Card>
             <CardContent className="p-3 sm:p-4 text-center">
-              <Heart className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
-              <div className="text-xl sm:text-2xl font-bold text-foreground" data-testid="stat-watchlist">{viewingStats.watchlistCount}</div>
+              <Bookmark className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-primary mb-2" />
+              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-watchlist">
+                {watchlistLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.watchlistCount}
+              </div>
               <div className="text-xs sm:text-sm text-muted-foreground">Watchlist</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-3 sm:p-4 text-center">
-              <Film className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
-              <div className="text-xl sm:text-2xl font-bold text-foreground" data-testid="stat-watched">{viewingStats.totalWatched}</div>
+              <Eye className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-primary mb-2" />
+              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-watched">
+                {watchedLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.totalWatched}
+              </div>
               <div className="text-xs sm:text-sm text-muted-foreground">Watched</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-3 sm:p-4 text-center">
-              <Star className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
-              <div className="text-xl sm:text-2xl font-bold text-foreground" data-testid="stat-avg-rating">{viewingStats.avgRating.toFixed(1)}</div>
+              <Heart className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-primary mb-2" />
+              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-favorites-count">
+                {favoritesLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.favoritesCount}
+              </div>
+              <div className="text-xs sm:text-sm text-muted-foreground">Favorites</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <Star className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-yellow-500 mb-2" />
+              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-avg-rating">
+                {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.avgRating.toFixed(1)}
+              </div>
               <div className="text-xs sm:text-sm text-muted-foreground">Avg Rating</div>
             </CardContent>
           </Card>
@@ -514,62 +471,74 @@ export default function Profile() {
           <Card>
             <CardContent className="p-3 sm:p-4 text-center">
               <Star className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
-              <div className="text-xl sm:text-2xl font-bold text-foreground" data-testid="stat-total-rated">{userRatings?.length || 0}</div>
+              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-total-rated">
+                {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : (userRatings?.length || 0)}
+              </div>
               <div className="text-xs sm:text-sm text-muted-foreground">Total Rated</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-3 sm:p-4 text-center">
-              <Heart className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
-              <div className="text-xl sm:text-2xl font-bold text-foreground" data-testid="stat-favorites-count">{viewingStats.favoritesCount}</div>
-              <div className="text-xs sm:text-sm text-muted-foreground">Favorites</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <User className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
-              <div className="text-xl sm:text-2xl font-bold text-foreground" data-testid="stat-reviews">{viewingStats.reviewsCount}</div>
-              <div className="text-xs sm:text-sm text-muted-foreground">With Reviews</div>
+              <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
+              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-reviews">
+                {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.reviewsCount}
+              </div>
+              <div className="text-xs sm:text-sm text-muted-foreground">Reviews</div>
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* User Badges Section */}
+      {/* Badges */}
       {profileUserId && (
         <div className="mb-8">
           <UserBadges userId={profileUserId} />
         </div>
       )}
 
-      {/* Tabbed Content - My Impact, Patterns, My Lists, and Rated Items */}
-      <Tabs defaultValue={isOwnProfile ? "patterns" : "lists"} className="w-full">
-        <TabsList className={`grid w-full ${isOwnProfile ? 'grid-cols-4' : 'grid-cols-2'} max-w-3xl mb-6`} data-testid="tabs-profile">
-          {isOwnProfile && (
-            <TabsTrigger value="patterns" data-testid="tab-patterns">
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Patterns
+      {/* Tabs */}
+      <Tabs defaultValue={isOwnProfile ? "patterns" : "rated"} className="w-full">
+        <div className="overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 mb-6">
+          <TabsList className="inline-flex w-max gap-0.5" data-testid="tabs-profile">
+            {isOwnProfile && (
+              <TabsTrigger value="patterns" data-testid="tab-patterns">
+                <TrendingUp className="h-4 w-4 mr-1.5" />
+                <span className="hidden sm:inline">Patterns</span>
+                <span className="sm:hidden">Stats</span>
+              </TabsTrigger>
+            )}
+            {isOwnProfile && (
+              <TabsTrigger value="impact" data-testid="tab-my-impact">
+                <Sparkles className="h-4 w-4 mr-1.5" />
+                <span className="hidden sm:inline">My Impact</span>
+                <span className="sm:hidden">Impact</span>
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="lists" data-testid="tab-my-lists">
+              <ListIcon className="h-4 w-4 mr-1.5" />
+              {isOwnProfile ? 'Lists' : 'Lists'}
             </TabsTrigger>
-          )}
-          {isOwnProfile && (
-            <TabsTrigger value="impact" data-testid="tab-my-impact">
-              <Sparkles className="h-4 w-4 mr-2" />
-              My Impact
+            <TabsTrigger value="rated" data-testid="tab-rated-items">
+              <Star className="h-4 w-4 mr-1.5" />
+              Rated
             </TabsTrigger>
-          )}
-          <TabsTrigger value="lists" data-testid="tab-my-lists">
-            <ListIcon className="h-4 w-4 mr-2" />
-            {isOwnProfile ? 'My Lists' : 'Lists'}
-          </TabsTrigger>
-          <TabsTrigger value="rated" data-testid="tab-rated-items">
-            <Star className="h-4 w-4 mr-2" />
-            Rated Items
-          </TabsTrigger>
-        </TabsList>
+            <TabsTrigger value="watchlist" data-testid="tab-watchlist">
+              <Bookmark className="h-4 w-4 mr-1.5" />
+              Watchlist
+            </TabsTrigger>
+            <TabsTrigger value="favorites" data-testid="tab-favorites">
+              <Heart className="h-4 w-4 mr-1.5" />
+              Favorites
+            </TabsTrigger>
+            <TabsTrigger value="watched" data-testid="tab-watched">
+              <Eye className="h-4 w-4 mr-1.5" />
+              Watched
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        {/* My Lists Tab */}
+        {/* Lists Tab */}
         <TabsContent value="lists">
           <Card>
             <CardHeader>
@@ -582,7 +551,11 @@ export default function Profile() {
               </div>
             </CardHeader>
             <CardContent>
-              {userLists && Array.isArray(userLists) && userLists.length > 0 ? (
+              {listsLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1,2,3].map(i => <Skeleton key={i} className="h-64" />)}
+                </div>
+              ) : userLists && Array.isArray(userLists) && userLists.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {userLists.map((list: any) => (
                     <ListCard key={list.id} list={list} showAuthor={false} />
@@ -614,11 +587,15 @@ export default function Profile() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Star className="h-5 w-5" />
-                Rated Items
+                Rated Items ({userRatings?.length || 0})
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {userRatings && userRatings.length > 0 ? (
+              {ratingsLoading ? (
+                <div className="space-y-2">
+                  {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-16" />)}
+                </div>
+              ) : userRatings && userRatings.length > 0 ? (
                 <div className="space-y-2">
                   {userRatings.map((item: any) => (
                     <Link
@@ -628,7 +605,6 @@ export default function Profile() {
                       className="block"
                     >
                       <div className="p-3 border rounded hover:bg-accent transition-colors cursor-pointer relative group" data-testid={`rated-item-${item.id}`}>
-                        {/* Delete button for own reviews */}
                         {isOwnProfile && (
                           <Button
                             variant="ghost"
@@ -637,7 +613,7 @@ export default function Profile() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              if (window.confirm('Are you sure you want to delete this review?')) {
+                              if (window.confirm('Delete this review?')) {
                                 deleteReviewMutation.mutate(item.id);
                               }
                             }}
@@ -647,31 +623,28 @@ export default function Profile() {
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         )}
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center justify-between mb-1">
                           <p className="text-sm font-medium flex-1 pr-8" data-testid={`rated-title-${item.id}`}>
                             {item.title || item.name}
                           </p>
-                          <div className="flex items-center gap-1" data-testid={`rated-stars-${item.id}`}>
+                          <div className="flex items-center gap-0.5" data-testid={`rated-stars-${item.id}`}>
                             {[...Array(5)].map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`h-4 w-4 ${i < (item.rating || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
-                              />
+                              <Star key={i} className={`h-3.5 w-3.5 ${i < (item.rating || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`} />
                             ))}
-                            <span className="text-sm ml-1">{item.rating || 0}</span>
+                            <span className="text-sm ml-1 font-medium">{item.rating}/5</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs" data-testid={`rated-mediatype-${item.id}`}>
                             {item.mediaType === 'movie' ? <Film className="h-3 w-3 mr-1" /> : <Tv className="h-3 w-3 mr-1" />}
-                            {item.mediaType === 'movie' ? 'Movie' : 'TV Show'}
+                            {item.mediaType === 'movie' ? 'Movie' : 'TV'}
                           </Badge>
+                          {item.review && (
+                            <span className="text-xs text-muted-foreground truncate" data-testid={`rated-review-${item.id}`}>
+                              "{item.review}"
+                            </span>
+                          )}
                         </div>
-                        {item.review && (
-                          <p className="text-xs text-muted-foreground mt-2" data-testid={`rated-review-${item.id}`}>
-                            {item.review}
-                          </p>
-                        )}
                       </div>
                     </Link>
                   ))}
@@ -680,6 +653,150 @@ export default function Profile() {
                 <div className="text-center py-12">
                   <Star className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">No rated items yet</p>
+                  <Button variant="outline" className="mt-4" onClick={() => setLocation('/movies')}>
+                    Browse movies to rate
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Watchlist Tab */}
+        <TabsContent value="watchlist">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bookmark className="h-5 w-5" />
+                Watchlist ({viewingStats.watchlistCount})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {watchlistLoading ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {[1,2,3,4,5].map(i => <Skeleton key={i} className="aspect-[2/3]" />)}
+                </div>
+              ) : userWatchlist && userWatchlist.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {userWatchlist.map((item: any) => (
+                    <MediaCard
+                      key={item.tmdbId || item.id}
+                      item={{
+                        id: item.tmdbId || item.id,
+                        title: item.title || item.name,
+                        vote_average: item.voteAverage || item.vote_average || 0,
+                        poster_path: item.posterPath || item.poster_path,
+                        type: item.mediaType || 'movie',
+                      }}
+                      mediaType={item.mediaType || 'movie'}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Bookmark className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    {isOwnProfile ? "Your watchlist is empty" : "This user's watchlist is empty"}
+                  </p>
+                  {isOwnProfile && (
+                    <Button variant="outline" className="mt-4" onClick={() => setLocation('/movies')}>
+                      Browse movies to add
+                    </Button>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Favorites Tab */}
+        <TabsContent value="favorites">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Heart className="h-5 w-5" />
+                Favorites ({viewingStats.favoritesCount})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {favoritesLoading ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {[1,2,3,4,5].map(i => <Skeleton key={i} className="aspect-[2/3]" />)}
+                </div>
+              ) : userFavorites && userFavorites.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {userFavorites.map((item: any) => (
+                    <MediaCard
+                      key={item.tmdbId || item.id}
+                      item={{
+                        id: item.tmdbId || item.id,
+                        title: item.title || item.name,
+                        vote_average: item.voteAverage || item.vote_average || 0,
+                        poster_path: item.posterPath || item.poster_path,
+                        type: item.mediaType || 'movie',
+                      }}
+                      mediaType={item.mediaType || 'movie'}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Heart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    {isOwnProfile ? "No favorites yet" : "This user has no favorites yet"}
+                  </p>
+                  {isOwnProfile && (
+                    <Button variant="outline" className="mt-4" onClick={() => setLocation('/movies')}>
+                      Browse movies to favorite
+                    </Button>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Watched Tab */}
+        <TabsContent value="watched">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                Watched ({viewingStats.totalWatched})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {watchedLoading ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {[1,2,3,4,5].map(i => <Skeleton key={i} className="aspect-[2/3]" />)}
+                </div>
+              ) : userWatched && userWatched.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {userWatched.map((item: any) => (
+                    <MediaCard
+                      key={item.tmdbId || item.id}
+                      item={{
+                        id: item.tmdbId || item.id,
+                        title: item.title || item.name,
+                        vote_average: item.voteAverage || item.vote_average || 0,
+                        poster_path: item.posterPath || item.poster_path,
+                        type: item.mediaType || 'movie',
+                      }}
+                      mediaType={item.mediaType || 'movie'}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Eye className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    {isOwnProfile ? "Nothing marked as watched yet" : "This user hasn't marked anything as watched"}
+                  </p>
+                  {isOwnProfile && (
+                    <Button variant="outline" className="mt-4" onClick={() => setLocation('/movies')}>
+                      Browse movies to watch
+                    </Button>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -693,7 +810,7 @@ export default function Profile() {
           </TabsContent>
         )}
 
-        {/* Viewing Patterns Tab */}
+        {/* Patterns Tab */}
         {isOwnProfile && (
           <TabsContent value="patterns" className="space-y-6" data-testid="tab-content-patterns">
             <PatternInsights />
@@ -749,27 +866,13 @@ export default function Profile() {
               </div>
             </div>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsEditDialogOpen(false)}
-                data-testid="button-cancel"
-              >
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} data-testid="button-cancel">
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={updateProfileMutation.isPending}
-                data-testid="button-save-profile"
-              >
+              <Button type="submit" disabled={updateProfileMutation.isPending} data-testid="button-save-profile">
                 {updateProfileMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save changes"
-                )}
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+                ) : "Save changes"}
               </Button>
             </DialogFooter>
           </form>
