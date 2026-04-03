@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,9 @@ export function ContinueWatching() {
   const { data: viewingHistoryData, isLoading: historyLoading } = useQuery<{items: ViewingHistoryItem[]} | ViewingHistoryItem[]>({
     queryKey: ['/api/users', user?.id, 'watched'],
     queryFn: async () => {
-      const res = await fetch(`/api/users/${user?.id}/watched`);
+      const res = await fetch(`/api/users/${user?.id}/watched`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!res.ok) return [];
       return res.json();
     },
@@ -59,7 +62,9 @@ export function ContinueWatching() {
   }>({
     queryKey: ['/api/recommendations/pattern/analyze', user?.id],
     queryFn: async () => {
-      const res = await fetch(`/api/recommendations/pattern/analyze/${user?.id}`);
+      const res = await fetch(`/api/recommendations/pattern/analyze/${user?.id}`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!res.ok) throw new Error('Failed to fetch pattern analysis');
       return res.json();
     },

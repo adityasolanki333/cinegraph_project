@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -69,7 +70,9 @@ export function PatternInsights() {
   }>({
     queryKey: ['/api/recommendations/pattern/predict', user?.id],
     queryFn: async () => {
-      const res = await fetch(`/api/recommendations/pattern/predict/${user?.id}`);
+      const res = await fetch(`/api/recommendations/pattern/predict/${user?.id}`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!res.ok) throw new Error('Failed to fetch pattern prediction');
       return res.json();
     },
@@ -83,7 +86,9 @@ export function PatternInsights() {
   }>({
     queryKey: ['/api/recommendations/pattern/analyze', user?.id],
     queryFn: async () => {
-      const res = await fetch(`/api/recommendations/pattern/analyze/${user?.id}`);
+      const res = await fetch(`/api/recommendations/pattern/analyze/${user?.id}`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!res.ok) throw new Error('Failed to fetch pattern analysis');
       return res.json();
     },

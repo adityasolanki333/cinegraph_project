@@ -370,7 +370,9 @@ export default function Recommendations() {
       let recs: any[] = [];
       const fetchBaseUrl = arm === 'collaborative' ? `/api/recommendations/collaborative/${user?.id}` : `/api/recommendations/hybrid/${user?.id}`;
       
-      const baseResp = await fetch(`${fetchBaseUrl}?limit=24`);
+      const baseResp = await fetch(`${fetchBaseUrl}?limit=24`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (baseResp.ok) {
         const data = await baseResp.json();
         recs = data.recommendations || [];

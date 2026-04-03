@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -161,7 +162,9 @@ export default function Community() {
   } = useInfiniteQuery({
     queryKey: [`/api/community/personalized-feed/${user?.id}`, timeFilter],
     queryFn: async ({ pageParam = 0 }) => {
-      const response = await fetch(`/api/community/personalized-feed/${user?.id}?timeFilter=${timeFilter}&offset=${pageParam}`);
+      const response = await fetch(`/api/community/personalized-feed/${user?.id}?timeFilter=${timeFilter}&offset=${pageParam}`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) throw new Error('Failed to fetch personalized feed');
       return response.json();
     },

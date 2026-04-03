@@ -55,7 +55,9 @@ export default function Profile() {
     queryKey: ['/api/users/by-username', identifier],
     queryFn: async () => {
       if (!identifier) return user;
-      const response = await fetch(`/api/users/by-username/${identifier}`);
+      const response = await fetch(`/api/users/by-username/${identifier}`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return null;
       return response.json();
     },
@@ -91,7 +93,9 @@ export default function Profile() {
     queryKey: ['/api/users', profileUserId, 'reviews'],
     queryFn: async () => {
       if (!profileUserId) return [];
-      const response = await fetch(`/api/users/${profileUserId}/reviews`);
+      const response = await fetch(`/api/users/${profileUserId}/reviews`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return [];
       const data = await response.json();
       return data.ratings || data.reviews || (Array.isArray(data) ? data : []);
@@ -105,7 +109,9 @@ export default function Profile() {
     queryKey: ['/api/users', profileUserId, 'favorites'],
     queryFn: async () => {
       if (!profileUserId) return [];
-      const response = await fetch(`/api/users/${profileUserId}/favorites`);
+      const response = await fetch(`/api/users/${profileUserId}/favorites`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return [];
       const data = await response.json();
       return data.items || (Array.isArray(data) ? data : []);
@@ -119,7 +125,9 @@ export default function Profile() {
     queryKey: ['/api/users', profileUserId, 'watched'],
     queryFn: async () => {
       if (!profileUserId) return [];
-      const response = await fetch(`/api/users/${profileUserId}/watched`);
+      const response = await fetch(`/api/users/${profileUserId}/watched`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return [];
       const data = await response.json();
       return data.items || (Array.isArray(data) ? data : []);
@@ -133,7 +141,9 @@ export default function Profile() {
     queryKey: ['/api/users', profileUserId, 'watchlist'],
     queryFn: async () => {
       if (!profileUserId) return [];
-      const response = await fetch(`/api/users/${profileUserId}/watchlist`);
+      const response = await fetch(`/api/users/${profileUserId}/watchlist`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return [];
       const data = await response.json();
       return data.items || (Array.isArray(data) ? data : []);
@@ -158,7 +168,9 @@ export default function Profile() {
     enabled: !!profileUserId,
     queryFn: async () => {
       if (!profileUserId) return null;
-      const response = await fetch(`/api/users/${profileUserId}/stats`);
+      const response = await fetch(`/api/users/${profileUserId}/stats`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return null;
       const data = await response.json();
       return data.stats || data; // backend wraps in { stats: {...} }
@@ -171,7 +183,9 @@ export default function Profile() {
     queryKey: ['/api/community/users', profileUserId, 'lists'],
     queryFn: async () => {
       if (!profileUserId) return [];
-      const response = await fetch(`/api/community/users/${profileUserId}/lists`);
+      const response = await fetch(`/api/community/users/${profileUserId}/lists`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return [];
       const data = await response.json();
       return data.lists || (Array.isArray(data) ? data : []);
@@ -184,7 +198,9 @@ export default function Profile() {
     queryKey: ['/api/users/is-following', user?.id, profileUserId],
     queryFn: async () => {
       if (isOwnProfile || !user?.id || !profileUserId) return { isFollowing: false };
-      const response = await fetch(`/api/users/${user.id}/is-following/${profileUserId}`);
+      const response = await fetch(`/api/users/${user.id}/is-following/${profileUserId}`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return { isFollowing: false };
       return response.json();
     },

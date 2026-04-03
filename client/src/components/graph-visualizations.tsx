@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -277,7 +278,9 @@ export default function GraphVisualizations({ className }: GraphVisualizationsPr
   const { data: favoritesData, isLoading: favoritesLoading, isError: favoritesError, refetch: refetchFavorites } = useQuery<WatchlistItem[]>({
     queryKey: ['/api/users', user?.id, 'favorites'],
     queryFn: async () => {
-      const response = await fetch(`/api/users/${user?.id}/favorites`);
+      const response = await fetch(`/api/users/${user?.id}/favorites`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) throw new Error('Failed to fetch favorites');
       const data: ApiListResponse<WatchlistItem> = await response.json();
       return normalizeArray<WatchlistItem>(data);
@@ -288,7 +291,9 @@ export default function GraphVisualizations({ className }: GraphVisualizationsPr
   const { data: watchedData, isLoading: watchedLoading, isError: watchedError, refetch: refetchWatched } = useQuery<WatchlistItem[]>({
     queryKey: ['/api/users', user?.id, 'watched'],
     queryFn: async () => {
-      const response = await fetch(`/api/users/${user?.id}/watched`);
+      const response = await fetch(`/api/users/${user?.id}/watched`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) throw new Error('Failed to fetch watched');
       const data: ApiListResponse<WatchlistItem> = await response.json();
       return normalizeArray<WatchlistItem>(data);
@@ -299,7 +304,9 @@ export default function GraphVisualizations({ className }: GraphVisualizationsPr
   const { data: ratingsData, isLoading: ratingsLoading, isError: ratingsError, refetch: refetchRatings } = useQuery<RatingItem[]>({
     queryKey: ['/api/users', user?.id, 'reviews'],
     queryFn: async () => {
-      const response = await fetch(`/api/users/${user?.id}/reviews`);
+      const response = await fetch(`/api/users/${user?.id}/reviews`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) throw new Error('Failed to fetch reviews');
       const data = await response.json();
       const parsed = data as Record<string, unknown>;

@@ -10,7 +10,7 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { tmdbService } from "@/lib/tmdb";
 import { useAuth } from "@/hooks/useAuth";
 import { useWatchlist } from "@/hooks/useWatchlist";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
 import type { Movie } from "@shared/schema";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { useTranslation } from "react-i18next";
@@ -99,7 +99,9 @@ export default function MyList() {
   const { data: favoritesData = [], isLoading: favoritesLoading } = useQuery({
     queryKey: ['/api/users', user?.id, 'favorites'],
     queryFn: async () => {
-      const response = await fetch(`/api/users/${user?.id}/favorites`);
+      const response = await fetch(`/api/users/${user?.id}/favorites`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return [];
       const data = await response.json();
       return data.items || data || [];
@@ -110,7 +112,9 @@ export default function MyList() {
   const { data: watchedData = [], isLoading: watchedLoading } = useQuery({
     queryKey: ['/api/users', user?.id, 'watched'],
     queryFn: async () => {
-      const response = await fetch(`/api/users/${user?.id}/watched`);
+      const response = await fetch(`/api/users/${user?.id}/watched`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return [];
       const data = await response.json();
       return data.items || data || [];

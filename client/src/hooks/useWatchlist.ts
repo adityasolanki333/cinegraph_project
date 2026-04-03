@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "./useAuth";
 import type { Movie } from "@shared/schema";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, getAuthHeaders } from "@/lib/queryClient";
 
 export function useWatchlist() {
   const { user } = useAuth();
@@ -13,7 +13,9 @@ export function useWatchlist() {
       if (!user?.id) return [];
 
       try {
-        const response = await fetch(`/api/users/${user.id}/watchlist`);
+        const response = await fetch(`/api/users/${user.id}/watchlist`, {
+          headers: { ...getAuthHeaders() },
+        });
         if (!response.ok) return [];
 
         const data = await response.json();

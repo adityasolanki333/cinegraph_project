@@ -16,6 +16,7 @@ import { TrailerDialog } from "@/components/trailer-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { ContinueWatching } from "@/components/continue-watching";
 import { useAuth } from "@/hooks/useAuth";
+import { getAuthHeaders } from "@/lib/queryClient";
 import { WithTMDBFallback } from "@/components/tmdb-error-boundary";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { useTranslation } from "react-i18next";
@@ -145,7 +146,9 @@ export default function Home() {
     queryKey: ['/api/recommendations/hybrid', user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
-      const response = await fetch(`/api/recommendations/hybrid/${user?.id}`);
+      const response = await fetch(`/api/recommendations/hybrid/${user?.id}`, {
+        headers: { ...getAuthHeaders() },
+      });
       if (!response.ok) return [];
       const data = await response.json();
       return (data.recommendations || []).map((item: any) => ({
@@ -317,7 +320,7 @@ export default function Home() {
   const genreEmojis: Record<string, string> = {
     'Action': '🎬',
     'Romance': '💕',
-    'Sci-Fi': '🚀',
+    'Science Fiction': '🚀',
     'Horror': '😱',
     'Drama': '🎭',
     'Adventure': '🗺️',
@@ -339,7 +342,7 @@ export default function Home() {
       { genre: "Drama", count: 52, emoji: "🎭" },
       { genre: "Horror", count: 25, emoji: "😱" },
       { genre: "Romance", count: 31, emoji: "💕" },
-      { genre: "Sci-Fi", count: 28, emoji: "🚀" },
+      { genre: "Science Fiction", count: 28, emoji: "🚀" },
       { genre: "Thriller", count: 33, emoji: "🔥" },
       { genre: "Adventure", count: 41, emoji: "🗺️" },
       { genre: "Animation", count: 22, emoji: "🎨" },

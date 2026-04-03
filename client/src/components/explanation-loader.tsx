@@ -11,7 +11,9 @@ export function ExplanationLoader({ movieId, mediaType, initialReason }: { movie
     const { data: explanation, isLoading } = useQuery({
         queryKey: ['explanation', userId, movieId],
         queryFn: async () => {
-            const res = await fetch(`/api/recommendations/explain/${userId}/${movieId}?media_type=${mediaType}`);
+            const res = await fetch(`/api/recommendations/explain/${userId}/${movieId}?media_type=${mediaType}`, {
+                headers: { ...getAuthHeaders() },
+            });
             if (!res.ok) throw new Error('Failed to load explanation');
             return await res.json();
         }

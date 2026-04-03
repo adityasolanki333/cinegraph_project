@@ -33,7 +33,9 @@ export function OnboardingWizard() {
   const { data: userReviews, isLoading: loadingReviews } = useQuery({
     queryKey: ["/api/users", user?.id, "reviews-onboard"],
     queryFn: async () => {
-      const res = await fetch(`/api/users/${user!.id}/reviews`);
+      const res = await fetch(`/api/users/${user!.id}/reviews`, {
+        headers: { ...getAuthHeaders() },
+      });
       const data = await res.json();
       return data.reviews || (Array.isArray(data) ? data : []);
     },
@@ -43,7 +45,9 @@ export function OnboardingWizard() {
   const { data: userFavorites, isLoading: loadingFavs } = useQuery({
     queryKey: ["/api/users", user?.id, "favorites-onboard"],
     queryFn: async () => {
-      const res = await fetch(`/api/users/${user!.id}/favorites`);
+      const res = await fetch(`/api/users/${user!.id}/favorites`, {
+        headers: { ...getAuthHeaders() },
+      });
       const data = await res.json();
       return data.favorites || (Array.isArray(data) ? data : []);
     },
@@ -134,7 +138,9 @@ export function OnboardingWizard() {
       await queryClient.fetchQuery({
         queryKey: ["/api/recommendations/hybrid", user?.id],
         queryFn: async () => {
-          const res = await fetch(`/api/recommendations/hybrid/${user?.id}?limit=24`);
+          const res = await fetch(`/api/recommendations/hybrid/${user?.id}?limit=24`, {
+            headers: { ...getAuthHeaders() },
+          });
           if (!res.ok) return [];
           const data = await res.json();
           return (data.recommendations || []).map((item: any) => ({
