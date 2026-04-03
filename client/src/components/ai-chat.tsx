@@ -215,6 +215,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
 
   const handleDragEnd = useCallback(() => {
     const ds = dragState.current;
+    if (!ds.isDragging) return;
     const wasDrag = ds.moved;
     ds.isDragging = false;
     ds.moved = false;
