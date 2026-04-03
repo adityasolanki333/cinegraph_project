@@ -30,10 +30,17 @@ class UserByUsernameView(RetrieveAPIView):
     permission_classes = [AllowAny]
 
     def retrieve(self, request, *args, **kwargs):
+        identifier = self.kwargs['username']
         try:
-            user = User.objects.get(username=self.kwargs['username'])
+            user = User.objects.get(username=identifier)
         except User.DoesNotExist:
-            return Response({'error': 'User not found', 'code': 'NOT_FOUND'}, status=404)
+            if identifier.isdigit():
+                try:
+                    user = User.objects.get(id=int(identifier))
+                except User.DoesNotExist:
+                    return Response({'error': 'User not found', 'code': 'NOT_FOUND'}, status=404)
+            else:
+                return Response({'error': 'User not found', 'code': 'NOT_FOUND'}, status=404)
 
         profile, _ = UserProfile.objects.get_or_create(user=user)
         is_own = request.user.is_authenticated and request.user.id == user.id

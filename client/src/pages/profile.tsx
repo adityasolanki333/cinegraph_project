@@ -39,8 +39,8 @@ export default function Profile() {
   const [bio, setBio] = useState("");
   const { toast } = useToast();
 
-  const [match, params] = useRoute("/profile/:username");
-  const username = params?.username;
+  const [match, params] = useRoute("/profile/:identifier");
+  const identifier = params?.identifier;
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -49,19 +49,19 @@ export default function Profile() {
   }, [authLoading, isAuthenticated, setLocation]);
 
   const { data: profileUser } = useQuery({
-    queryKey: ['/api/users/by-username', username],
+    queryKey: ['/api/users/by-username', identifier],
     queryFn: async () => {
-      if (!username) return user;
-      const response = await fetch(`/api/users/by-username/${username}`);
+      if (!identifier) return user;
+      const response = await fetch(`/api/users/by-username/${identifier}`);
       if (!response.ok) return null;
       return response.json();
     },
-    enabled: !!username || !!user,
+    enabled: !!identifier || !!user,
   });
 
-  const displayUser = username ? profileUser : user;
+  const displayUser = identifier ? profileUser : user;
   const profileUserId = displayUser?.id;
-  const isOwnProfile = !username || displayUser?.id === user?.id;
+  const isOwnProfile = !identifier || displayUser?.id === user?.id;
 
   const getDisplayName = () => {
     if (displayUser?.firstName && displayUser?.lastName) {
