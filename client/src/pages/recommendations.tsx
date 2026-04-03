@@ -593,7 +593,7 @@ export default function Recommendations() {
 
           <TabsContent value="chat" className="flex-1 mt-0">
             {/* AI Chat Interface - Full screen */}
-            <AIChat className="w-full h-[calc(100vh-13rem)]" />
+            <AIChat className="w-full h-[calc(100dvh-10rem)] sm:h-[calc(100dvh-13rem)]" />
           </TabsContent>
 
           <TabsContent value="advanced">

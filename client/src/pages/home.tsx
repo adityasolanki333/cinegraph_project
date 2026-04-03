@@ -86,6 +86,7 @@ export default function Home() {
   const [isTrailerOpen, setIsTrailerOpen] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
   const { isInWatchlist } = useWatchlist();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -247,29 +248,32 @@ export default function Home() {
 
   // Touch handlers for swipe
   const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null); // Reset touch end
+    setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
+    setTouchStartY(e.targetTouches[0].clientY);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     setTouchEnd(e.targetTouches[0].clientX);
   };
 
-  const handleTouchEnd = () => {
-    if (touchStart === null || touchEnd === null) return;
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStart === null || touchEnd === null || touchStartY === null) return;
 
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 30; // Swipe left to go to next
-    const isRightSwipe = distance < -30; // Swipe right to go to previous
+    const xDistance = touchStart - touchEnd;
+    const yDistance = Math.abs(e.changedTouches[0].clientY - touchStartY);
 
-    if (isLeftSwipe && featuredMovies.length > 1) {
-      nextSlide();
+    // Only count as a horizontal swipe if X movement > Y movement (not a scroll)
+    // and the swipe distance is meaningful (>= 50px)
+    if (Math.abs(xDistance) < yDistance || Math.abs(xDistance) < 50) {
+      setTouchStart(null);
+      setTouchEnd(null);
+      return;
     }
-    if (isRightSwipe && featuredMovies.length > 1) {
-      prevSlide();
-    }
 
-    // Reset values
+    if (xDistance > 0 && featuredMovies.length > 1) nextSlide();
+    if (xDistance < 0 && featuredMovies.length > 1) prevSlide();
+
     setTouchStart(null);
     setTouchEnd(null);
   };
@@ -475,84 +479,98 @@ export default function Home() {
             <>
               {/* Left clickable area for previous slide */}
               <button
-                className="absolute left-0 top-0 bottom-0 w-[40%] z-[40] cursor-pointer group"
+                className="absolute left-0 top-0 bottom-0 w-[30%] sm:w-[40%] z-[40] cursor-pointer group"
                 onClick={prevSlide}
+                onTouchStart={(e) => e.stopPropagation()}
                 data-testid="area-prev-slide"
                 aria-label="Previous slide"
               >
-                <div className="absolute inset-y-0 left-4 flex items-center opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <ChevronLeft className="h-10 w-10 sm:h-12 sm:w-12 text-white drop-shadow-2xl" />
+                <div className="absolute inset-y-0 left-2 sm:left-4 flex items-center opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                  <div className="bg-black/40 sm:bg-transparent rounded-full p-1.5 sm:p-0">
+                    <ChevronLeft className="h-7 w-7 sm:h-12 sm:w-12 text-white drop-shadow-2xl" />
+                  </div>
                 </div>
               </button>
 
               {/* Right clickable area for next slide */}
               <button
-                className="absolute right-0 top-0 bottom-0 w-[40%] z-[40] cursor-pointer group"
+                className="absolute right-0 top-0 bottom-0 w-[30%] sm:w-[40%] z-[40] cursor-pointer group"
                 onClick={nextSlide}
+                onTouchStart={(e) => e.stopPropagation()}
                 data-testid="area-next-slide"
                 aria-label="Next slide"
               >
-                <div className="absolute inset-y-0 right-4 flex items-center opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <ChevronRight className="h-10 w-10 sm:h-12 sm:w-12 text-white drop-shadow-2xl" />
+                <div className="absolute inset-y-0 right-2 sm:right-4 flex items-center opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                  <div className="bg-black/40 sm:bg-transparent rounded-full p-1.5 sm:p-0">
+                    <ChevronRight className="h-7 w-7 sm:h-12 sm:w-12 text-white drop-shadow-2xl" />
+                  </div>
                 </div>
               </button>
 
               {/* Slide indicators */}
-              <div className="absolute bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-[40] flex items-center gap-2">
+              <div className="absolute bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 z-[50] flex items-center gap-2">
                 {featuredMovies.map((_movie: any, index: number) => (
                   <button
                     key={index}
                     onClick={() => setCurrentSlide(index)}
+                    onTouchStart={(e) => e.stopPropagation()}
                     className={cn(
-                      "w-2 h-2 rounded-full transition-all duration-300",
+                      "rounded-full transition-all duration-300 touch-manipulation",
                       currentSlide === index
-                        ? "bg-white w-8"
-                        : "bg-white/50 hover:bg-white/75"
+                        ? "bg-white w-6 sm:w-8 h-2.5 sm:h-2"
+                        : "bg-white/50 hover:bg-white/75 w-2.5 sm:w-2 h-2.5 sm:h-2"
                     )}
                     data-testid={`indicator-slide-${index}`}
                     aria-label={`Go to slide ${index + 1}`}
                   />
                 ))}
               </div>
+
+              {/* Mobile swipe hint - fades out */}
+              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[50] sm:hidden flex items-center gap-1.5 text-white/60 text-[11px]">
+                <ChevronLeft className="h-3 w-3" />
+                <span>swipe to browse</span>
+                <ChevronRight className="h-3 w-3" />
+              </div>
             </>
           )}
 
-          <div className="relative z-[40] flex items-center h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pointer-events-none">
-            <div className="max-w-2xl pointer-events-auto">
+          <div className="relative z-[50] flex items-end sm:items-center h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pointer-events-none pb-16 sm:pb-0">
+            <div className="max-w-2xl pointer-events-auto" onTouchStart={(e) => e.stopPropagation()}>
               <Badge variant="secondary" className="mb-2 sm:mb-4" data-testid="badge-featured-type">
                 {currentMovie.type === "tv" ? (currentMovie.seasons ? `${currentMovie.seasons} Season${currentMovie.seasons !== 1 ? 's' : ''}` : "TV Series") : "Movie"}
               </Badge>
-              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-2 sm:mb-4 line-clamp-2" data-testid="text-featured-title">
+              <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-2 sm:mb-4 line-clamp-2" data-testid="text-featured-title">
                 {currentMovie.title}
               </h1>
-              <p className="text-sm sm:text-base lg:text-lg text-gray-200 mb-4 sm:mb-6 max-w-xl line-clamp-3 sm:line-clamp-4" data-testid="text-featured-synopsis">
+              <p className="text-xs sm:text-base lg:text-lg text-gray-200 mb-3 sm:mb-6 max-w-xl line-clamp-2 sm:line-clamp-4" data-testid="text-featured-synopsis">
                 {currentMovie.synopsis}
               </p>
-              <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-4 sm:mb-6 text-sm sm:text-base">
-                <div className="flex items-center space-x-2 text-white">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-3 sm:mb-6 text-sm sm:text-base">
+                <div className="flex items-center space-x-1 text-white">
                   <span className="text-yellow-400">★</span>
                   <span className="font-semibold" data-testid="text-featured-rating">{currentMovie.rating}</span>
                 </div>
-                <span className="text-gray-300 hidden sm:inline">•</span>
+                <span className="text-gray-300">•</span>
                 <span className="text-gray-300" data-testid="text-featured-year">{currentMovie.year}</span>
                 <span className="text-gray-300 hidden sm:inline">•</span>
-                <span className="text-gray-300" data-testid="text-featured-genre">{currentMovie.genre}</span>
+                <span className="text-gray-300 hidden sm:inline" data-testid="text-featured-genre">{currentMovie.genre}</span>
                 {currentMovie.duration && (
                   <>
                     <span className="text-gray-300 hidden sm:inline">•</span>
-                    <span className="text-gray-300" data-testid="text-featured-duration">{currentMovie.duration}min</span>
+                    <span className="text-gray-300 hidden sm:inline" data-testid="text-featured-duration">{currentMovie.duration}min</span>
                   </>
                 )}
               </div>
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <div className="flex flex-row sm:flex-col md:flex-row gap-2 sm:gap-4">
                 <Button
                   size="lg"
-                  className="bg-white text-black hover:bg-gray-200 w-full sm:w-auto"
+                  className="bg-white text-black hover:bg-gray-200 flex-1 sm:flex-none"
                   data-testid="button-play"
                   onClick={handlePlayTrailer}
                 >
                   <Play className="h-4 w-4 sm:h-5 sm:w-5 mr-2 fill-current" />
-                  Play Trailer
+                  <span className="sm:inline">Play Trailer</span>
                 </Button>
                 <Link href={currentMovie.type === "tv" ? `/tv/${currentMovie.id}` : `/movie/${currentMovie.id}`}>
                   <Button size="lg" variant="secondary" className="bg-gray-500/50 text-white hover:bg-gray-500/70 w-full sm:w-auto" data-testid="button-more-info">

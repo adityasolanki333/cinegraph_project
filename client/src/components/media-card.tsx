@@ -340,35 +340,63 @@ export function MediaCard({
               className="w-full h-full object-cover transition-all duration-500 ease-out group-hover:scale-110 group-hover:brightness-75"
             />
 
-            {/* Overlay with actions */}
+            {/* Hover overlay - desktop */}
             {isHovered && (
-              <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div className="flex space-x-1 sm:space-x-2">
+              <div className="absolute inset-0 bg-black/60 hidden sm:flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="flex space-x-2">
                   <Button
                     size="sm"
                     variant="secondary"
-                    className="bg-white/20 hover:bg-white/30 text-xs sm:text-sm px-2 sm:px-3 h-7 sm:h-9"
+                    className="bg-white/20 hover:bg-white/30 text-sm px-3 h-9"
                     onClick={handlePlayTrailer}
                     data-testid="button-play-trailer"
                   >
-                    <Play className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
-                    <span className="hidden sm:inline">Play</span>
+                    <Play className="h-4 w-4 mr-1" />
+                    Play
                   </Button>
                   <Button
                     size="sm"
                     variant="secondary"
                     onClick={handleWatchlistToggle}
-                    className="bg-white/20 hover:bg-white/30 px-2 sm:px-3 h-7 sm:h-9"
+                    className="bg-white/20 hover:bg-white/30 px-3 h-9"
                   >
                     {isInWatchlist ? (
-                      <Check className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <Check className="h-4 w-4" />
                     ) : (
-                      <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <Plus className="h-4 w-4" />
                     )}
                   </Button>
                 </div>
               </div>
             )}
+
+            {/* Mobile action buttons - always visible, overlaid at bottom of poster */}
+            <div
+              className="absolute bottom-0 left-0 right-0 sm:hidden flex items-center justify-between px-1.5 py-1 bg-gradient-to-t from-black/80 to-transparent"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            >
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handlePlayTrailer}
+                className="h-7 w-7 p-0 text-white hover:bg-white/20 rounded-full"
+                data-testid="button-play-trailer-mobile"
+              >
+                <Play className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleWatchlistToggle}
+                className="h-7 w-7 p-0 text-white hover:bg-white/20 rounded-full"
+              >
+                {isInWatchlist ? (
+                  <Check className="h-3.5 w-3.5 text-green-400" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </div>
 
             {/* Type badge */}
             <Badge variant="secondary" className="absolute top-1 left-1 sm:top-2 sm:left-2 text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5">
@@ -485,13 +513,13 @@ export function MediaCard({
 
             {/* Like/Dislike Feedback */}
             {showFeedback && (
-              <div className="mt-2">
+              <div className="mt-2" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                 {feedbackGiven ? (
                   <p className="text-[10px] sm:text-xs text-green-600 dark:text-green-400 text-center py-1" data-testid="text-feedback-thanks">
-                    ✓ Thanks for your feedback!
+                    ✓ Thanks!
                   </p>
                 ) : (
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <Button
                       variant="outline"
                       size="sm"
@@ -501,11 +529,11 @@ export function MediaCard({
                         handleFeedback(true);
                       }}
                       disabled={feedbackMutation.isPending}
-                      className="flex-1 text-xs h-7"
+                      className="flex-1 text-[11px] h-8 px-1 gap-1 min-w-0"
                       data-testid="button-feedback-like"
                     >
-                      <ThumbsUp className="h-3 w-3 mr-1" />
-                      Like
+                      <ThumbsUp className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">Like</span>
                     </Button>
                     <Button
                       variant="outline"
@@ -516,11 +544,11 @@ export function MediaCard({
                         handleFeedback(false);
                       }}
                       disabled={feedbackMutation.isPending}
-                      className="flex-1 text-xs h-7"
+                      className="flex-1 text-[11px] h-8 px-1 gap-1 min-w-0"
                       data-testid="button-feedback-dislike"
                     >
-                      <ThumbsDown className="h-3 w-3 mr-1" />
-                      Dislike
+                      <ThumbsDown className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">Dislike</span>
                     </Button>
                   </div>
                 )}
