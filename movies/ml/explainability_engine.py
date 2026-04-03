@@ -154,8 +154,8 @@ class ExplainabilityEngine:
                     )
                     if gemini_text:
                         explanation_text = gemini_text
-            except Exception:
-                pass  # Fall through to template explanation
+            except Exception as e:
+                logger.warning(f"Gemini explanation generation failed for '{rec_title}': {e}")
             
             # Create visual breakdown
             visual_breakdown = self._create_visual_breakdown(feature_importance)
@@ -189,6 +189,7 @@ class ExplainabilityEngine:
             return explanation
         
         except Exception as e:
+            logger.error(f"Failed to generate explanation for user={user_id} tmdb_id={tmdb_id}: {e}", exc_info=True)
             return Explanation(
                 recommendation_id=recommendation_id,
                 user_id=user_id,
@@ -199,7 +200,7 @@ class ExplainabilityEngine:
                 contributing_factors=[],
                 visual_breakdown=[],
                 confidence_score=0.1,
-                explanation_text=f"An error occurred while generating the explanation: {str(e)}"
+                explanation_text="We couldn't generate a detailed explanation right now. Please try again later."
             )
     
     def _create_default_context(self, user_id: str, tmdb_id: int, 
@@ -798,8 +799,8 @@ Write ONE compelling sentence (max 180 characters) explaining the connection —
                             'preferred_decades': prefs.preferred_decades or [],
                             'language_preferences': prefs.language_preferences or []
                         }
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to load user preferences for comparison user_id={user_id}: {e}")
             
             differences = []
             changes_needed = []

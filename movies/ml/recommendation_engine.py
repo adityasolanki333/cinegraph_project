@@ -5,6 +5,7 @@ With temporal decay, mean-centering, and implicit signal support.
 """
 from __future__ import annotations
 
+import logging
 import math
 import numpy as np
 from scipy.sparse import csr_matrix, lil_matrix
@@ -14,6 +15,8 @@ from collections import defaultdict
 from django.db.models import Avg, Count
 from django.contrib.auth.models import User
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 DECAY_HALF_LIFE_DAYS = 180
 
@@ -323,8 +326,8 @@ class HybridRecommender:
                 weights = feedback_service.get_user_weights(user)
                 collab_w = weights.get('collaborative', self.collab_weight)
                 content_w = weights.get('content', self.content_weight)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to load feedback weights for user_id={user_id}: {e}")
 
         collab_recs = self.collaborative.get_collaborative_recommendations(
             user_id, 

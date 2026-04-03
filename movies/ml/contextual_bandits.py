@@ -10,11 +10,14 @@ Algorithm: Thompson Sampling with Beta posterior
 Arm states are persisted to the database via FeatureWeight model.
 """
 
+import logging
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -134,7 +137,7 @@ class ContextualBanditEngine:
                         rewards=fw.success_count,
                         success_rate=fw.success_rate,
                     )
-                except Exception:
+                except FeatureWeight.DoesNotExist:
                     self.arm_states[user_id][arm_name] = BanditArm(
                         name=arm_name,
                         alpha=self.PRIOR_ALPHA,
@@ -143,7 +146,18 @@ class ContextualBanditEngine:
                         rewards=0,
                         success_rate=0.0,
                     )
-        except Exception:
+                except Exception as e:
+                    logger.warning(f"Failed to load arm state for user={user_id} arm={arm_name}: {e}")
+                    self.arm_states[user_id][arm_name] = BanditArm(
+                        name=arm_name,
+                        alpha=self.PRIOR_ALPHA,
+                        beta=self.PRIOR_BETA,
+                        pulls=0,
+                        rewards=0,
+                        success_rate=0.0,
+                    )
+        except Exception as e:
+            logger.warning(f"Failed to load arm states from DB for user={user_id}: {e}")
             for arm_name in self.ARMS:
                 if arm_name not in self.arm_states[user_id]:
                     self.arm_states[user_id][arm_name] = BanditArm(
@@ -177,8 +191,8 @@ class ContextualBanditEngine:
                     'success_rate': arm.success_rate,
                 }
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to persist arm state for user={user_id} arm={arm_name}: {e}")
     
     def extract_context(self, user_id: str, session_duration: float = 0, 
                         device_type: Optional[str] = None, mood: Optional[str] = None) -> UserContext:
@@ -211,8 +225,8 @@ class ContextualBanditEngine:
                     genres = ctx.get('genres', [])
                     recent_genres.extend(genres)
                 recent_genres = list(set(recent_genres))[:5]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to load recent genres for user={user_id}: {e}")
         
         return UserContext(
             user_id=user_id,

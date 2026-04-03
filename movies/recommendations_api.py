@@ -109,11 +109,32 @@ def fetch_current_movies():
 GEMINI_MODELS = [
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
     "gemma-3-12b-it",
+    "gemma-3-4b-it",
 ]
 
 
-def call_gemini_api(prompt, max_retries=2):
+MOVIE_EXTRACTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "recommendations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"}
+                },
+                "required": ["title"]
+            }
+        }
+    },
+    "required": ["recommendations"]
+}
+
+
+def call_gemini_api(prompt, max_retries=2, use_json_mode=False, json_schema=None):
     if not GEMINI_API_KEY:
         return None, "Gemini API key not configured"
 
@@ -121,9 +142,20 @@ def call_gemini_api(prompt, max_retries=2):
         for model in GEMINI_MODELS:
             for attempt in range(max_retries):
                 try:
+                    sdk_config = {
+                        "temperature": 0.7,
+                        "max_output_tokens": 2048,
+                    }
+                    if use_json_mode:
+                        sdk_config["response_mime_type"] = "application/json"
+                        if json_schema:
+                            sdk_config["response_schema"] = json_schema
+                    from google.genai import types
+                    config = types.GenerateContentConfig(**sdk_config)
                     response = gemini_client.models.generate_content(
                         model=model,
-                        contents=prompt
+                        contents=prompt,
+                        config=config,
                     )
                     if response and response.text:
                         logger.info(f"Gemini {model} responded successfully")
@@ -147,6 +179,12 @@ def call_gemini_api(prompt, max_retries=2):
     for model in GEMINI_MODELS:
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
+        generation_config = {"temperature": 0.7, "maxOutputTokens": 2048}
+        if use_json_mode:
+            generation_config["responseMimeType"] = "application/json"
+            if json_schema:
+                generation_config["responseSchema"] = json_schema
+
         for attempt in range(max_retries):
             try:
                 response = requests.post(
@@ -157,7 +195,7 @@ def call_gemini_api(prompt, max_retries=2):
                     },
                     json={
                         "contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 2048}
+                        "generationConfig": generation_config
                     },
                     timeout=30
                 )
@@ -185,20 +223,37 @@ def call_gemini_api(prompt, max_retries=2):
     return None, "AI service is temporarily busy. Showing trending movies instead."
 
 
+def _validated_stream(raw_stream, model_name):
+    first_chunk = next(raw_stream)
+    if first_chunk and first_chunk.text:
+        yield first_chunk
+    for chunk in raw_stream:
+        yield chunk
+
+
 def call_gemini_streaming(prompt):
     if not GEMINI_API_KEY or not gemini_client:
         return None
 
     for model in GEMINI_MODELS:
         try:
-            response = gemini_client.models.generate_content_stream(
+            raw_stream = gemini_client.models.generate_content_stream(
                 model=model,
                 contents=prompt
             )
-            return response
+            validated = _validated_stream(raw_stream, model)
+            first = next(validated)
+            def _chain(first_chunk, rest):
+                yield first_chunk
+                yield from rest
+            logger.info(f"Streaming: Model {model} validated successfully")
+            return _chain(first, validated)
+        except StopIteration:
+            logger.warning(f"Streaming: Model {model} returned empty stream, trying next")
+            continue
         except Exception as e:
             error_str = str(e).lower()
-            if '429' in error_str or 'quota' in error_str or 'rate' in error_str or '503' in error_str or 'unavailable' in error_str:
+            if '429' in error_str or 'quota' in error_str or 'rate' in error_str or 'resource_exhausted' in error_str or '503' in error_str or 'unavailable' in error_str:
                 logger.warning(f"Streaming: Model {model} rate limited/unavailable, trying next")
                 continue
             elif '404' in error_str or 'not_found' in error_str:
@@ -211,7 +266,32 @@ def call_gemini_streaming(prompt):
     return None
 
 
-def parse_movie_recommendations(text):
+def parse_movie_recommendations_from_json(text):
+    try:
+        data = json.loads(text)
+        movies = []
+        recommendations = []
+        if isinstance(data, dict):
+            recommendations = data.get('recommendations', data.get('movies', []))
+        elif isinstance(data, list):
+            recommendations = data
+        for item in recommendations:
+            if isinstance(item, str):
+                title = item.strip()
+            elif isinstance(item, dict):
+                title = (item.get('title') or item.get('name', '')).strip()
+            else:
+                continue
+            if title and len(title) > 2 and title not in movies:
+                movies.append(title)
+        if movies:
+            return movies[:10]
+    except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
+        logger.debug(f"JSON movie extraction parse failed, will use regex fallback: {e}")
+    return None
+
+
+def parse_movie_recommendations_regex(text):
     movies = []
 
     pattern1 = re.findall(r'\*\*([^*]+?)\s*\((\d{4}(?:-\d{4})?(?:\s*-\s*(?:Present|present))?)?\)\*\*', text)
@@ -239,9 +319,87 @@ def parse_movie_recommendations(text):
     return movies[:10]
 
 
+def parse_movie_recommendations(text):
+    json_result = parse_movie_recommendations_from_json(text)
+    if json_result:
+        return json_result
+    return parse_movie_recommendations_regex(text)
+
+
+def extract_movie_titles_structured(response_text):
+    extraction_prompt = (
+        "Extract all movie and TV show titles from the following text. "
+        "Return a JSON object with a 'recommendations' array, where each item has a 'title' field.\n\n"
+        f"Text:\n{response_text[:3000]}"
+    )
+    try:
+        extracted, error = call_gemini_api(
+            extraction_prompt,
+            max_retries=1,
+            use_json_mode=True,
+            json_schema=MOVIE_EXTRACTION_SCHEMA,
+        )
+        if extracted and not error:
+            titles = parse_movie_recommendations_from_json(extracted)
+            if titles:
+                logger.info(f"Structured extraction found {len(titles)} titles")
+                return titles
+    except Exception as e:
+        logger.warning(f"Structured movie extraction failed: {e}")
+    return None
+
+
+MAX_USER_MESSAGE_LENGTH = 2000
+PROMPT_TOKEN_BUDGET = 6000
+CHARS_PER_TOKEN = 4
+
+INJECTION_PATTERNS = [
+    re.compile(r'ignore\s+(all\s+)?previous\s+instructions', re.IGNORECASE),
+    re.compile(r'ignore\s+(all\s+)?above\s+instructions', re.IGNORECASE),
+    re.compile(r'disregard\s+(all\s+)?previous', re.IGNORECASE),
+    re.compile(r'you\s+are\s+now\b', re.IGNORECASE),
+    re.compile(r'act\s+as\s+(?:a\s+)?(?:different|new)', re.IGNORECASE),
+    re.compile(r'^system\s*:', re.IGNORECASE | re.MULTILINE),
+    re.compile(r'<\|(?:im_start|im_end|system|endoftext)\|>', re.IGNORECASE),
+    re.compile(r'(?:```|""")[\s\S]*?(?:system|prompt|instruction)', re.IGNORECASE),
+    re.compile(r'forget\s+(everything|all|your)\s+(you|instructions|rules)', re.IGNORECASE),
+    re.compile(r'override\s+(your|the|all)\s+(instructions|rules|prompt)', re.IGNORECASE),
+]
+
+
+def sanitize_user_message(message):
+    if not isinstance(message, str):
+        return ""
+    message = message[:MAX_USER_MESSAGE_LENGTH]
+    for pattern in INJECTION_PATTERNS:
+        message = pattern.sub('[filtered]', message)
+    return message.strip()
+
+
+def estimate_tokens(text):
+    return len(text) // CHARS_PER_TOKEN
+
+
+def trim_conversation_history(conversation_history, budget_tokens):
+    if not conversation_history:
+        return []
+    trimmed = []
+    used_tokens = 0
+    for msg in reversed(conversation_history):
+        content = msg.get('content', '')[:300]
+        msg_tokens = estimate_tokens(content) + 5
+        if used_tokens + msg_tokens > budget_tokens:
+            break
+        trimmed.insert(0, msg)
+        used_tokens += msg_tokens
+    return trimmed
+
+
 def build_chat_prompt(user_message, user_context, conversation_history=None, current_movies=None):
     today = date.today().strftime("%B %d, %Y")
     current_year = date.today().year
+
+    user_message = sanitize_user_message(user_message)
 
     current_movies_section = ""
     if current_movies:
@@ -260,19 +418,7 @@ Upcoming Releases:
 {upcoming_list}
 """
 
-    conversation_section = ""
-    if conversation_history:
-        history_lines = []
-        for msg in conversation_history[-6:]:
-            role = "User" if msg.get('type') == 'user' else "Assistant"
-            content = msg.get('content', '')[:300]
-            history_lines.append(f"{role}: {content}")
-        conversation_section = f"""
-CONVERSATION HISTORY (for context - reference previous suggestions when relevant):
-{chr(10).join(history_lines)}
-"""
-
-    prompt = f"""You are MovieVanders AI, an expert movie and TV show recommendation assistant. Today's date is {today}.
+    base_prompt = f"""You are MovieVanders AI, an expert movie and TV show recommendation assistant. Today's date is {today}.
 
 IMPORTANT GUIDELINES:
 - Prioritize recent releases ({current_year - 2}-{current_year}) and currently trending movies when relevant
@@ -289,7 +435,29 @@ User's Profile:
 - Recently watched: {json.dumps(user_context['recently_watched'][:5])}
 - Preferred genres: {user_context['preferred_genres']}
 - Disliked genres: {user_context['disliked_genres']}
-{conversation_section}
+"""
+
+    base_tokens = estimate_tokens(base_prompt)
+    message_tokens = estimate_tokens(user_message)
+    history_budget = PROMPT_TOKEN_BUDGET - base_tokens - message_tokens - 200
+
+    conversation_section = ""
+    if conversation_history and history_budget > 0:
+        trimmed_history = trim_conversation_history(conversation_history, history_budget)
+        if trimmed_history:
+            history_lines = []
+            for msg in trimmed_history:
+                role = "User" if msg.get('type') == 'user' else "Assistant"
+                content = msg.get('content', '')[:300]
+                if msg.get('type') == 'user':
+                    content = sanitize_user_message(content)
+                history_lines.append(f"{role}: {content}")
+            conversation_section = f"""
+CONVERSATION HISTORY (for context - reference previous suggestions when relevant):
+{chr(10).join(history_lines)}
+"""
+
+    prompt = base_prompt + conversation_section + f"""
 User's Current Request: {user_message}
 
 Provide a helpful, personalized response. When recommending movies/TV shows, format as a numbered list:
@@ -360,7 +528,9 @@ def ai_chat(request):
                 'source': 'fallback'
             })
 
-        movie_titles = parse_movie_recommendations(response_text)
+        movie_titles = extract_movie_titles_structured(response_text)
+        if not movie_titles:
+            movie_titles = parse_movie_recommendations(response_text)
 
         movies = []
 
@@ -402,7 +572,8 @@ def ai_chat(request):
     except json.JSONDecodeError:
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
     except Exception as e:
-        return error_response(str(e), 'INTERNAL_ERROR', 500)
+        logger.error(f"AI chat error: {e}", exc_info=True)
+        return error_response('An unexpected error occurred. Please try again.', 'INTERNAL_ERROR', 500)
 
 
 @rate_limit()
@@ -445,6 +616,40 @@ def ai_chat_stream(request):
             }
             return JsonResponse(fallback_data)
 
+        def search_movie(title):
+            try:
+                search_data = tmdb_request("/search/multi", {"query": title, "page": 1})
+                if search_data.get('results'):
+                    for item in search_data['results'][:1]:
+                        if item.get('media_type') in ['movie', 'tv']:
+                            return {
+                                'id': item.get('id'),
+                                'tmdbId': item.get('id'),
+                                'title': item.get('title') or item.get('name'),
+                                'media_type': item.get('media_type'),
+                                'poster_path': item.get('poster_path'),
+                                'overview': item.get('overview', ''),
+                                'vote_average': item.get('vote_average'),
+                                'release_date': item.get('release_date') or item.get('first_air_date'),
+                            }
+            except Exception as e:
+                logger.warning(f"TMDB search failed for '{title}': {e}")
+            return None
+
+        def fetch_movies_for_titles(movie_titles):
+            movies = []
+            if movie_titles:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+                    future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:8]}
+                    for future in concurrent.futures.as_completed(future_to_title):
+                        try:
+                            result = future.result()
+                            if result:
+                                movies.append(result)
+                        except Exception as e:
+                            logger.warning(f"Movie search thread error: {e}")
+            return movies
+
         def event_stream():
             full_text = ""
             try:
@@ -453,39 +658,10 @@ def ai_chat_stream(request):
                         full_text += chunk.text
                         yield f"data: {json.dumps({'type': 'chunk', 'content': chunk.text})}\n\n"
 
-                movie_titles = parse_movie_recommendations(full_text)
-                movies = []
-
-                def search_movie(title):
-                    try:
-                        search_data = tmdb_request("/search/multi", {"query": title, "page": 1})
-                        if search_data.get('results'):
-                            for item in search_data['results'][:1]:
-                                if item.get('media_type') in ['movie', 'tv']:
-                                    return {
-                                        'id': item.get('id'),
-                                        'tmdbId': item.get('id'),
-                                        'title': item.get('title') or item.get('name'),
-                                        'media_type': item.get('media_type'),
-                                        'poster_path': item.get('poster_path'),
-                                        'overview': item.get('overview', ''),
-                                        'vote_average': item.get('vote_average'),
-                                        'release_date': item.get('release_date') or item.get('first_air_date'),
-                                    }
-                    except Exception as e:
-                        logger.warning(f"TMDB search failed for '{title}': {e}")
-                    return None
-
-                if movie_titles:
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-                        future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:8]}
-                        for future in concurrent.futures.as_completed(future_to_title):
-                            try:
-                                result = future.result()
-                                if result:
-                                    movies.append(result)
-                            except Exception as e:
-                                logger.warning(f"Movie search thread error: {e}")
+                movie_titles = extract_movie_titles_structured(full_text)
+                if not movie_titles:
+                    movie_titles = parse_movie_recommendations(full_text)
+                movies = fetch_movies_for_titles(movie_titles)
 
                 if not full_text and not movies:
                     fallback = get_fallback_trending_movies()
@@ -495,7 +671,22 @@ def ai_chat_stream(request):
 
             except Exception as e:
                 logger.error(f"Streaming error: {e}", exc_info=True)
-                yield f"data: {json.dumps({'type': 'error', 'message': 'Stream interrupted. Please try again.'})}\n\n"
+                logger.info("Attempting non-streaming fallback after stream failure")
+                try:
+                    response_text, api_error = call_gemini_api(prompt)
+                    if response_text and not api_error:
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': response_text})}\n\n"
+                        movie_titles = parse_movie_recommendations(response_text)
+                        movies = fetch_movies_for_titles(movie_titles)
+                        yield f"data: {json.dumps({'type': 'done', 'movies': movies})}\n\n"
+                        return
+                except Exception as fallback_err:
+                    logger.warning(f"Non-streaming fallback also failed: {fallback_err}")
+
+                fallback = get_fallback_trending_movies()
+                fallback_msg = "I'm experiencing high demand right now, but here are some trending movies you might enjoy!"
+                fallback_payload = json.dumps({'type': 'fallback', 'response': fallback_msg, 'movies': fallback, 'source': 'fallback'})
+                yield f"data: {fallback_payload}\n\n"
 
         response = StreamingHttpResponse(
             event_stream(),
@@ -508,7 +699,8 @@ def ai_chat_stream(request):
     except json.JSONDecodeError:
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
     except Exception as e:
-        return error_response(str(e), 'INTERNAL_ERROR', 500)
+        logger.error(f"AI chat stream error: {e}", exc_info=True)
+        return error_response('An unexpected error occurred. Please try again.', 'INTERNAL_ERROR', 500)
 
 
 @rate_limit()
