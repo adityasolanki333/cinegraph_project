@@ -361,7 +361,7 @@ export default function Home() {
 
   // Remove these functions as MovieCard will handle watchlist internally
 
-  const MovieRow = ({ title, movies, showMore = false, showMoreLink = "/movies", isLoading = false }: { title: string; movies: Movie[]; showMore?: boolean; showMoreLink?: string; isLoading?: boolean }) => (
+  const MovieRow = ({ title, movies, showMore = false, showMoreLink = "/movies", isLoading = false, showFeedback = false }: { title: string; movies: Movie[]; showMore?: boolean; showMoreLink?: string; isLoading?: boolean; showFeedback?: boolean }) => (
     <div className="mb-6 sm:mb-8" data-testid={`section-${title.toLowerCase().replace(/\s+/g, '-')}`}>
       <div className="flex items-center justify-between mb-3 sm:mb-4">
         <h2 className="text-xl sm:text-2xl font-bold text-foreground" data-testid={`title-${title.toLowerCase().replace(/\s+/g, '-')}`}>{title}</h2>
@@ -392,6 +392,7 @@ export default function Home() {
                   recommendationStrategy={movie.recommendationStrategy}
                   recommendationReason={movie.recommendationReason}
                   showExplanation={true}
+                  showFeedback={showFeedback}
                 />
               </div>
             ))
@@ -582,6 +583,7 @@ export default function Home() {
             movies={hybridData}
             showMore={false}
             isLoading={hybridLoading}
+            showFeedback={true}
           />
         )}
 
