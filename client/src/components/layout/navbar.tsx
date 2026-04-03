@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, Film, Tv, Sparkles, Heart, Menu, X, User, Settings, LogIn, LogOut, Loader2, Users } from "lucide-react";
+import { Search, Film, Tv, Sparkles, Heart, Menu, X, User, Settings, LogIn, LogOut, Loader2, Users, Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, logout } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
@@ -298,6 +298,12 @@ export default function Navbar() {
                       <Link href="/settings" className="flex items-center" data-testid="link-settings">
                         <Settings className="mr-2 h-4 w-4" />
                         <span>Settings</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/my-list" className="flex items-center" data-testid="link-my-list">
+                        <Bookmark className="mr-2 h-4 w-4" />
+                        <span>My List</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />

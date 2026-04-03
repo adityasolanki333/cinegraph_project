@@ -88,7 +88,7 @@ export default function Profile() {
     refetchInterval: 30000,
   });
 
-  // ── Favorites ────────────────────────────────────────────────────────────
+  // ── Favorites (own profile only — 403 for others) ────────────────────────
   const { data: userFavorites, isLoading: favoritesLoading } = useQuery({
     queryKey: ['/api/users', profileUserId, 'favorites'],
     queryFn: async () => {
@@ -98,11 +98,11 @@ export default function Profile() {
       const data = await response.json();
       return data.items || (Array.isArray(data) ? data : []);
     },
-    enabled: !!profileUserId,
+    enabled: isOwnProfile && !!profileUserId,
     refetchInterval: 30000,
   });
 
-  // ── Watched ──────────────────────────────────────────────────────────────
+  // ── Watched (own profile only — 403 for others) ──────────────────────────
   const { data: userWatched, isLoading: watchedLoading } = useQuery({
     queryKey: ['/api/users', profileUserId, 'watched'],
     queryFn: async () => {
@@ -112,11 +112,11 @@ export default function Profile() {
       const data = await response.json();
       return data.items || (Array.isArray(data) ? data : []);
     },
-    enabled: !!profileUserId,
+    enabled: isOwnProfile && !!profileUserId,
     refetchInterval: 30000,
   });
 
-  // ── Watchlist ────────────────────────────────────────────────────────────
+  // ── Watchlist (own profile only — 403 for others) ────────────────────────
   const { data: userWatchlist, isLoading: watchlistLoading } = useQuery({
     queryKey: ['/api/users', profileUserId, 'watchlist'],
     queryFn: async () => {
@@ -126,7 +126,7 @@ export default function Profile() {
       const data = await response.json();
       return data.items || (Array.isArray(data) ? data : []);
     },
-    enabled: !!profileUserId,
+    enabled: isOwnProfile && !!profileUserId,
     staleTime: 0,
     refetchOnMount: true,
     refetchInterval: 30000,
@@ -428,65 +428,121 @@ export default function Profile() {
 
         {/* Stats Grid */}
         <div className="lg:w-2/3 w-full grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <Bookmark className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-primary mb-2" />
-              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-watchlist">
-                {watchlistLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.watchlistCount}
-              </div>
-              <div className="text-xs sm:text-sm text-muted-foreground">Watchlist</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <Eye className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-primary mb-2" />
-              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-watched">
-                {watchedLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.totalWatched}
-              </div>
-              <div className="text-xs sm:text-sm text-muted-foreground">Watched</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <Heart className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-primary mb-2" />
-              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-favorites-count">
-                {favoritesLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.favoritesCount}
-              </div>
-              <div className="text-xs sm:text-sm text-muted-foreground">Favorites</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <Star className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-yellow-500 mb-2" />
-              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-avg-rating">
-                {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.avgRating.toFixed(1)}
-              </div>
-              <div className="text-xs sm:text-sm text-muted-foreground">Avg Rating</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <Star className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
-              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-total-rated">
-                {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : (userRatings?.length || 0)}
-              </div>
-              <div className="text-xs sm:text-sm text-muted-foreground">Total Rated</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
-              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-reviews">
-                {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.reviewsCount}
-              </div>
-              <div className="text-xs sm:text-sm text-muted-foreground">Reviews</div>
-            </CardContent>
-          </Card>
+          {isOwnProfile ? (
+            <>
+              <Card>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <Bookmark className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-primary mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold" data-testid="stat-watchlist">
+                    {watchlistLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.watchlistCount}
+                  </div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Watchlist</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <Eye className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-primary mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold" data-testid="stat-watched">
+                    {watchedLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.totalWatched}
+                  </div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Watched</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <Heart className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-red-500 mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold" data-testid="stat-favorites-count">
+                    {favoritesLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.favoritesCount}
+                  </div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Favorites</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <Film className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold" data-testid="stat-total-rated">
+                    {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : (userRatings?.length || 0)}
+                  </div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Rated</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <Star className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-yellow-500 mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold" data-testid="stat-avg-rating">
+                    {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.avgRating.toFixed(1)}
+                  </div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Avg Rating</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold" data-testid="stat-reviews">
+                    {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.reviewsCount}
+                  </div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Reviews</div>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <>
+              <Card>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <Film className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold" data-testid="stat-total-rated">
+                    {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : (userRatings?.length || 0)}
+                  </div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Rated</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <Star className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-yellow-500 mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold" data-testid="stat-avg-rating">
+                    {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.avgRating.toFixed(1)}
+                  </div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Avg Rating</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-accent mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold" data-testid="stat-reviews">
+                    {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.reviewsCount}
+                  </div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Reviews</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <ListIcon className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-primary mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold" data-testid="stat-lists">
+                    {statsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : (userStats?.totalLists ?? 0)}
+                  </div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Lists</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <UsersIcon className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-primary mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold" data-testid="stat-followers-grid">
+                    {statsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : (userStats?.totalFollowers ?? 0)}
+                  </div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Followers</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <Trophy className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-amber-500 mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold" data-testid="stat-awards">
+                    {statsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : (userStats?.totalAwardsReceived ?? 0)}
+                  </div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Awards</div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
       </div>
 
@@ -498,9 +554,35 @@ export default function Profile() {
       )}
 
       {/* Tabs */}
-      <Tabs defaultValue={isOwnProfile ? "patterns" : "rated"} className="w-full">
+      <Tabs defaultValue="rated" className="w-full">
         <div className="overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 mb-6">
           <TabsList className="inline-flex w-max gap-0.5" data-testid="tabs-profile">
+            <TabsTrigger value="rated" data-testid="tab-rated-items">
+              <Star className="h-4 w-4 mr-1.5" />
+              Rated
+            </TabsTrigger>
+            {isOwnProfile && (
+              <TabsTrigger value="watchlist" data-testid="tab-watchlist">
+                <Bookmark className="h-4 w-4 mr-1.5" />
+                Watchlist
+              </TabsTrigger>
+            )}
+            {isOwnProfile && (
+              <TabsTrigger value="favorites" data-testid="tab-favorites">
+                <Heart className="h-4 w-4 mr-1.5" />
+                Favorites
+              </TabsTrigger>
+            )}
+            {isOwnProfile && (
+              <TabsTrigger value="watched" data-testid="tab-watched">
+                <Eye className="h-4 w-4 mr-1.5" />
+                Watched
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="lists" data-testid="tab-my-lists">
+              <ListIcon className="h-4 w-4 mr-1.5" />
+              Lists
+            </TabsTrigger>
             {isOwnProfile && (
               <TabsTrigger value="patterns" data-testid="tab-patterns">
                 <TrendingUp className="h-4 w-4 mr-1.5" />
@@ -515,26 +597,6 @@ export default function Profile() {
                 <span className="sm:hidden">Impact</span>
               </TabsTrigger>
             )}
-            <TabsTrigger value="lists" data-testid="tab-my-lists">
-              <ListIcon className="h-4 w-4 mr-1.5" />
-              {isOwnProfile ? 'Lists' : 'Lists'}
-            </TabsTrigger>
-            <TabsTrigger value="rated" data-testid="tab-rated-items">
-              <Star className="h-4 w-4 mr-1.5" />
-              Rated
-            </TabsTrigger>
-            <TabsTrigger value="watchlist" data-testid="tab-watchlist">
-              <Bookmark className="h-4 w-4 mr-1.5" />
-              Watchlist
-            </TabsTrigger>
-            <TabsTrigger value="favorites" data-testid="tab-favorites">
-              <Heart className="h-4 w-4 mr-1.5" />
-              Favorites
-            </TabsTrigger>
-            <TabsTrigger value="watched" data-testid="tab-watched">
-              <Eye className="h-4 w-4 mr-1.5" />
-              Watched
-            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -662,8 +724,8 @@ export default function Profile() {
           </Card>
         </TabsContent>
 
-        {/* Watchlist Tab */}
-        <TabsContent value="watchlist">
+        {/* Watchlist Tab — own profile only */}
+        {isOwnProfile && <TabsContent value="watchlist">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -695,22 +757,18 @@ export default function Profile() {
               ) : (
                 <div className="text-center py-12">
                   <Bookmark className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    {isOwnProfile ? "Your watchlist is empty" : "This user's watchlist is empty"}
-                  </p>
-                  {isOwnProfile && (
-                    <Button variant="outline" className="mt-4" onClick={() => setLocation('/movies')}>
-                      Browse movies to add
-                    </Button>
-                  )}
+                  <p className="text-muted-foreground">Your watchlist is empty</p>
+                  <Button variant="outline" className="mt-4" onClick={() => setLocation('/movies')}>
+                    Browse movies to add
+                  </Button>
                 </div>
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        </TabsContent>}
 
-        {/* Favorites Tab */}
-        <TabsContent value="favorites">
+        {/* Favorites Tab — own profile only */}
+        {isOwnProfile && <TabsContent value="favorites">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -742,22 +800,18 @@ export default function Profile() {
               ) : (
                 <div className="text-center py-12">
                   <Heart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    {isOwnProfile ? "No favorites yet" : "This user has no favorites yet"}
-                  </p>
-                  {isOwnProfile && (
-                    <Button variant="outline" className="mt-4" onClick={() => setLocation('/movies')}>
-                      Browse movies to favorite
-                    </Button>
-                  )}
+                  <p className="text-muted-foreground">No favorites yet</p>
+                  <Button variant="outline" className="mt-4" onClick={() => setLocation('/movies')}>
+                    Browse movies to favorite
+                  </Button>
                 </div>
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        </TabsContent>}
 
-        {/* Watched Tab */}
-        <TabsContent value="watched">
+        {/* Watched Tab — own profile only */}
+        {isOwnProfile && <TabsContent value="watched">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -789,19 +843,15 @@ export default function Profile() {
               ) : (
                 <div className="text-center py-12">
                   <Eye className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    {isOwnProfile ? "Nothing marked as watched yet" : "This user hasn't marked anything as watched"}
-                  </p>
-                  {isOwnProfile && (
-                    <Button variant="outline" className="mt-4" onClick={() => setLocation('/movies')}>
-                      Browse movies to watch
-                    </Button>
-                  )}
+                  <p className="text-muted-foreground">Nothing marked as watched yet</p>
+                  <Button variant="outline" className="mt-4" onClick={() => setLocation('/movies')}>
+                    Browse movies to watch
+                  </Button>
                 </div>
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        </TabsContent>}
 
         {/* My Impact Tab */}
         {isOwnProfile && profileUserId && (
