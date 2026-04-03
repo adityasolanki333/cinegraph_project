@@ -142,31 +142,28 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
     return { x: -1, y: -1 };
   });
   const fabRef = useRef<HTMLButtonElement>(null);
-  const dragState = useRef<{
-    isDragging: boolean;
-    moved: boolean;
-    startX: number;
-    startY: number;
-    startPosX: number;
-    startPosY: number;
-  }>({ isDragging: false, moved: false, startX: 0, startY: 0, startPosX: 0, startPosY: 0 });
+  const dragState = useRef({
+    active: false,
+    moved: false,
+    pointerId: -1,
+    startX: 0,
+    startY: 0,
+    startPosX: 0,
+    startPosY: 0,
+  });
 
   const clampPos = useCallback((x: number, y: number) => {
     const size = 56;
     const pad = 4;
-    const maxX = window.innerWidth - size - pad;
-    const maxY = window.innerHeight - size - pad;
     return {
-      x: Math.max(pad, Math.min(x, maxX)),
-      y: Math.max(pad, Math.min(y, maxY)),
+      x: Math.max(pad, Math.min(x, window.innerWidth - size - pad)),
+      y: Math.max(pad, Math.min(y, window.innerHeight - size - pad)),
     };
   }, []);
 
   useEffect(() => {
     if (fabPos.x === -1 && fabPos.y === -1) {
-      const defaultX = window.innerWidth - 56 - 16;
-      const defaultY = window.innerHeight - 56 - 80;
-      setFabPos({ x: defaultX, y: defaultY });
+      setFabPos({ x: window.innerWidth - 56 - 16, y: window.innerHeight - 56 - 80 });
     }
   }, [fabPos]);
 
@@ -177,83 +174,53 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   }, [fabPos]);
 
   useEffect(() => {
-    const onResize = () => {
-      setFabPos(prev => {
-        if (prev.x < 0 || prev.y < 0) return prev;
-        return clampPos(prev.x, prev.y);
-      });
-    };
+    const onResize = () => setFabPos(prev => prev.x < 0 ? prev : clampPos(prev.x, prev.y));
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [clampPos]);
 
-  const handleDragStart = useCallback((clientX: number, clientY: number) => {
-    const el = fabRef.current;
-    if (!el) return;
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
     dragState.current = {
-      isDragging: true,
+      active: true,
       moved: false,
-      startX: clientX,
-      startY: clientY,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
       startPosX: fabPos.x,
       startPosY: fabPos.y,
     };
   }, [fabPos]);
 
-  const handleDragMove = useCallback((clientX: number, clientY: number) => {
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     const ds = dragState.current;
-    if (!ds.isDragging) return;
-    const dx = clientX - ds.startX;
-    const dy = clientY - ds.startY;
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-      ds.moved = true;
-    }
-    if (ds.moved) {
-      setFabPos(clampPos(ds.startPosX + dx, ds.startPosY + dy));
-    }
+    if (!ds.active) return;
+    const dx = e.clientX - ds.startX;
+    const dy = e.clientY - ds.startY;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) ds.moved = true;
+    if (ds.moved) setFabPos(clampPos(ds.startPosX + dx, ds.startPosY + dy));
   }, [clampPos]);
 
-  const handleDragEnd = useCallback(() => {
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     const ds = dragState.current;
-    if (!ds.isDragging) return;
+    if (!ds.active) return;
+    e.currentTarget.releasePointerCapture(ds.pointerId);
     const wasDrag = ds.moved;
-    ds.isDragging = false;
+    ds.active = false;
     ds.moved = false;
-
     if (!wasDrag) {
       toggleOpen();
     } else {
       const size = 56;
-      const midX = window.innerWidth / 2;
       setFabPos(prev => {
-        const snappedX = (prev.x + size / 2) < midX ? 4 : window.innerWidth - size - 4;
+        const snappedX = (prev.x + size / 2) < window.innerWidth / 2 ? 4 : window.innerWidth - size - 4;
         return clampPos(snappedX, prev.y);
       });
     }
   }, [toggleOpen, clampPos]);
-
-  useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => handleDragMove(e.clientX, e.clientY);
-    const onMouseUp = () => handleDragEnd();
-    const onTouchMove = (e: TouchEvent) => {
-      if (dragState.current.isDragging) {
-        e.preventDefault();
-        handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
-      }
-    };
-    const onTouchEnd = () => handleDragEnd();
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-    window.addEventListener('touchmove', onTouchMove, { passive: false });
-    window.addEventListener('touchend', onTouchEnd);
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      window.removeEventListener('touchmove', onTouchMove);
-      window.removeEventListener('touchend', onTouchEnd);
-    };
-  }, [handleDragMove, handleDragEnd]);
 
   useEffect(() => {
     const toSave = messages.map(m => ({
@@ -864,8 +831,10 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
       {!isOpen && fabPos.x >= 0 && fabPos.y >= 0 && (
         <button
           ref={fabRef}
-          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDragStart(e.clientX, e.clientY); }}
-          onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); handleDragStart(e.touches[0].clientX, e.touches[0].clientY); }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
           className="fixed h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300 p-0 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center select-none touch-none cursor-grab active:cursor-grabbing z-[60]"
           style={{ left: fabPos.x, top: fabPos.y }}
