@@ -469,13 +469,6 @@ export function AdvancedRecommendations() {
               </div>
             </div>
 
-            {recommendations.searchMethod && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Badge variant="outline" className="text-[10px]" data-testid="badge-search-method">
-                  {recommendations.searchMethod === 'pinecone_semantic' ? 'Vector Search' : 'TF-IDF Search'}
-                </Badge>
-              </div>
-            )}
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
               {recommendations.recommendations.map((rec: AdvancedRecommendation, index: number) => {
