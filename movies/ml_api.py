@@ -85,81 +85,232 @@ def enrich_recommendations_with_tmdb(recommendations, default_media_type='movie'
 
 @require_GET
 def get_hybrid_recommendations(request, user_id):
-    """Get hybrid recommendations combining collaborative and content-based filtering"""
+    """
+    Hybrid recommendations – tiered strategy:
+      1. MovieLens item-item similarity seeded from user's liked/favorited movies
+      2. TMDB Discover filtered by user's preferred genres (onboarding prefs)
+      3. TMDB trending/popular as final fallback
+    """
+    from datetime import datetime, date
+    from . import api as tmdb_api
+    from .models import UserPreferences
+
+    GENRE_NAME_TO_ID = {
+        'Action': 28, 'Adventure': 12, 'Animation': 16, 'Comedy': 35,
+        'Crime': 80, 'Documentary': 99, 'Drama': 18, 'Family': 10751,
+        'Fantasy': 14, 'History': 36, 'Horror': 27, 'Music': 10402,
+        'Mystery': 9648, 'Romance': 10749, 'Science Fiction': 878,
+        'Sci-Fi': 878, 'Thriller': 53, 'War': 10752, 'Western': 37,
+        'Action & Adventure': 10759, 'Sci-Fi & Fantasy': 10765,
+    }
+
     try:
         user = User.objects.filter(id=user_id).first()
         if not user:
             return JsonResponse({"error": "User not found"}, status=404)
-        
+
         limit = min(int(request.GET.get('limit', 20)), 100)
-        
-        from .ml.recommendation_engine import hybrid_recommender, recommendation_engine
-        
+        current_year = datetime.now().year
+
+        # ── Collect user context ───────────────────────────────────────────
+        # Items user has already seen / rated – exclude from results
+        reviewed_ids = set(UserReview.objects.filter(user=user).values_list('tmdb_id', flat=True))
+        watchlist_ids = set(UserWatchlist.objects.filter(user=user).values_list('tmdb_id', flat=True))
+        favorite_ids = list(
+            UserFavorites.objects.filter(user=user)
+            .order_by('-added_at')
+            .values_list('tmdb_id', flat=True)[:20]
+        )
+        # Highly-rated reviews (rating ≥ 7 out of 10) as additional seeds
+        liked_review_ids = list(
+            UserReview.objects.filter(user=user, rating__gte=7)
+            .order_by('-created_at')
+            .values_list('tmdb_id', flat=True)[:15]
+        )
+        excluded_ids = reviewed_ids | watchlist_ids
+
+        # Disliked items via feedback
         try:
-            recommendation_engine.build_user_item_matrix(None)
-            recommendations = hybrid_recommender.get_recommendations(user_id, limit)
-        except Exception as e:
-            recommendations = []
-        
-        if not recommendations:
-            from . import api
-            from datetime import datetime
+            dismissed_ids = set(
+                Recommendation.objects.filter(user=user, user_feedback='disliked')
+                .values_list('tmdb_id', flat=True)
+            )
+            excluded_ids |= dismissed_ids
+        except Exception:
+            pass
 
-            # Pull from multiple high-quality sources
-            sources = [
-                ("/trending/all/week", {}, "Trending this week"),
-                ("/movie/popular", {"page": 1}, "Popular right now"),
-                ("/movie/now_playing", {"page": 1}, "In cinemas now"),
-                ("/tv/popular", {"page": 1}, "Popular on TV"),
-            ]
+        # Seed list: favorites first (most intentional signal), then liked reviews
+        seed_ids = list(dict.fromkeys(favorite_ids + liked_review_ids))  # deduplicate, keep order
 
-            pool = {}  # keyed by (id, media_type) to deduplicate
-            for endpoint, params, reason in sources:
+        # User's preferred genres (set during onboarding)
+        preferred_genre_ids = []
+        try:
+            prefs = UserPreferences.objects.get(user=user)
+            for gname in (prefs.preferred_genres or []):
+                gid = GENRE_NAME_TO_ID.get(gname)
+                if gid:
+                    preferred_genre_ids.append(gid)
+        except UserPreferences.DoesNotExist:
+            pass
+
+        def quality_score(item, movielens_sim=0.0):
+            """Unified scorer: ML similarity + TMDB quality + recency."""
+            vote_avg = item.get('vote_average', 0)
+            popularity = item.get('popularity', 0)
+            raw_date = item.get('release_date') or item.get('first_air_date', '')
+            try:
+                year = int(raw_date[:4]) if raw_date else 2000
+            except ValueError:
+                year = 2000
+            recency = max(0, 1 - (current_year - year) / 15)  # decays over 15 years
+            tmdb_score = (vote_avg / 10) * 0.35 + min(popularity / 300, 1) * 0.25 + recency * 0.20
+            return movielens_sim * 0.20 + tmdb_score  # ML signal worth 20 %
+
+        recommendations = []
+
+        # ═══════════════════════════════════════════════════════════════════
+        # TIER 1 — MovieLens item-item similarity
+        # ═══════════════════════════════════════════════════════════════════
+        if seed_ids:
+            try:
+                from .ml.movielens_engine import movielens_engine
+                if movielens_engine.is_ready():
+                    ml_pairs = movielens_engine.get_recommendations(
+                        liked_tmdb_ids=seed_ids,
+                        excluded_tmdb_ids=excluded_ids,
+                        k=limit * 3,
+                    )
+                    if ml_pairs:
+                        sim_map = {tmdb_id: sim for tmdb_id, sim in ml_pairs}
+                        raw_recs = [
+                            {'tmdb_id': tid, 'score': sim, 'type': 'movielens',
+                             'reason': 'Based on movies you liked', 'media_type': 'movie'}
+                            for tid, sim in ml_pairs[: limit * 3]
+                        ]
+                        enriched = enrich_recommendations_with_tmdb(raw_recs, max_workers=12)
+
+                        # Quality filter + re-score
+                        filtered = []
+                        for rec in enriched:
+                            if (rec.get('poster_path')
+                                    and rec.get('vote_average', 0) >= 5.5
+                                    and rec.get('vote_count', 0) >= 20):
+                                rec['score'] = quality_score(rec, sim_map.get(rec['tmdb_id'], 0))
+                                filtered.append(rec)
+
+                        filtered.sort(key=lambda x: x['score'], reverse=True)
+                        recommendations = filtered[:limit]
+                        print(f'MovieLens: returned {len(recommendations)} recs for user {user_id}')
+            except Exception as e:
+                print(f'MovieLens tier failed: {e}')
+
+        # ═══════════════════════════════════════════════════════════════════
+        # TIER 2 — TMDB Discover filtered by preferred genres
+        # ═══════════════════════════════════════════════════════════════════
+        if len(recommendations) < limit // 2:
+            existing_ids = {r['tmdb_id'] for r in recommendations}
+            genre_pool = {}
+
+            genres_to_try = preferred_genre_ids[:3] if preferred_genre_ids else [28, 878, 18]
+            three_years_ago = str(current_year - 3)
+
+            discover_calls = []
+            for gid in genres_to_try:
+                discover_calls += [
+                    ('/discover/movie', {
+                        'with_genres': gid,
+                        'sort_by': 'vote_average.desc',
+                        'vote_count.gte': 200,
+                        'primary_release_date.gte': f'{three_years_ago}-01-01',
+                        'page': 1,
+                    }, 'movie', f'Top-rated {gid} from the last 3 years'),
+                    ('/discover/tv', {
+                        'with_genres': gid,
+                        'sort_by': 'vote_average.desc',
+                        'vote_count.gte': 100,
+                        'first_air_date.gte': f'{three_years_ago}-01-01',
+                        'page': 1,
+                    }, 'tv', f'Top-rated {gid} TV from the last 3 years'),
+                ]
+            # Also add all-time highly rated in preferred genres
+            for gid in genres_to_try[:2]:
+                discover_calls.append(
+                    ('/discover/movie', {
+                        'with_genres': gid,
+                        'sort_by': 'vote_average.desc',
+                        'vote_count.gte': 1000,
+                        'page': 1,
+                    }, 'movie', 'Highly rated match for your taste')
+                )
+
+            for endpoint, params, mtype, reason in discover_calls:
                 try:
-                    data = api.tmdb_request(endpoint, params)
+                    data = tmdb_api.tmdb_request(endpoint, params)
                     for item in data.get('results', []):
-                        key = (item['id'], item.get('media_type', 'movie' if '/movie' in endpoint else 'tv'))
-                        if key not in pool:
-                            pool[key] = (item, reason)
+                        tid = item['id']
+                        if tid in excluded_ids or tid in existing_ids or tid in genre_pool:
+                            continue
+                        if not item.get('poster_path'):
+                            continue
+                        if item.get('vote_average', 0) < 6.0:
+                            continue
+                        genre_pool[tid] = (item, mtype, reason)
                 except Exception:
                     pass
 
-            # Quality filter: must have poster, decent rating and enough votes
-            MIN_RATING = 6.5
-            MIN_VOTES = 50
-            MIN_POPULARITY = 20
+            genre_recs = []
+            for tid, (item, mtype, reason) in genre_pool.items():
+                score = quality_score(item)
+                genre_recs.append({
+                    'tmdb_id': tid,
+                    'media_type': mtype,
+                    'title': item.get('title') or item.get('name', ''),
+                    'poster_path': item.get('poster_path'),
+                    'backdrop_path': item.get('backdrop_path'),
+                    'overview': item.get('overview', ''),
+                    'vote_average': round(item.get('vote_average', 0), 1),
+                    'vote_count': item.get('vote_count', 0),
+                    'popularity': round(item.get('popularity', 0), 1),
+                    'release_date': item.get('release_date') or item.get('first_air_date', ''),
+                    'genre_ids': item.get('genre_ids', []),
+                    'score': round(score, 4),
+                    'type': 'genre-discover',
+                    'reason': reason,
+                })
 
-            current_year = datetime.now().year
+            genre_recs.sort(key=lambda x: x['score'], reverse=True)
+            needed = limit - len(recommendations)
+            recommendations += genre_recs[:needed]
+            print(f'Genre-discover: added {min(len(genre_recs), needed)} recs for user {user_id}')
 
-            def quality_score(item):
-                """Blend popularity, rating and recency into a single rank."""
-                vote_avg = item.get('vote_average', 0)
-                popularity = item.get('popularity', 0)
-                raw_date = item.get('release_date') or item.get('first_air_date', '')
-                try:
-                    year = int(raw_date[:4]) if raw_date else 2000
-                except ValueError:
-                    year = 2000
-                recency = max(0, 1 - (current_year - year) / 20)  # decays over 20 years
-                return (vote_avg / 10) * 0.45 + min(popularity / 500, 1) * 0.35 + recency * 0.20
-
-            filtered = [
-                (item, reason)
-                for (item, reason) in pool.values()
-                if (
-                    item.get('poster_path')
-                    and item.get('vote_average', 0) >= MIN_RATING
-                    and item.get('vote_count', 0) >= MIN_VOTES
-                    and item.get('popularity', 0) >= MIN_POPULARITY
-                )
+        # ═══════════════════════════════════════════════════════════════════
+        # TIER 3 — Trending / popular fallback
+        # ═══════════════════════════════════════════════════════════════════
+        if len(recommendations) < limit // 2:
+            existing_ids = {r['tmdb_id'] for r in recommendations}
+            fallback_pool = {}
+            fallback_sources = [
+                ('/trending/all/week', {}, 'Trending this week'),
+                ('/movie/now_playing', {'page': 1}, 'In cinemas now'),
+                ('/tv/popular', {'page': 1}, 'Popular on TV'),
             ]
+            for endpoint, params, reason in fallback_sources:
+                try:
+                    data = tmdb_api.tmdb_request(endpoint, params)
+                    for item in data.get('results', []):
+                        tid = item['id']
+                        mtype = item.get('media_type', 'movie' if '/movie' in endpoint else 'tv')
+                        if tid not in excluded_ids and tid not in existing_ids and tid not in fallback_pool:
+                            if item.get('poster_path') and item.get('vote_average', 0) >= 6.5:
+                                fallback_pool[tid] = (item, mtype, reason)
+                except Exception:
+                    pass
 
-            filtered.sort(key=lambda x: quality_score(x[0]), reverse=True)
-
-            recommendations = [
-                {
-                    'tmdb_id': item['id'],
-                    'media_type': item.get('media_type', 'movie' if not item.get('first_air_date') else 'tv'),
+            fallback_recs = []
+            for tid, (item, mtype, reason) in fallback_pool.items():
+                fallback_recs.append({
+                    'tmdb_id': tid,
+                    'media_type': mtype,
                     'title': item.get('title') or item.get('name', ''),
                     'poster_path': item.get('poster_path'),
                     'backdrop_path': item.get('backdrop_path'),
@@ -170,37 +321,24 @@ def get_hybrid_recommendations(request, user_id):
                     'release_date': item.get('release_date') or item.get('first_air_date', ''),
                     'genre_ids': item.get('genre_ids', []),
                     'score': round(quality_score(item), 4),
-                    'type': 'curated',
+                    'type': 'trending',
                     'reason': reason,
-                }
-                for item, reason in filtered
-            ][:limit]
-        else:
-            # Enrich ML-generated recommendations with TMDB metadata
-            recommendations = enrich_recommendations_with_tmdb(recommendations)
+                })
 
-        # Filter out movies this user has explicitly disliked
-        try:
-            from .models import Recommendation
-            dismissed_tmdb_ids = set(
-                Recommendation.objects.filter(user=user, user_feedback='disliked').values_list('tmdb_id', flat=True)
-            )
-            if dismissed_tmdb_ids:
-                recommendations = [
-                    r for r in recommendations
-                    if r.get('tmdb_id') not in dismissed_tmdb_ids
-                ]
-        except Exception:
-            pass
+            fallback_recs.sort(key=lambda x: x['score'], reverse=True)
+            needed = limit - len(recommendations)
+            recommendations += fallback_recs[:needed]
 
         return JsonResponse({
             "user_id": user_id,
-            "recommendations": recommendations,
+            "recommendations": recommendations[:limit],
             "type": "hybrid",
-            "count": len(recommendations)
+            "count": len(recommendations[:limit]),
         })
 
     except Exception as e:
+        import traceback
+        print(f'get_hybrid_recommendations error: {traceback.format_exc()}')
         return JsonResponse({"error": str(e)}, status=500)
 
 
