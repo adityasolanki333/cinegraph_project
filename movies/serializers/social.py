@@ -27,10 +27,16 @@ class UserReviewSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'helpfulCount', 'createdAt', 'updatedAt']
 
     def get_user(self, obj):
+        profile_image_url = None
+        try:
+            profile_image_url = obj.user.profile.profile_image_url
+        except Exception:
+            pass
         return {
             'id': str(obj.user.id),
-            'firstName': obj.user.first_name,
+            'firstName': obj.user.first_name or obj.user.username or obj.user.email.split('@')[0],
             'lastName': obj.user.last_name,
+            'profileImageUrl': profile_image_url,
         }
 
 

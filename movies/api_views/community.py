@@ -210,14 +210,14 @@ class CommunityFeedView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        qs = UserReview.objects.filter(is_public=True).select_related('user').order_by('-created_at')
+        qs = UserReview.objects.filter(is_public=True).select_related('user', 'user__profile').order_by('-created_at')
         reviews, pagination = paginate_queryset(request, qs)
 
         activities = [{
             'id': r.id,
             'type': 'review',
             'userId': str(r.user.id),
-            'userName': r.user.first_name or r.user.email,
+            'userName': r.user.first_name or r.user.username or r.user.email,
             'tmdbId': r.tmdb_id,
             'mediaType': r.media_type,
             'title': r.title,
@@ -225,6 +225,11 @@ class CommunityFeedView(APIView):
             'rating': r.rating,
             'review': r.review_text[:200] if r.review_text else '',
             'createdAt': r.created_at.isoformat(),
+            'user': {
+                'firstName': r.user.first_name or r.user.username or r.user.email.split('@')[0],
+                'lastName': r.user.last_name,
+                'profileImageUrl': r.user.profile.profile_image_url if hasattr(r.user, 'profile') else None,
+            },
         } for r in reviews]
 
         return Response({'activities': activities, **pagination})
@@ -397,9 +402,9 @@ class PersonalizedFeedView(APIView):
         if following_ids:
             qs = UserReview.objects.filter(
                 user_id__in=following_ids, is_public=True
-            ).select_related('user').order_by('-created_at')
+            ).select_related('user', 'user__profile').order_by('-created_at')
         else:
-            qs = UserReview.objects.filter(is_public=True).select_related('user').order_by('-created_at')
+            qs = UserReview.objects.filter(is_public=True).select_related('user', 'user__profile').order_by('-created_at')
 
         reviews, pagination = paginate_queryset(request, qs)
 
@@ -407,7 +412,7 @@ class PersonalizedFeedView(APIView):
             'id': r.id,
             'type': 'review',
             'userId': str(r.user.id),
-            'userName': r.user.first_name or r.user.email,
+            'userName': r.user.first_name or r.user.username or r.user.email,
             'tmdbId': r.tmdb_id,
             'mediaType': r.media_type,
             'title': r.title,
@@ -415,6 +420,11 @@ class PersonalizedFeedView(APIView):
             'rating': r.rating,
             'review': r.review_text[:200] if r.review_text else '',
             'createdAt': r.created_at.isoformat(),
+            'user': {
+                'firstName': r.user.first_name or r.user.username or r.user.email.split('@')[0],
+                'lastName': r.user.last_name,
+                'profileImageUrl': r.user.profile.profile_image_url if hasattr(r.user, 'profile') else None,
+            },
         } for r in reviews]
 
         return Response({'activities': activities, **pagination})

@@ -131,17 +131,17 @@ class RatingsView(APIView):
             return Response({'error': 'tmdbId required', 'code': 'VALIDATION_ERROR'}, status=400)
         reviews = UserReview.objects.filter(
             tmdb_id=tmdb_id, media_type=media_type, is_public=True
-        ).select_related('user').order_by('-created_at')
+        ).select_related('user', 'user__profile').order_by('-created_at')
         return Response([{
             'id': r.id, 'userId': r.user.id,
-            'username': r.user.first_name or r.user.email.split('@')[0],
+            'username': r.user.first_name or r.user.username or r.user.email.split('@')[0],
             'tmdbId': r.tmdb_id, 'mediaType': r.media_type, 'title': r.title,
             'rating': r.rating, 'review': r.review_text,
             'helpfulCount': r.helpful_count, 'createdAt': r.created_at.isoformat(),
             'user': {
-                'firstName': r.user.first_name or '',
+                'firstName': r.user.first_name or r.user.username or r.user.email.split('@')[0],
                 'lastName': r.user.last_name or '',
-                'profileImageUrl': None,
+                'profileImageUrl': r.user.profile.profile_image_url if hasattr(r.user, 'profile') else None,
             }
         } for r in reviews])
 
@@ -185,7 +185,7 @@ class ManageRatingView(APIView):
 
     def get(self, request, review_id):
         try:
-            review = UserReview.objects.select_related('user').get(id=review_id)
+            review = UserReview.objects.select_related('user', 'user__profile').get(id=review_id)
         except UserReview.DoesNotExist:
             return Response({'error': 'Rating not found', 'code': 'NOT_FOUND'}, status=404)
         return Response({
@@ -193,7 +193,7 @@ class ManageRatingView(APIView):
             'title': review.title, 'rating': review.rating, 'review': review.review_text,
             'isPublic': review.is_public, 'helpfulCount': review.helpful_count,
             'createdAt': review.created_at.isoformat(),
-            'user': {'id': str(review.user.id), 'firstName': review.user.first_name, 'lastName': review.user.last_name}
+            'user': {'id': str(review.user.id), 'firstName': review.user.first_name or review.user.username or review.user.email.split('@')[0], 'lastName': review.user.last_name, 'profileImageUrl': review.user.profile.profile_image_url if hasattr(review.user, 'profile') else None}
         })
 
     def _require_owner(self, request, review):
@@ -458,9 +458,9 @@ class TopReviewsView(APIView):
         return Response({
             'reviews': [{
                 'id': r.id, 'userId': str(r.user.id),
-                'userName': r.user.first_name or r.user.email,
+                'userName': r.user.first_name or r.user.username or r.user.email,
                 'user': {
-                    'firstName': r.user.first_name or '',
+                    'firstName': r.user.first_name or r.user.username or r.user.email.split('@')[0],
                     'lastName': r.user.last_name or '',
                     'profileImageUrl': getattr(r.user.profile, 'profile_image_url', None) if hasattr(r.user, 'profile') else None,
                 },

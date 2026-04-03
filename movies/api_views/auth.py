@@ -33,11 +33,26 @@ class ResetPasswordSerializer(serializers.Serializer):
 
 
 def _user_dict(user):
+    from movies.models.user import UserProfile
+    profile_image_url = None
+    bio = ''
+    try:
+        profile = user.profile
+        profile_image_url = profile.profile_image_url
+        bio = profile.bio or ''
+    except Exception:
+        pass
+
+    display_name = user.first_name or user.username or user.email.split('@')[0]
+
     return {
         'id': str(user.id),
         'email': user.email,
-        'firstName': user.first_name,
+        'username': user.username,
+        'firstName': user.first_name or display_name,
         'lastName': user.last_name,
+        'bio': bio,
+        'profileImageUrl': profile_image_url,
         'createdAt': user.date_joined.isoformat(),
     }
 
