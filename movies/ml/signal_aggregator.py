@@ -104,15 +104,20 @@ class SignalAggregator:
         return [tmdb_id for tmdb_id, score in sorted_items if score >= min_score][:limit]
 
     def get_interaction_count(self, user) -> int:
-        from movies.models import (
-            UserReview, UserFavorites, UserWatchlist, ViewingHistory,
+        from django.db.models import Count
+        from django.contrib.auth.models import User
+        result = User.objects.filter(pk=user.pk).aggregate(
+            reviews=Count('reviews', distinct=True),
+            favorites=Count('favorites', distinct=True),
+            watchlist=Count('watchlist', distinct=True),
+            viewing_history=Count('viewing_history', distinct=True),
         )
-        count = 0
-        count += UserReview.objects.filter(user=user).count()
-        count += UserFavorites.objects.filter(user=user).count()
-        count += UserWatchlist.objects.filter(user=user).count()
-        count += ViewingHistory.objects.filter(user=user).count()
-        return count
+        return (
+            (result['reviews'] or 0) +
+            (result['favorites'] or 0) +
+            (result['watchlist'] or 0) +
+            (result['viewing_history'] or 0)
+        )
 
 
 signal_aggregator = SignalAggregator()

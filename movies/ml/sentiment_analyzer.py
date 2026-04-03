@@ -61,11 +61,11 @@ class SentimentAnalyzer:
     
     @transaction.atomic
     def update_sentiment_analytics(self, tmdb_id: int, media_type: str) -> Dict[str, Any]:
-        from movies.models import UserReview, SentimentAnalytics
+        from movies.models import UserReview, SentimentAnalytics, ReviewSentimentCache
         
-        reviews = UserReview.objects.filter(tmdb_id=tmdb_id, media_type=media_type).select_for_update()
+        all_reviews = UserReview.objects.filter(tmdb_id=tmdb_id, media_type=media_type)
         
-        if not reviews.exists():
+        if not all_reviews.exists():
             analytics, created = SentimentAnalytics.objects.update_or_create(
                 tmdb_id=tmdb_id,
                 media_type=media_type,
@@ -88,20 +88,60 @@ class SentimentAnalyzer:
                 'updated': True
             }
         
+        from django.db.models import F, Subquery, OuterRef
+        cached_map = dict(
+            ReviewSentimentCache.objects.filter(
+                review__in=all_reviews
+            ).values_list('review_id', 'analyzed_at')
+        )
+        changed_ids = []
+        for review in all_reviews.only('pk', 'updated_at'):
+            cached_at = cached_map.get(review.pk)
+            if cached_at is None or cached_at < review.updated_at:
+                changed_ids.append(review.pk)
+        
+        if not changed_ids:
+            existing = SentimentAnalytics.objects.filter(
+                tmdb_id=tmdb_id, media_type=media_type
+            ).first()
+            if existing:
+                return {
+                    'tmdb_id': tmdb_id,
+                    'media_type': media_type,
+                    'avg_sentiment_score': round(existing.avg_sentiment_score, 4),
+                    'total_reviews': existing.total_reviews,
+                    'positive_count': existing.positive_count,
+                    'negative_count': existing.negative_count,
+                    'neutral_count': existing.neutral_count,
+                    'updated': False
+                }
+        
+        for review in all_reviews.filter(pk__in=changed_ids):
+            result = self.analyze_review(review)
+            ReviewSentimentCache.objects.update_or_create(
+                review=review,
+                defaults={
+                    'score': result.score,
+                    'classification': result.classification,
+                }
+            )
+        
+        caches = ReviewSentimentCache.objects.filter(
+            review__tmdb_id=tmdb_id,
+            review__media_type=media_type
+        )
         total_score = 0.0
         positive_count = 0
         negative_count = 0
         neutral_count = 0
         total_reviews = 0
         
-        for review in reviews:
-            result = self.analyze_review(review)
-            total_score += result.score
+        for c in caches:
+            total_score += c.score
             total_reviews += 1
-            
-            if result.classification == 'positive':
+            if c.classification == 'positive':
                 positive_count += 1
-            elif result.classification == 'negative':
+            elif c.classification == 'negative':
                 negative_count += 1
             else:
                 neutral_count += 1

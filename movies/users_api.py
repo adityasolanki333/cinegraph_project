@@ -16,6 +16,8 @@ from .validation import (
     MAX_TITLE_LENGTH, MAX_REVIEW_TEXT_LENGTH, MAX_BIO_LENGTH, MAX_URL_LENGTH,
 )
 
+from .pagination import paginate_queryset
+
 logger = logging.getLogger(__name__)
 
 
@@ -384,6 +386,7 @@ def get_user_reviews(request, user_id):
     if not request.user.is_authenticated or request.user.id != user.id:
         reviews = reviews.filter(is_public=True)
     
+    paginated_reviews, pagination = paginate_queryset(request, reviews)
     return JsonResponse({
         'reviews': [{
             'id': review.id,
@@ -402,7 +405,8 @@ def get_user_reviews(request, user_id):
                 'firstName': user.first_name,
                 'lastName': user.last_name,
             }
-        } for review in reviews]
+        } for review in paginated_reviews],
+        **pagination
     })
 
 
@@ -488,12 +492,13 @@ def delete_review(request, user_id, review_id):
 @require_GET
 def get_reviews_for_content(request, tmdb_id):
     media_type = request.GET.get('mediaType', 'movie')
-    reviews = UserReview.objects.filter(
+    qs = UserReview.objects.filter(
         tmdb_id=tmdb_id,
         media_type=media_type,
         is_public=True
     ).select_related('user')
     
+    paginated_reviews, pagination = paginate_queryset(request, qs)
     return JsonResponse({
         'reviews': [{
             'id': review.id,
@@ -509,7 +514,8 @@ def get_reviews_for_content(request, tmdb_id):
                 'firstName': review.user.first_name,
                 'lastName': review.user.last_name,
             }
-        } for review in reviews]
+        } for review in paginated_reviews],
+        **pagination
     })
 
 

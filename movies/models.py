@@ -22,8 +22,8 @@ class UserProfile(models.Model):
 
 class UserWatchlist(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='watchlist')
-    tmdb_id = models.IntegerField()
-    media_type = models.CharField(max_length=10)
+    tmdb_id = models.IntegerField(db_index=True)
+    media_type = models.CharField(max_length=10, db_index=True)
     title = models.CharField(max_length=255)
     poster_path = models.CharField(max_length=255, blank=True, null=True)
     added_at = models.DateTimeField(auto_now_add=True)
@@ -38,8 +38,8 @@ class UserWatchlist(models.Model):
 
 class UserFavorites(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorites')
-    tmdb_id = models.IntegerField()
-    media_type = models.CharField(max_length=10)
+    tmdb_id = models.IntegerField(db_index=True)
+    media_type = models.CharField(max_length=10, db_index=True)
     title = models.CharField(max_length=255)
     poster_path = models.CharField(max_length=255, blank=True, null=True)
     added_at = models.DateTimeField(auto_now_add=True)
@@ -54,11 +54,11 @@ class UserFavorites(models.Model):
 
 class ViewingHistory(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='viewing_history')
-    tmdb_id = models.IntegerField()
-    media_type = models.CharField(max_length=10)
+    tmdb_id = models.IntegerField(db_index=True)
+    media_type = models.CharField(max_length=10, db_index=True)
     title = models.CharField(max_length=255)
     poster_path = models.CharField(max_length=255, blank=True, null=True)
-    watched_at = models.DateTimeField(auto_now_add=True)
+    watched_at = models.DateTimeField(auto_now_add=True, db_index=True)
     watch_duration = models.IntegerField(null=True, blank=True)
     
     class Meta:
@@ -70,15 +70,15 @@ class ViewingHistory(models.Model):
 
 class UserReview(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews')
-    tmdb_id = models.IntegerField()
-    media_type = models.CharField(max_length=10)
+    tmdb_id = models.IntegerField(db_index=True)
+    media_type = models.CharField(max_length=10, db_index=True)
     title = models.CharField(max_length=255)
     poster_path = models.CharField(max_length=255, blank=True, null=True)
     rating = models.IntegerField()
     review_text = models.TextField(blank=True, default='')
-    is_public = models.BooleanField(default=True)
+    is_public = models.BooleanField(default=True, db_index=True)
     helpful_count = models.IntegerField(default=0)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
@@ -105,7 +105,7 @@ class UserList(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='lists')
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
-    is_public = models.BooleanField(default=True)
+    is_public = models.BooleanField(default=True, db_index=True)
     follower_count = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -145,13 +145,13 @@ class Notification(models.Model):
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
-    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES, db_index=True)
     message = models.TextField()
     related_user_id = models.IntegerField(null=True, blank=True)
-    related_tmdb_id = models.IntegerField(null=True, blank=True)
-    related_media_type = models.CharField(max_length=10, blank=True, null=True)
-    is_read = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    related_tmdb_id = models.IntegerField(null=True, blank=True, db_index=True)
+    related_media_type = models.CharField(max_length=10, blank=True, null=True, db_index=True)
+    is_read = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     
     class Meta:
         ordering = ['-created_at']
@@ -338,9 +338,19 @@ class UserCommunity(models.Model):
         return f"{self.user.email} in {self.community_name}"
 
 
+class ReviewSentimentCache(models.Model):
+    review = models.OneToOneField('UserReview', on_delete=models.CASCADE, related_name='sentiment_cache')
+    score = models.FloatField()
+    classification = models.CharField(max_length=10)
+    analyzed_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Sentiment cache for review {self.review_id}: {self.classification}"
+
+
 class SentimentAnalytics(models.Model):
-    tmdb_id = models.IntegerField()
-    media_type = models.CharField(max_length=10)
+    tmdb_id = models.IntegerField(db_index=True)
+    media_type = models.CharField(max_length=10, db_index=True)
     avg_sentiment_score = models.FloatField(default=0)
     total_reviews = models.IntegerField(default=0)
     positive_count = models.IntegerField(default=0)

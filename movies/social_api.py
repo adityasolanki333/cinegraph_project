@@ -18,6 +18,8 @@ from .validation import (
 )
 from .decorators import rate_limit
 
+from .pagination import paginate_queryset
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,14 +36,16 @@ def get_followers(request, user_id):
     if not user:
         return error_response('User not found', 'NOT_FOUND', 404)
     
-    followers = UserFollow.objects.filter(following=user).select_related('follower')
+    qs = UserFollow.objects.filter(following=user).select_related('follower')
+    followers, pagination = paginate_queryset(request, qs)
     return JsonResponse({
         'followers': [{
             'id': str(f.follower.id),
             'firstName': f.follower.first_name,
             'lastName': f.follower.last_name,
             'followedAt': f.created_at.isoformat(),
-        } for f in followers]
+        } for f in followers],
+        **pagination
     })
 
 
@@ -51,14 +55,16 @@ def get_following(request, user_id):
     if not user:
         return error_response('User not found', 'NOT_FOUND', 404)
     
-    following = UserFollow.objects.filter(follower=user).select_related('following')
+    qs = UserFollow.objects.filter(follower=user).select_related('following')
+    following_list, pagination = paginate_queryset(request, qs)
     return JsonResponse({
         'following': [{
             'id': str(f.following.id),
             'firstName': f.following.first_name,
             'lastName': f.following.last_name,
             'followedAt': f.created_at.isoformat(),
-        } for f in following]
+        } for f in following_list],
+        **pagination
     })
 
 
@@ -146,6 +152,7 @@ def get_user_lists(request, user_id):
     if not request.user.is_authenticated or request.user.id != user.id:
         lists = lists.filter(is_public=True)
     
+    paginated_lists, pagination = paginate_queryset(request, lists)
     return JsonResponse({
         'lists': [{
             'id': lst.id,
@@ -161,7 +168,8 @@ def get_user_lists(request, user_id):
                 'firstName': user.first_name,
                 'lastName': user.last_name,
             }
-        } for lst in lists]
+        } for lst in paginated_lists],
+        **pagination
     })
 
 
@@ -171,8 +179,6 @@ def get_public_lists(request):
     from django.db.models import Count
     q = request.GET.get('q', '').strip()
     sort = request.GET.get('sort', 'popular')
-    offset = int(request.GET.get('offset', 0))
-    limit = min(int(request.GET.get('limit', 24)), 50)
 
     lists = UserList.objects.filter(is_public=True).select_related('user')
     if q:
@@ -185,8 +191,7 @@ def get_public_lists(request):
     else:
         lists = lists.order_by('-follower_count', '-created_at')
 
-    total = lists.count()
-    lists = lists[offset:offset + limit]
+    paginated_lists, pagination = paginate_queryset(request, lists, default_limit=24, max_limit=50)
 
     return JsonResponse({
         'lists': [{
@@ -201,10 +206,8 @@ def get_public_lists(request):
                 'firstName': lst.user.first_name or lst.user.username,
                 'lastName': lst.user.last_name,
             }
-        } for lst in lists],
-        'total': total,
-        'offset': offset,
-        'hasMore': offset + limit < total,
+        } for lst in paginated_lists],
+        **pagination
     })
 
 
@@ -424,7 +427,8 @@ def get_notifications(request, user_id):
     if str(request.user.id) != str(user_id):
         return error_response('Not authorized', 'FORBIDDEN', 403)
     
-    notifications = Notification.objects.filter(user=request.user)[:50]
+    qs = Notification.objects.filter(user=request.user)
+    notifications, pagination = paginate_queryset(request, qs, default_limit=50)
     unread_count = Notification.objects.filter(user=request.user, is_read=False).count()
     
     return JsonResponse({
@@ -438,7 +442,8 @@ def get_notifications(request, user_id):
             'isRead': n.is_read,
             'createdAt': n.created_at.isoformat(),
         } for n in notifications],
-        'unreadCount': unread_count
+        'unreadCount': unread_count,
+        **pagination
     })
 
 
@@ -473,27 +478,26 @@ def community_get_notifications(request):
     if not request.user.is_authenticated:
         return error_response('Not authenticated', 'AUTH_REQUIRED', 401)
 
-    try:
-        limit = max(1, min(100, int(request.GET.get('limit', 50))))
-    except (ValueError, TypeError):
-        limit = 50
     unread_only = request.GET.get('unreadOnly', '').lower() == 'true'
 
     qs = Notification.objects.filter(user=request.user)
     if unread_only:
         qs = qs.filter(is_read=False)
-    notifications = qs[:limit]
+    notifications, pagination = paginate_queryset(request, qs, default_limit=50, max_limit=100)
 
-    return JsonResponse([{
-        'id': n.id,
-        'type': n.notification_type,
-        'message': n.message,
-        'relatedUserId': n.related_user_id,
-        'relatedTmdbId': n.related_tmdb_id,
-        'relatedMediaType': n.related_media_type,
-        'isRead': n.is_read,
-        'createdAt': n.created_at.isoformat(),
-    } for n in notifications], safe=False)
+    return JsonResponse({
+        'notifications': [{
+            'id': n.id,
+            'type': n.notification_type,
+            'message': n.message,
+            'relatedUserId': n.related_user_id,
+            'relatedTmdbId': n.related_tmdb_id,
+            'relatedMediaType': n.related_media_type,
+            'isRead': n.is_read,
+            'createdAt': n.created_at.isoformat(),
+        } for n in notifications],
+        **pagination
+    })
 
 
 @rate_limit()
@@ -1847,10 +1851,7 @@ def check_and_award_badges(user):
 
 @require_GET
 def get_top_reviews(request):
-    time_filter = request.GET.get('timeFilter', 'weekly')
     sort_by = request.GET.get('sortBy', 'awards')
-    offset = int(request.GET.get('offset', 0))
-    limit = int(request.GET.get('limit', 20))
     
     reviews = UserReview.objects.filter(is_public=True).select_related('user')
     
@@ -1861,7 +1862,7 @@ def get_top_reviews(request):
     else:
         reviews = reviews.order_by('-created_at')
     
-    reviews = reviews[offset:offset + limit]
+    paginated_reviews, pagination = paginate_queryset(request, reviews)
     
     return JsonResponse({
         'reviews': [{
@@ -1877,19 +1878,15 @@ def get_top_reviews(request):
             'helpfulCount': r.helpful_count,
             'awardCount': getattr(r, 'award_count', r.awards.count()),
             'createdAt': r.created_at.isoformat(),
-        } for r in reviews],
-        'offset': offset,
-        'hasMore': len(reviews) == limit
+        } for r in paginated_reviews],
+        **pagination
     })
 
 
 @require_GET
 def get_community_feed(request):
-    time_filter = request.GET.get('timeFilter', 'weekly')
-    offset = int(request.GET.get('offset', 0))
-    limit = int(request.GET.get('limit', 20))
-    
-    reviews = UserReview.objects.filter(is_public=True).select_related('user').order_by('-created_at')[offset:offset + limit]
+    qs = UserReview.objects.filter(is_public=True).select_related('user').order_by('-created_at')
+    reviews, pagination = paginate_queryset(request, qs)
     
     activities = []
     for r in reviews:
@@ -1909,8 +1906,7 @@ def get_community_feed(request):
     
     return JsonResponse({
         'activities': activities,
-        'offset': offset,
-        'hasMore': len(reviews) == limit
+        **pagination
     })
 
 
@@ -1943,18 +1939,13 @@ def get_leaderboards(request):
 
 @require_GET
 def get_trending_content(request):
-    time_filter = request.GET.get('timeFilter', 'weekly')
-    offset = int(request.GET.get('offset', 0))
-    limit = int(request.GET.get('limit', 20))
-    
     from django.db.models import Count, Avg as DbAvg
     trending = UserReview.objects.values('tmdb_id', 'media_type', 'title', 'poster_path').annotate(
         review_count=Count('id'),
         avg_rating=DbAvg('rating'),
-    ).order_by('-review_count')[offset:offset + limit + 1]
+    ).order_by('-review_count')
     
-    has_more = len(trending) > limit
-    results = list(trending[:limit])
+    paginated_trending, pagination = paginate_queryset(request, trending)
     
     return JsonResponse({
         'data': [{
@@ -1964,10 +1955,8 @@ def get_trending_content(request):
             'posterPath': t['poster_path'],
             'ratingCount': t['review_count'],
             'avgRating': round(t['avg_rating'], 1) if t['avg_rating'] else None,
-        } for t in results],
-        'offset': offset,
-        'nextOffset': offset + limit if has_more else None,
-        'hasMore': has_more
+        } for t in paginated_trending],
+        **pagination
     })
 
 
@@ -2034,27 +2023,25 @@ def get_similar_users(request, user_id):
 
 @require_GET
 def get_personalized_feed(request, user_id):
-    time_filter = request.GET.get('timeFilter', 'weekly')
-    offset = int(request.GET.get('offset', 0))
-    limit = int(request.GET.get('limit', 20))
-    
     try:
         user = User.objects.get(id=user_id)
     except (User.DoesNotExist, ValueError):
         try:
             user = User.objects.get(username=user_id)
         except User.DoesNotExist:
-            return JsonResponse({'activities': [], 'offset': offset, 'hasMore': False})
+            return JsonResponse({'activities': [], 'page': 1, 'limit': 20, 'total': 0, 'totalPages': 1, 'hasMore': False})
     
     following_ids = UserFollow.objects.filter(follower=user).values_list('following_id', flat=True)
     
     if following_ids:
-        reviews = UserReview.objects.filter(
+        qs = UserReview.objects.filter(
             user_id__in=following_ids,
             is_public=True
-        ).select_related('user').order_by('-created_at')[offset:offset + limit]
+        ).select_related('user').order_by('-created_at')
     else:
-        reviews = UserReview.objects.filter(is_public=True).select_related('user').order_by('-created_at')[offset:offset + limit]
+        qs = UserReview.objects.filter(is_public=True).select_related('user').order_by('-created_at')
+    
+    reviews, pagination = paginate_queryset(request, qs)
     
     activities = [{
         'id': r.id,
@@ -2072,8 +2059,7 @@ def get_personalized_feed(request, user_id):
     
     return JsonResponse({
         'activities': activities,
-        'offset': offset,
-        'hasMore': len(reviews) == limit
+        **pagination
     })
 
 

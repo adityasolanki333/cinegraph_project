@@ -214,13 +214,31 @@ LOGGING = {
     },
 }
 
-# Cache Settings
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'cinema-guide-cache',
+# Cache Settings - env-gated backend selection
+# Set CACHE_BACKEND=db to use database-backed cache, defaults to file-based
+_cache_backend = os.environ.get('CACHE_BACKEND', 'file')
+if _cache_backend == 'db':
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'django_cache_table',
+            'TIMEOUT': 86400,
+            'OPTIONS': {
+                'MAX_ENTRIES': 5000,
+            }
+        }
     }
-}
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+            'LOCATION': os.path.join(BASE_DIR, '.cache'),
+            'TIMEOUT': 86400,
+            'OPTIONS': {
+                'MAX_ENTRIES': 5000,
+            }
+        }
+    }
 
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
