@@ -239,10 +239,9 @@ export default function ListDetail() {
       return apiRequest('DELETE', `/api/community/lists/${listId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/community/lists'] });
-      // Invalidate user's lists so it disappears from "My Lists"
+      // Sync community public feed and user's own list cache
+      queryClient.invalidateQueries({ queryKey: ['/api/community/lists/public'] });
       queryClient.invalidateQueries({ queryKey: ['/api/community/users', user?.id, 'lists'] });
-      // Invalidate containing lists for Similar > Lists tabs
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists/containing'] });
       toast({
         title: "List deleted",
@@ -269,7 +268,8 @@ export default function ListDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', listId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/community/lists'] });
+      // Sync community public feed (handles public/private toggle) and user's cache
+      queryClient.invalidateQueries({ queryKey: ['/api/community/lists/public'] });
       queryClient.invalidateQueries({ queryKey: ['/api/community/users', user?.id, 'lists'] });
       toast({
         title: "List updated",

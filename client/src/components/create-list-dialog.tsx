@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Globe, Lock } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -33,12 +33,8 @@ export function CreateListDialog({ onSuccess, trigger }: CreateListDialogProps) 
 
   const createListMutation = useMutation({
     mutationFn: async () => {
-      if (!isAuthenticated || !user?.id) {
-        throw new Error("Must be logged in to create a list");
-      }
-
-      const response = await apiRequest('POST', '/api/community/lists', {
-        userId: user.id,
+      if (!isAuthenticated || !user?.id) throw new Error("Must be logged in to create a list");
+      const response = await apiRequest("POST", `/api/users/${user.id}/lists/create`, {
         title: title.trim(),
         description: description.trim() || null,
         isPublic,
@@ -46,26 +42,17 @@ export function CreateListDialog({ onSuccess, trigger }: CreateListDialogProps) 
       return response.json() as Promise<{ id: string }>;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/community/lists'] });
+      // Invalidate both community public feed AND user's own list cache
+      queryClient.invalidateQueries({ queryKey: ["/api/community/lists/public"] });
       if (user?.id) {
-        queryClient.invalidateQueries({ queryKey: ['/api/community/users', user.id, 'lists'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/community/users', user.id, 'lists'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/community', user.id, 'stats'] });
-        queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
+        queryClient.invalidateQueries({ queryKey: ["/api/community/users", user.id, "lists"] });
       }
-      // Invalidate community feed to show new list
-      queryClient.invalidateQueries({ queryKey: ['/api/community/feed'] });
-      toast({
-        title: "List created",
-        description: "Your list has been created successfully.",
-      });
+      toast({ title: "List created", description: "Your list has been created." });
       setTitle("");
       setDescription("");
       setIsPublic(true);
       setOpen(false);
-      if (onSuccess && data.id) {
-        onSuccess(data.id);
-      }
+      if (onSuccess && data.id) onSuccess(data.id);
     },
     onError: (error: any) => {
       toast({
@@ -78,16 +65,10 @@ export function CreateListDialog({ onSuccess, trigger }: CreateListDialogProps) 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!title.trim()) {
-      toast({
-        title: "Title required",
-        description: "Please enter a title for your list.",
-        variant: "destructive",
-      });
+      toast({ title: "Title required", description: "Please enter a title for your list.", variant: "destructive" });
       return;
     }
-
     createListMutation.mutate();
   };
 
@@ -101,55 +82,63 @@ export function CreateListDialog({ onSuccess, trigger }: CreateListDialogProps) 
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" data-testid="dialog-create-list">
+      <DialogContent className="sm:max-w-[480px]" data-testid="dialog-create-list">
         <DialogHeader>
           <DialogTitle>Create New List</DialogTitle>
           <DialogDescription>
-            Create a curated collection of movies and TV shows to share with the community.
+            Create a curated collection of movies and TV shows.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
+        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="list-title">Title</Label>
             <Input
-              id="title"
+              id="list-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="My Favorite Movies"
+              placeholder="My Favourite Action Movies"
               maxLength={100}
               disabled={createListMutation.isPending}
               data-testid="input-list-title"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="description">Description (optional)</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="list-desc">Description <span className="text-muted-foreground">(optional)</span></Label>
             <Textarea
-              id="description"
+              id="list-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="A collection of my all-time favorite films..."
+              placeholder="A collection of must-watch films..."
               rows={3}
               maxLength={500}
               disabled={createListMutation.isPending}
               data-testid="textarea-list-description"
             />
           </div>
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="public">Public List</Label>
-              <p className="text-sm text-muted-foreground">
-                Allow others to view and follow this list
-              </p>
+
+          {/* Public / Private toggle */}
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="flex items-center gap-3">
+              {isPublic
+                ? <Globe className="h-5 w-5 text-primary" />
+                : <Lock className="h-5 w-5 text-muted-foreground" />}
+              <div>
+                <p className="text-sm font-medium">{isPublic ? "Public" : "Private"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {isPublic ? "Anyone can find and follow this list" : "Only you can see this list"}
+                </p>
+              </div>
             </div>
             <Switch
-              id="public"
+              id="list-public"
               checked={isPublic}
               onCheckedChange={setIsPublic}
               disabled={createListMutation.isPending}
               data-testid="switch-list-public"
             />
           </div>
-          <div className="flex justify-end gap-3 pt-4">
+
+          <div className="flex justify-end gap-3 pt-2">
             <Button
               type="button"
               variant="outline"
@@ -167,11 +156,9 @@ export function CreateListDialog({ onSuccess, trigger }: CreateListDialogProps) 
               {createListMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
+                  Creating…
                 </>
-              ) : (
-                "Create List"
-              )}
+              ) : "Create List"}
             </Button>
           </div>
         </form>

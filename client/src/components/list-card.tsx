@@ -74,7 +74,7 @@ export function ListCard({ list, showAuthor = true }: ListCardProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', list.id, 'followers'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/community/lists'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/community/lists/public'] });
       if (user?.id) {
         queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
       }
@@ -115,7 +115,7 @@ export function ListCard({ list, showAuthor = true }: ListCardProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', list.id, 'followers'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/community/lists'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/community/lists/public'] });
       if (user?.id) {
         queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
       }
