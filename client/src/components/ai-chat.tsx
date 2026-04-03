@@ -862,8 +862,9 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
       {!isOpen && fabPos.x >= 0 && fabPos.y >= 0 && (
         <button
           ref={fabRef}
-          onMouseDown={(e) => { e.preventDefault(); handleDragStart(e.clientX, e.clientY); }}
-          onTouchStart={(e) => { handleDragStart(e.touches[0].clientX, e.touches[0].clientY); }}
+          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDragStart(e.clientX, e.clientY); }}
+          onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); handleDragStart(e.touches[0].clientX, e.touches[0].clientY); }}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
           className="fixed h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300 p-0 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center select-none touch-none cursor-grab active:cursor-grabbing z-[60] pointer-events-auto"
           style={{ left: fabPos.x, top: fabPos.y }}
           data-testid="button-toggle-chat"
