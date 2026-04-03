@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -11,6 +11,7 @@ import { Loader2, ThumbsUp, ThumbsDown, Sparkles, Star, ChevronRight } from "luc
 
 const REQUIRED = 5;
 type Decision = "liked" | "disliked";
+interface DecisionEntry { movie: any; decision: Decision }
 
 export function OnboardingWizard() {
   const { user, isAuthenticated } = useAuth();
@@ -19,19 +20,19 @@ export function OnboardingWizard() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [decisions, setDecisions] = useState<Array<{ movie: any; decision: Decision }>>([]);
+  const [decisions, setDecisions] = useState<DecisionEntry[]>([]);
   const [animating, setAnimating] = useState<"left" | "right" | null>(null);
-  const [isPending, setIsPending] = useState(false);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const [isBuilding, setIsBuilding] = useState(false); // saving + fetching
 
   const decided = decisions.length;
   const isComplete = decided >= REQUIRED;
 
-  // Check onboarding status
+  // ── Check if user needs onboarding ──────────────────────────────────────
   const { data: userReviews, isLoading: loadingReviews } = useQuery({
     queryKey: ["/api/users", user?.id, "reviews-onboard"],
     queryFn: async () => {
       const res = await fetch(`/api/users/${user!.id}/reviews`);
-      if (!res.ok) return [];
       const data = await res.json();
       return data.reviews || (Array.isArray(data) ? data : []);
     },
@@ -42,7 +43,6 @@ export function OnboardingWizard() {
     queryKey: ["/api/users", user?.id, "favorites-onboard"],
     queryFn: async () => {
       const res = await fetch(`/api/users/${user!.id}/favorites`);
-      if (!res.ok) return [];
       const data = await res.json();
       return data.favorites || (Array.isArray(data) ? data : []);
     },
@@ -57,8 +57,8 @@ export function OnboardingWizard() {
     else localStorage.setItem(`onboarded_${user.id}`, "true");
   }, [isAuthenticated, user?.id, userReviews, userFavorites, loadingReviews, loadingFavs]);
 
-  // Fetch mix of popular + top-rated
-  const { data: movies = [], isLoading: loadingMovies } = useQuery({
+  // ── Fetch movie pool ─────────────────────────────────────────────────────
+  const { data: movies = [], isLoading: loadingMovies } = useQuery<any[]>({
     queryKey: ["/api/tmdb/onboarding-pool"],
     queryFn: async () => {
       const [pop, top] = await Promise.all([
@@ -77,53 +77,97 @@ export function OnboardingWizard() {
     staleTime: Infinity,
   });
 
-  const favMutation = useMutation({
-    mutationFn: async (movie: any) => {
-      const res = await fetch("/api/favorites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tmdbId: movie.id, mediaType: "movie", title: movie.title, posterPath: movie.poster_path }),
-      });
-      if (!res.ok) throw new Error();
-    },
-  });
-
-  const reviewMutation = useMutation({
-    mutationFn: async (movie: any) => {
-      const res = await fetch("/api/ratings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tmdbId: movie.id, mediaType: "movie", title: movie.title, posterPath: movie.poster_path, rating: 2 }),
-      });
-      if (!res.ok) throw new Error();
-    },
-  });
-
+  // ── Swipe: only update local state, no API calls ─────────────────────────
   const handleDecision = async (decision: Decision) => {
-    if (animating || isPending || currentIndex >= movies.length) return;
-    const movie = movies[currentIndex];
+    if (animating || isSwiping || currentIndex >= movies.length) return;
     const dir = decision === "liked" ? "right" : "left";
-
+    setIsSwiping(true);
     setAnimating(dir);
-    setIsPending(true);
-
-    // Fire-and-forget API call
-    if (decision === "liked") favMutation.mutateAsync(movie).catch(() => {});
-    else reviewMutation.mutateAsync(movie).catch(() => {});
-
-    await new Promise(r => setTimeout(r, 350));
-    setDecisions(prev => [...prev, { movie, decision }]);
+    await new Promise(r => setTimeout(r, 320));
+    setDecisions(prev => [...prev, { movie: movies[currentIndex], decision }]);
     setCurrentIndex(i => i + 1);
     setAnimating(null);
-    setIsPending(false);
+    setIsSwiping(false);
   };
 
-  const handleFinish = () => {
+  // ── Build my feed: save everything then fetch fresh recs ─────────────────
+  const handleFinish = async () => {
+    if (isBuilding) return;
+    setIsBuilding(true);
+
+    try {
+      // Save all liked → Favorites (seeds MovieLens engine)
+      const likedMovies  = decisions.filter(d => d.decision === "liked").map(d => d.movie);
+      const dislikedMovies = decisions.filter(d => d.decision === "disliked").map(d => d.movie);
+
+      await Promise.allSettled([
+        ...likedMovies.map(movie =>
+          fetch(`/api/users/${user?.id}/favorites/add`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tmdbId: movie.id,
+              mediaType: "movie",
+              title: movie.title,
+              posterPath: movie.poster_path,
+            }),
+          })
+        ),
+        ...dislikedMovies.map(movie =>
+          fetch(`/api/users/${user?.id}/reviews/add`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tmdbId: movie.id,
+              mediaType: "movie",
+              title: movie.title,
+              posterPath: movie.poster_path,
+              rating: 2,
+              reviewText: "",
+            }),
+          })
+        ),
+      ]);
+
+      // Now fetch fresh recommendations using the newly saved favorites as seeds
+      await queryClient.fetchQuery({
+        queryKey: ["/api/recommendations/hybrid", user?.id],
+        queryFn: async () => {
+          const res = await fetch(`/api/recommendations/hybrid/${user?.id}?limit=24`);
+          if (!res.ok) return [];
+          const data = await res.json();
+          return (data.recommendations || []).map((item: any) => ({
+            id: item.tmdb_id,
+            title: item.title,
+            year: item.release_date ? new Date(item.release_date).getFullYear() : new Date().getFullYear(),
+            genre: "Recommended",
+            rating: item.vote_average || 0,
+            synopsis: item.overview || "",
+            posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
+            type: item.media_type || "movie",
+            recommendationScore: item.score,
+            recommendationStrategy: item.type,
+            recommendationReason: item.reason,
+          }));
+        },
+        staleTime: 0,
+      });
+
+      // Invalidate related caches
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user?.id, "favorites"] });
+
+    } catch (e) {
+      // Even on error, proceed — recommendations may still work
+    }
+
     localStorage.setItem(`onboarded_${user?.id}`, "true");
     setIsOpen(false);
-    queryClient.invalidateQueries({ queryKey: ["/api/recommendations/hybrid"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/users", user?.id, "favorites"] });
-    toast({ title: "Your feed is ready! 🎬", description: "Personalised recommendations are on their way." });
+    setIsBuilding(false);
+
+    toast({
+      title: "Your feed is ready! 🎬",
+      description: `We found ${decisions.filter(d => d.decision === "liked").length} movies you love — recommendations are live.`,
+    });
   };
 
   const handleSkip = () => {
@@ -152,8 +196,8 @@ export function OnboardingWizard() {
           </div>
           <p className="text-xs text-muted-foreground">
             {isComplete
-              ? "Great taste! Your AI feed is ready 🎉"
-              : `Rate ${REQUIRED} movies you know to get started`}
+              ? "Great taste! Tap 'Build my feed' to apply your picks 🎉"
+              : `Like or dislike ${REQUIRED} movies to get started`}
           </p>
 
           {/* Progress dots */}
@@ -161,7 +205,9 @@ export function OnboardingWizard() {
             {dotColors.map((color, i) => (
               <div
                 key={i}
-                className={`rounded-full transition-all duration-300 ${color} ${i === decided && !isComplete ? "w-4 h-3 ring-2 ring-primary/40" : "w-2.5 h-2.5"}`}
+                className={`rounded-full transition-all duration-300 ${color} ${
+                  i === decided && !isComplete ? "w-4 h-3 ring-2 ring-primary/40" : "w-2.5 h-2.5"
+                }`}
               />
             ))}
           </div>
@@ -179,9 +225,9 @@ export function OnboardingWizard() {
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
               <div className="text-5xl">🎬</div>
               <div>
-                <p className="font-bold text-lg mb-1">All set!</p>
+                <p className="font-bold text-lg mb-1">Looking good!</p>
                 <p className="text-sm text-muted-foreground">
-                  We've noted your picks. Your recommendations are being personalised right now.
+                  We'll use your picks to find movies and shows you'll actually enjoy.
                 </p>
               </div>
               <div className="flex flex-wrap justify-center gap-2 mt-1">
@@ -192,7 +238,9 @@ export function OnboardingWizard() {
                       alt={movie.title}
                       className="w-10 h-14 rounded object-cover"
                     />
-                    <div className={`absolute -bottom-1 -right-1 text-[10px] rounded-full w-4 h-4 flex items-center justify-center ${decision === "liked" ? "bg-emerald-500" : "bg-red-400"}`}>
+                    <div className={`absolute -bottom-1 -right-1 text-[10px] rounded-full w-5 h-5 flex items-center justify-center ${
+                      decision === "liked" ? "bg-emerald-500" : "bg-red-400"
+                    }`}>
                       {decision === "liked" ? "👍" : "👎"}
                     </div>
                   </div>
@@ -203,7 +251,7 @@ export function OnboardingWizard() {
             /* Card stack */
             <div className="relative flex flex-col items-center" style={{ height: 380 }}>
 
-              {/* Background (next) card */}
+              {/* Background card (next) */}
               {nextMovie && (
                 <div
                   className="absolute top-3 left-4 right-4 rounded-2xl overflow-hidden shadow-md"
@@ -217,18 +265,18 @@ export function OnboardingWizard() {
                 </div>
               )}
 
-              {/* Foreground (current) card */}
+              {/* Foreground card (current) */}
               {currentMovie && (
                 <div
                   className="absolute top-0 left-0 right-0 rounded-2xl overflow-hidden shadow-xl"
                   style={{
                     height: 340,
                     zIndex: 1,
-                    transition: animating ? "transform 0.35s ease, opacity 0.35s ease" : "none",
+                    transition: animating ? "transform 0.32s ease, opacity 0.32s ease" : "none",
                     transform: animating === "right"
-                      ? "translateX(120%) rotate(15deg)"
+                      ? "translateX(130%) rotate(18deg)"
                       : animating === "left"
-                        ? "translateX(-120%) rotate(-15deg)"
+                        ? "translateX(-130%) rotate(-18deg)"
                         : "translateX(0) rotate(0deg)",
                     opacity: animating ? 0 : 1,
                   }}
@@ -238,7 +286,7 @@ export function OnboardingWizard() {
                     alt={currentMovie.title}
                     className="w-full h-full object-cover"
                   />
-                  {/* Gradient + info overlay */}
+                  {/* Gradient info overlay */}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4">
                     <h3 className="text-white font-bold text-base leading-tight line-clamp-1">
                       {currentMovie.title}
@@ -258,25 +306,15 @@ export function OnboardingWizard() {
                 </div>
               )}
 
-              {/* Like / Dislike hint labels that appear while deciding */}
-              <div className="absolute top-0 left-0 right-0 flex justify-between pointer-events-none px-2 pt-2" style={{ zIndex: 2 }}>
-                <div className="bg-red-500/90 text-white text-xs font-bold px-2 py-1 rounded-lg opacity-0">
-                  NOPE 👎
-                </div>
-                <div className="bg-emerald-500/90 text-white text-xs font-bold px-2 py-1 rounded-lg opacity-0">
-                  LIKE 👍
-                </div>
-              </div>
-
               {/* Action buttons */}
-              <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-6" style={{ zIndex: 2 }}>
+              <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-8" style={{ zIndex: 2 }}>
                 <button
                   onClick={() => handleDecision("disliked")}
-                  disabled={isPending}
+                  disabled={isSwiping}
                   className="flex flex-col items-center gap-1 group"
                   data-testid="button-onboard-dislike"
                 >
-                  <div className="w-14 h-14 rounded-full bg-white dark:bg-card border-2 border-red-400 flex items-center justify-center shadow-lg transition-all duration-200 group-hover:scale-110 group-hover:bg-red-50 dark:group-hover:bg-red-950/40 group-active:scale-95 disabled:opacity-50">
+                  <div className="w-14 h-14 rounded-full bg-white dark:bg-card border-2 border-red-400 flex items-center justify-center shadow-lg transition-all duration-200 group-hover:scale-110 group-hover:bg-red-50 dark:group-hover:bg-red-950/40 group-active:scale-95">
                     <ThumbsDown className="h-6 w-6 text-red-400" />
                   </div>
                   <span className="text-[10px] font-medium text-muted-foreground">Nope</span>
@@ -284,11 +322,11 @@ export function OnboardingWizard() {
 
                 <button
                   onClick={() => handleDecision("liked")}
-                  disabled={isPending}
+                  disabled={isSwiping}
                   className="flex flex-col items-center gap-1 group"
                   data-testid="button-onboard-like"
                 >
-                  <div className="w-14 h-14 rounded-full bg-white dark:bg-card border-2 border-emerald-500 flex items-center justify-center shadow-lg transition-all duration-200 group-hover:scale-110 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/40 group-active:scale-95 disabled:opacity-50">
+                  <div className="w-14 h-14 rounded-full bg-white dark:bg-card border-2 border-emerald-500 flex items-center justify-center shadow-lg transition-all duration-200 group-hover:scale-110 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/40 group-active:scale-95">
                     <ThumbsUp className="h-6 w-6 text-emerald-500" />
                   </div>
                   <span className="text-[10px] font-medium text-muted-foreground">Love it</span>
@@ -305,6 +343,7 @@ export function OnboardingWizard() {
             size="sm"
             className="text-xs text-muted-foreground hover:text-foreground"
             onClick={handleSkip}
+            disabled={isBuilding}
             data-testid="button-onboard-skip"
           >
             Skip
@@ -313,11 +352,21 @@ export function OnboardingWizard() {
           {isComplete ? (
             <Button
               onClick={handleFinish}
-              className="gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white"
+              disabled={isBuilding}
+              className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white min-w-36"
               data-testid="button-onboard-finish"
             >
-              <Sparkles className="h-4 w-4" />
-              Build my feed!
+              {isBuilding ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Building…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Build my feed!
+                </>
+              )}
             </Button>
           ) : (
             <span className="text-xs text-muted-foreground flex items-center gap-1">
