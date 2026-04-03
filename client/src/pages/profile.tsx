@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaCard } from "@/components/media-card";
-import { User, Heart, Star, Calendar, TrendingUp, Eye, Film, Tv, Settings, Edit3, BookOpen, Clock, ListChecks, Database, Key, Plus, Loader2, Users as UsersIcon, Trophy, List as ListIcon, UserPlus, UserMinus, Sparkles, Trash2, Bookmark } from "lucide-react";
+import { User, Heart, Star, Calendar, TrendingUp, Eye, Film, Tv, Settings, Edit3, BookOpen, Clock, ListChecks, Database, Key, Plus, Loader2, Users as UsersIcon, Trophy, List as ListIcon, UserPlus, UserMinus, Sparkles, Trash2, Bookmark, Camera } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Movie } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,6 +18,7 @@ import { useLocation, Link, useRoute } from "wouter";
 import { apiRequest, queryClient, getAuthHeaders } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { CreateListDialog } from "@/components/create-list-dialog";
+import { AvatarPickerDialog } from "@/components/avatar-picker-dialog";
 import { ListCard } from "@/components/list-card";
 import { UserBadges } from "@/components/UserBadges";
 import { UserImpactDashboard } from "@/components/user-impact-dashboard";
@@ -37,6 +38,8 @@ export default function Profile() {
   const [, setLocation] = useLocation();
   const { user, isAuthenticated, isLoading: authLoading, refetchUser } = useAuth();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
+  const [returnToEditDialog, setReturnToEditDialog] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [bio, setBio] = useState("");
@@ -283,6 +286,40 @@ export default function Profile() {
     },
   });
 
+  const updateAvatarMutation = useMutation({
+    mutationFn: async (avatarUrl: string) => {
+      if (!user?.id) throw new Error("User not found");
+      const response = await apiRequest("PATCH", `/api/users/${user.id}`, { profileImageUrl: avatarUrl });
+      const data = await response.json();
+      return data.user || data;
+    },
+    onSuccess: async (updatedUser) => {
+      await refetchUser();
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        localStorage.setItem('user', JSON.stringify({ ...JSON.parse(storedUser), ...updatedUser }));
+      }
+      window.dispatchEvent(new Event('storage'));
+      await queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id] });
+      if (identifier) {
+        await queryClient.invalidateQueries({ queryKey: ['/api/users/by-username', identifier] });
+      }
+      setIsAvatarPickerOpen(false);
+      if (returnToEditDialog) {
+        setReturnToEditDialog(false);
+        setIsEditDialogOpen(true);
+      }
+      toast({ title: "Avatar updated", description: "Your profile picture has been updated." });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update avatar",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleOpenEditDialog = () => {
     setFirstName(user?.firstName || "");
     setLastName(user?.lastName || "");
@@ -359,10 +396,23 @@ export default function Profile() {
         <Card className="lg:w-1/3 w-full">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center text-center">
-              <Avatar className="h-24 w-24 sm:h-32 sm:w-32 mb-4">
-                <AvatarImage src={displayUser?.profileImageUrl || undefined} alt={displayName} />
-                <AvatarFallback className="text-xl sm:text-2xl">{initials}</AvatarFallback>
-              </Avatar>
+              <div className="relative mb-4 group">
+                <Avatar className="h-24 w-24 sm:h-32 sm:w-32">
+                  <AvatarImage src={displayUser?.profileImageUrl || undefined} alt={displayName} />
+                  <AvatarFallback className="text-xl sm:text-2xl">{initials}</AvatarFallback>
+                </Avatar>
+                {isOwnProfile && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAvatarPickerOpen(true)}
+                    className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    data-testid="button-change-avatar"
+                    aria-label="Change avatar"
+                  >
+                    <Camera className="h-6 w-6 text-white" />
+                  </button>
+                )}
+              </div>
 
               <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-1" data-testid="text-user-name">
                 {displayName}
@@ -911,6 +961,41 @@ export default function Profile() {
           </DialogHeader>
           <form onSubmit={handleUpdateProfile}>
             <div className="grid gap-4 py-4">
+              <div className="flex flex-col items-center gap-2">
+                <div className="relative group">
+                  <Avatar className="h-20 w-20">
+                    <AvatarImage src={user?.profileImageUrl || undefined} alt="Profile" />
+                    <AvatarFallback className="text-lg">{initials}</AvatarFallback>
+                  </Avatar>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReturnToEditDialog(true);
+                      setIsEditDialogOpen(false);
+                      setIsAvatarPickerOpen(true);
+                    }}
+                    className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    data-testid="button-change-avatar-edit"
+                    aria-label="Change avatar"
+                  >
+                    <Camera className="h-5 w-5 text-white" />
+                  </button>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => {
+                    setReturnToEditDialog(true);
+                    setIsEditDialogOpen(false);
+                    setIsAvatarPickerOpen(true);
+                  }}
+                  data-testid="button-change-avatar-link"
+                >
+                  Change Avatar
+                </Button>
+              </div>
               <div className="grid gap-2">
                 <Label htmlFor="firstName">First Name</Label>
                 <Input
@@ -960,6 +1045,21 @@ export default function Profile() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Avatar Picker Dialog */}
+      <AvatarPickerDialog
+        open={isAvatarPickerOpen}
+        onOpenChange={(open) => {
+          setIsAvatarPickerOpen(open);
+          if (!open && returnToEditDialog) {
+            setReturnToEditDialog(false);
+            setIsEditDialogOpen(true);
+          }
+        }}
+        currentAvatarUrl={user?.profileImageUrl}
+        onSelect={(avatarUrl) => updateAvatarMutation.mutate(avatarUrl)}
+        isPending={updateAvatarMutation.isPending}
+      />
     </>
   );
 }

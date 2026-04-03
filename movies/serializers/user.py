@@ -94,7 +94,7 @@ class CreateViewingHistorySerializer(serializers.Serializer):
 
 class UpdateProfileSerializer(serializers.Serializer):
     bio = serializers.CharField(max_length=2000, allow_blank=True, required=False)
-    profileImageUrl = serializers.URLField(max_length=500, allow_blank=True, required=False)
+    profileImageUrl = serializers.CharField(max_length=10000, allow_blank=True, required=False)
     firstName = serializers.CharField(max_length=150, allow_blank=True, required=False)
     lastName = serializers.CharField(max_length=150, allow_blank=True, required=False)
 
