@@ -6,8 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Bot, User, Sparkles, ArrowDown, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MediaCard } from "@/components/media-card";
 import { useAuth } from "@/hooks/useAuth";
+import { Link } from "wouter";
+
+const TMDB_GENRE_MAP: Record<number, string> = {
+  28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
+  99: 'Documentary', 18: 'Drama', 10751: 'Family', 14: 'Fantasy', 36: 'History',
+  27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance',
+  878: 'Sci-Fi', 10770: 'TV Movie', 53: 'Thriller', 10752: 'War', 37: 'Western',
+  10759: 'Action & Adventure', 10762: 'Kids', 10763: 'News', 10764: 'Reality',
+  10765: 'Sci-Fi & Fantasy', 10766: 'Soap', 10767: 'Talk', 10768: 'War & Politics',
+};
 
 interface ChatMessage {
   id: string;
@@ -556,28 +565,69 @@ export default function AIChat({ className }: AIChatProps) {
                         </div>
 
                         <div className="w-full overflow-hidden">
-                          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-                            {message.movies && message.movies.slice(0, 8).map((movie: any) => (
-                              <div key={movie.id} className="w-full min-w-0" data-testid={`movie-card-${movie.id}`}>
-                                <MediaCard
-                                  item={movie}
-                                  mediaType={movie.media_type === 'tv' ? 'tv' : 'movie'}
-                                />
-                              </div>
-                            ))}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-2.5">
+                            {message.movies && message.movies.slice(0, 8).map((movie: any) => {
+                              const mediaType = movie.media_type === 'tv' ? 'tv' : 'movie';
+                              const title = movie.title || movie.name || 'Untitled';
+                              const posterUrl = movie.poster_path
+                                ? `https://image.tmdb.org/t/p/w342${movie.poster_path}`
+                                : null;
+                              const rating = movie.vote_average || 0;
+                              const year = movie.release_date
+                                ? new Date(movie.release_date).getFullYear()
+                                : movie.first_air_date
+                                  ? new Date(movie.first_air_date).getFullYear()
+                                  : '';
+                              const genre = movie.genre_ids?.length
+                                ? TMDB_GENRE_MAP[movie.genre_ids[0]] || ''
+                                : '';
+                              const detailPath = mediaType === 'tv' ? `/tv/${movie.id}` : `/movie/${movie.id}`;
+
+                              return (
+                                <Link key={movie.id} href={detailPath}>
+                                  <div
+                                    className="group rounded-lg overflow-hidden border border-border/50 bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200 cursor-pointer"
+                                    data-testid={`movie-card-${movie.id}`}
+                                  >
+                                    <div className="relative aspect-[2/3] overflow-hidden bg-muted">
+                                      {posterUrl ? (
+                                        <img
+                                          src={posterUrl}
+                                          alt={title}
+                                          loading="lazy"
+                                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                                          No Poster
+                                        </div>
+                                      )}
+                                      <div className="absolute top-1 right-1 flex items-center gap-0.5 bg-black/70 text-yellow-400 text-[10px] font-semibold px-1.5 py-0.5 rounded-md">
+                                        <Star className="h-2.5 w-2.5 fill-yellow-400" />
+                                        {rating.toFixed(1)}
+                                      </div>
+                                    </div>
+                                    <div className="p-1.5 sm:p-2">
+                                      <h4 className="font-medium text-[11px] sm:text-xs text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                                        {title}
+                                      </h4>
+                                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                                        {[year, genre].filter(Boolean).join(' \u2022 ')}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </Link>
+                              );
+                            })}
                             {message.moviesLoading && !message.moviesDone && (
                               <>
                                 {Array.from({ length: Math.max(0, (message.moviesLoading || 4) - (message.movies?.length || 0)) }).map((_, i) => (
                                   <div key={`skeleton-${i}`} className="w-full min-w-0" data-testid={`movie-skeleton-${i}`}>
                                     <div className="rounded-lg overflow-hidden border border-border/50 bg-card animate-pulse">
                                       <div className="aspect-[2/3] bg-muted" />
-                                      <div className="p-2 space-y-2">
+                                      <div className="p-1.5 space-y-1.5">
                                         <div className="h-3 bg-muted rounded w-3/4" />
                                         <div className="h-2 bg-muted rounded w-1/2" />
-                                        <div className="flex items-center gap-1">
-                                          <Star className="h-3 w-3 text-muted" />
-                                          <div className="h-2 bg-muted rounded w-8" />
-                                        </div>
                                       </div>
                                     </div>
                                   </div>
