@@ -1067,21 +1067,22 @@ def get_similar_movies_semantic(request, tmdb_id):
         # Try Pinecone vector search first
         try:
             from .ml.pinecone_service import pinecone_service
-            results = pinecone_service.search_similar(tmdb_id, media_type, top_k=limit)
+            results = pinecone_service.get_nearest_neighbors(int(tmdb_id), k=limit)
             if results:
                 similar_items = [
                     {
-                        'tmdb_id': r.get('tmdb_id'),
+                        'tmdb_id': r.get('id'),
                         'title': r.get('title', ''),
                         'poster_path': r.get('poster_path'),
-                        'similarity_score': round(r.get('score', 0.0), 3),
-                        'media_type': r.get('media_type', media_type),
+                        'similarity_score': round(r.get('similarity', 0.0), 3),
+                        'media_type': media_type,
                         'type': 'semantic_vector',
+                        'explanation': r.get('explanation', ''),
                     }
-                    for r in results if r.get('tmdb_id') != tmdb_id
+                    for r in results if str(r.get('id')) != str(tmdb_id)
                 ]
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Pinecone search error: {e}")
 
         # Fallback: TMDB similar endpoint
         if not similar_items:

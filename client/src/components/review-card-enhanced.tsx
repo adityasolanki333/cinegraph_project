@@ -60,26 +60,46 @@ export function ReviewCardEnhanced({
   // Fetch awards on mount - always visible by default
   const { data: awards = [], isLoading: awardsLoading, error: awardsError } = useQuery({
     queryKey: ['/api/community/reviews', review.id, 'awards'],
+    queryFn: async () => {
+      const res = await fetch(`/api/community/reviews/${review.id}/awards`);
+      if (!res.ok) return [];
+      return res.json();
+    },
   });
 
   // Fetch user's awards when authenticated
   const { data: userAwards = [], isLoading: userAwardsLoading } = useQuery({
     queryKey: ['/api/community/reviews', review.id, 'user-awards'],
+    queryFn: async () => {
+      const res = await fetch(`/api/community/reviews/${review.id}/user-awards?userId=${user?.id}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: !!user?.id,
   });
 
   // Fetch comments only when toggled
   const { data: comments = [], isLoading: commentsLoading, error: commentsError } = useQuery({
     queryKey: ['/api/community/reviews', review.id, 'comments'],
+    queryFn: async () => {
+      const res = await fetch(`/api/community/reviews/${review.id}/comments`);
+      if (!res.ok) return { comments: [] };
+      return res.json();
+    },
     enabled: showComments,
-    select: (data: any) => data?.comments || [], // Extract comments array from response
-    gcTime: 0, // Don't cache - force fresh fetch (gcTime replaces cacheTime in v5)
-    staleTime: 0, // Always treat as stale
+    select: (data: any) => data?.comments || [],
+    gcTime: 0,
+    staleTime: 0,
   });
 
   // Fetch related lists containing this media item
   const { data: relatedLists = [], isLoading: relatedListsLoading } = useQuery({
     queryKey: ['/api/community/lists/containing', review.tmdbId, review.mediaType],
+    queryFn: async () => {
+      const res = await fetch(`/api/community/lists/containing/${review.tmdbId}/${review.mediaType}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: !!(review.tmdbId && review.mediaType),
   });
 
