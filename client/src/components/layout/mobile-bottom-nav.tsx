@@ -15,6 +15,7 @@ export default function MobileBottomNav() {
 
   return (
     <nav
+      aria-label="Mobile navigation"
       className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background/95 backdrop-blur-md border-t border-border safe-area-bottom"
       data-testid="mobile-bottom-nav"
     >
@@ -28,8 +29,10 @@ export default function MobileBottomNav() {
           return (
             <Link key={item.href} href={item.href} className="flex-1">
               <button
+                aria-label={item.label}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "w-full h-full flex flex-col items-center justify-center gap-0.5 transition-colors touch-manipulation",
+                  "w-full h-full flex flex-col items-center justify-center gap-0.5 transition-colors touch-manipulation min-h-[44px]",
                   isActive
                     ? "text-primary"
                     : "text-muted-foreground active:text-foreground",

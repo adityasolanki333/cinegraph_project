@@ -54,13 +54,17 @@ function Router() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-background pb-14 md:pb-0">
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:shadow-lg">
+          Skip to main content
+        </a>
         <ScrollToTop />
         <Navbar />
         <OnboardingWizard />
+        <main id="main-content">
         <Suspense
           fallback={
             <div className="flex items-center justify-center min-h-[50vh]">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="Loading page" />
             </div>
           }
         >
@@ -88,6 +92,7 @@ function Router() {
             <Route component={NotFound} />
           </Switch>
         </Suspense>
+        </main>
         <MobileBottomNav />
       </div>
     </ErrorBoundary>

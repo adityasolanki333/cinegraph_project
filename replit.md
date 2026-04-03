@@ -56,6 +56,16 @@ A modern, Netflix-inspired movie recommendation web application with a Django ba
 - DRF throttling configured (100 req/min auth, 20 req/min anon)
 - Structured logging (no print statements in API code)
 
+## SEO & Accessibility
+- Per-page meta tags via `usePageMeta` hook (`client/src/hooks/usePageMeta.ts`) - sets title, description, OG tags
+- Skip-to-content link and `<main id="main-content">` landmark in App.tsx
+- Global `focus-visible` outline styles in index.css
+- ARIA labels on all icon-only buttons (search, notifications, profile menu, delete, etc.)
+- `aria-label` and `aria-current` on mobile bottom nav items
+- `loading="lazy"` on all non-critical images; alt text on every `<img>`
+- 44px minimum touch targets on mobile nav and key interactive elements
+- Graph visualizations use real API data (watchlist, favorites, watched, ratings) with loading skeletons and empty states
+
 ## Tech Stack
 - **Backend**: Django 5.2, Python 3.11, Gunicorn
 - **Frontend**: React 18, TypeScript, Vite

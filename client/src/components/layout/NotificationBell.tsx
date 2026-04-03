@@ -121,9 +121,10 @@ export function NotificationBell() {
       <Button
         variant="ghost"
         size="icon"
-        className="relative"
+        className="relative min-h-[44px] min-w-[44px]"
         onClick={() => setIsOpen(!isOpen)}
         data-testid="button-notification-bell"
+        aria-label={`Notifications${typeof unreadCount === 'number' && unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (

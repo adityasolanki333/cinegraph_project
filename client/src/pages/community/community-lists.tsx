@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
+import { usePageMeta } from "@/hooks/usePageMeta";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -388,6 +389,11 @@ function MyListsTab() {
 
 // ── Page ────────────────────────────────────────────────────────────────────
 export default function CommunityListsPage() {
+  usePageMeta({
+    title: "Community Lists",
+    description: "Discover curated movie and TV show lists shared by the CineGraph community.",
+  });
+
   const { isAuthenticated } = useAuth();
 
   return (

@@ -206,6 +206,7 @@ export function ListCollaboratorManager({ listId, isOwner }: ListCollaboratorMan
                           onClick={() => removeCollaboratorMutation.mutate(collaborator.id)}
                           disabled={removeCollaboratorMutation.isPending}
                           data-testid={`button-remove-collaborator-${collaborator.id}`}
+                          aria-label="Remove collaborator"
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>

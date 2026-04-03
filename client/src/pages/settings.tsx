@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Settings as SettingsIcon, Bell, Globe, Shield, Palette } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 interface UserSettings {
   notifications: boolean;
@@ -25,6 +26,11 @@ const defaultSettings: UserSettings = {
 };
 
 export default function Settings() {
+  usePageMeta({
+    title: "Settings",
+    description: "Manage your CineGraph account settings, preferences, and notifications.",
+  });
+
   const { toast } = useToast();
   const [notifications, setNotifications] = useState(defaultSettings.notifications);
   const [autoplay, setAutoplay] = useState(defaultSettings.autoplay);

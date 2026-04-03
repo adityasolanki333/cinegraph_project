@@ -14,8 +14,14 @@ import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import type { Movie } from "@shared/schema";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 export default function Movies() {
+  usePageMeta({
+    title: "Movies",
+    description: "Browse trending, top-rated, and upcoming movies. Discover your next favorite film on CineGraph.",
+  });
+
   const [location] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("all");

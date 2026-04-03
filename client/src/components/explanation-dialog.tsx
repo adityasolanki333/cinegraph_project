@@ -44,6 +44,7 @@ export function ExplanationDialog({
               <img
                 src={movie.posterUrl || "https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?ixlib=rb-4.0.3&w=400&h=600&fit=crop"}
                 alt={movie.title}
+                loading="lazy"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -68,6 +69,7 @@ export function ExplanationDialog({
             <img
               src={movie.posterUrl || "https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?ixlib=rb-4.0.3&w=400&h=600&fit=crop"}
               alt={movie.title}
+              loading="lazy"
               className="w-16 h-24 object-cover rounded shadow-sm"
             />
 

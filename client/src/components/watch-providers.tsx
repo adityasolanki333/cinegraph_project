@@ -88,6 +88,7 @@ export function WatchProviders({ tmdbId, mediaType }: WatchProvidersProps) {
                     <img
                       src={`https://image.tmdb.org/t/p/original${provider.logo_path}`}
                       alt={provider.provider_name}
+                      loading="lazy"
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -115,6 +116,7 @@ export function WatchProviders({ tmdbId, mediaType }: WatchProvidersProps) {
                     <img
                       src={`https://image.tmdb.org/t/p/original${provider.logo_path}`}
                       alt={provider.provider_name}
+                      loading="lazy"
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -142,6 +144,7 @@ export function WatchProviders({ tmdbId, mediaType }: WatchProvidersProps) {
                     <img
                       src={`https://image.tmdb.org/t/p/original${provider.logo_path}`}
                       alt={provider.provider_name}
+                      loading="lazy"
                       className="w-full h-full object-cover"
                     />
                   </div>

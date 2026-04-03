@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ContinueWatching } from "@/components/continue-watching";
 import { useAuth } from "@/hooks/useAuth";
 import { WithTMDBFallback } from "@/components/tmdb-error-boundary";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 
 const moodOptions = [
@@ -79,6 +80,11 @@ const moodOptions = [
 ];
 
 export default function Home() {
+  usePageMeta({
+    title: "Home",
+    description: "Discover trending movies, TV shows, and personalized recommendations on CineGraph.",
+  });
+
   const [currentSlide, setCurrentSlide] = useState(0);
   const heroRef = useRef<HTMLDivElement>(null);
   const scrollSnapTimeout = useRef<ReturnType<typeof setTimeout>>();
@@ -479,6 +485,7 @@ export default function Home() {
                     alt=""
                     className="w-full h-full object-cover blur-2xl scale-110 opacity-50"
                     draggable={false}
+                    aria-hidden="true"
                   />
                   <img
                     src={movie.posterUrl || "https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?w=800&fit=crop"}

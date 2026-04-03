@@ -104,6 +104,7 @@ export function MilestoneCelebration({ badge, onClose }: MilestoneCelebrationPro
                     className="absolute top-2 right-2"
                     onClick={handleClose}
                     data-testid="button-close-celebration"
+                    aria-label="Close celebration"
                   >
                     <X className="h-4 w-4" />
                   </Button>

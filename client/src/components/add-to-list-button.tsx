@@ -255,6 +255,7 @@ export function AddToListButton({
                           onClick={(e) => handleDeleteClick(e, list.id, list.title)}
                           disabled={deleteListMutation.isPending}
                           data-testid={`button-delete-list-${list.id}`}
+                          aria-label={`Delete list ${list.title}`}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>

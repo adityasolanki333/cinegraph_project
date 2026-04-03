@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useRoute, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { usePageMeta } from "@/hooks/usePageMeta";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,6 +18,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
 
 export default function ClubDetails() {
+    usePageMeta({
+      title: "Club Details",
+      description: "View club discussions and members on CineGraph.",
+    });
+
     const [match, params] = useRoute("/community/clubs/:id");
     const clubId = params?.id;
     const { user } = useAuth();

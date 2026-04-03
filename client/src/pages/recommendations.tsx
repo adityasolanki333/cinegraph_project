@@ -18,6 +18,7 @@ import { useWatchlist } from "@/hooks/useWatchlist";
 import { Link } from "wouter";
 import type { Movie } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 const moodOptions = [
   {
@@ -240,6 +241,11 @@ function PipelineRecommendations({ loading, recommendations }: { loading: boolea
 }
 
 export default function Recommendations() {
+  usePageMeta({
+    title: "AI Recommendations",
+    description: "Get personalized movie and TV show recommendations powered by AI on CineGraph.",
+  });
+
   const [activeTab, setActiveTab] = useState<string>(() => {
     return sessionStorage.getItem('recommendations_activeTab') || 'chat';
   });

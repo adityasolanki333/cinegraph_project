@@ -7,8 +7,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Lock, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 export default function ForgotPassword() {
+    usePageMeta({
+      title: "Reset Password",
+      description: "Reset your CineGraph account password.",
+    });
+
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");

@@ -6,6 +6,7 @@ import {
   Play, Heart, Bookmark, Share, MessageSquare, TrendingUp, CheckCircle, Sparkles,
   ThumbsUp, ThumbsDown, Send, Layers, Trash2
 } from "lucide-react";
+import { usePageMeta } from "@/hooks/usePageMeta";
 import { ReviewForm } from "@/components/review-form";
 import { ReviewList } from "@/components/review-list";
 import { VideoReviews } from "@/components/video-reviews";
@@ -111,6 +112,7 @@ export default function MovieDetailsPage() {
   const params = useParams();
   const movieId = params.id;
   const [activeTab, setActiveTab] = useState("details");
+  
   const { isAuthenticated, user } = useAuth();
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlist();
   const { toast } = useToast();
@@ -237,6 +239,13 @@ export default function MovieDetailsPage() {
         queryClient.invalidateQueries({ queryKey: [`/api/community/user-impact/${user.id}`] });
       }
     }
+  });
+
+  usePageMeta({
+    title: movie?.title || "Movie Details",
+    description: movie?.overview?.slice(0, 160) || "View movie details, reviews, and recommendations on CineGraph.",
+    ogImage: movie?.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : undefined,
+    ogType: "video.movie",
   });
 
   if (isLoading) {
@@ -1354,6 +1363,7 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                             <img
                               src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
                               alt={item.title || item.name}
+                              loading="lazy"
                               className="w-12 h-18 object-cover rounded"
                             />
                           )}
@@ -1445,6 +1455,7 @@ function UserRecommendationsSection({ forTmdbId, forMediaType, currentUserId, is
                           <img
                             src={`https://image.tmdb.org/t/p/w185${rec.recommendedPosterPath}`}
                             alt={rec.recommendedTitle}
+                            loading="lazy"
                             className="w-24 h-36 object-cover rounded cursor-pointer hover:opacity-80 hover:scale-105 transition-transform duration-200"
                           />
                         </Link>

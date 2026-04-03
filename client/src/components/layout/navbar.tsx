@@ -117,7 +117,7 @@ export default function Navbar() {
   const searchResults = suggestions?.results?.slice(0, 6) || [];
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <nav aria-label="Main navigation" className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
@@ -266,9 +266,10 @@ export default function Navbar() {
               ref={mobileSearchButtonRef}
               variant="ghost"
               size="sm"
-              className="sm:hidden"
+              className="sm:hidden min-h-[44px] min-w-[44px]"
               onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
               data-testid="button-mobile-search"
+              aria-label="Search"
             >
               <Search className="h-5 w-5" />
             </Button>
@@ -278,7 +279,7 @@ export default function Navbar() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 rounded-full p-0" data-testid="button-profile-menu">
+                <Button variant="ghost" className="h-8 w-8 rounded-full p-0" data-testid="button-profile-menu" aria-label="User menu">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={user?.profileImageUrl || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&w=32&h=32&fit=crop"} />
                     <AvatarFallback>{user?.firstName?.[0] || user?.email?.[0]?.toUpperCase() || "U"}</AvatarFallback>

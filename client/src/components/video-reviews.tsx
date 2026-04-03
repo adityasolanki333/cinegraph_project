@@ -170,6 +170,7 @@ export function VideoReviews({ title, mediaType }: VideoReviewsProps) {
                   <img
                     src={video.thumbnail}
                     alt={video.title}
+                    loading="lazy"
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors flex items-center justify-center">

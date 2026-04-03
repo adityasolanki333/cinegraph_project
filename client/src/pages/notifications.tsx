@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Notification } from "@shared/schema";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 interface NotificationWithActor extends Notification {
   actor?: {
@@ -24,6 +25,11 @@ interface NotificationWithActor extends Notification {
 }
 
 export default function NotificationsPage() {
+  usePageMeta({
+    title: "Notifications",
+    description: "Stay updated with activity from the CineGraph community.",
+  });
+
   const [, setLocation] = useLocation();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();

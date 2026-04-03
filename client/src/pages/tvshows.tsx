@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { usePageMeta } from "@/hooks/usePageMeta";
 import {
   Filter, TrendingUp, Clock, Tv, Star, Calendar,
   Loader2
@@ -56,6 +57,11 @@ const genreEmojiMap: Record<string, string> = {
 };
 
 export default function TVShowsPage() {
+  usePageMeta({
+    title: "TV Shows",
+    description: "Browse trending, top-rated, and airing TV shows. Find your next binge-worthy series on CineGraph.",
+  });
+
   const [activeTab, setActiveTab] = useState("discover");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("all");

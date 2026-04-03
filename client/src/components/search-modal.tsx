@@ -285,6 +285,7 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
                           <img
                             src={imageUrl}
                             alt={title}
+                            loading="lazy"
                             className="w-12 h-12 object-cover rounded"
                           />
                         ) : (

@@ -257,6 +257,7 @@ export function ListCollaborators({ listId, isOwner }: ListCollaboratorsProps) {
                           onClick={() => removeCollaboratorMutation.mutate(collaborator.id)}
                           disabled={removeCollaboratorMutation.isPending}
                           data-testid={`button-remove-${collaborator.id}`}
+                          aria-label="Remove collaborator"
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>

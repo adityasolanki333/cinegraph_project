@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { apiRequest } from "@/lib/queryClient";
 import type { Movie } from "@shared/schema";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 function EnrichedMovieCard({ item, isOwnList, onRemove }: { item: any; isOwnList: boolean; onRemove: () => void }) {
   const mediaType = item.mediaType === 'tv' ? 'tv' : item.type === 'tv' ? 'tv' : 'movie';
@@ -79,6 +80,11 @@ const LIST_TABS = [
 ] as const;
 
 export default function MyList() {
+  usePageMeta({
+    title: "My List",
+    description: "Manage your watchlist, favorites, and watched movies and TV shows on CineGraph.",
+  });
+
   const [listType, setListType] = useState<"watchlist" | "watched" | "favorite">("watchlist");
   const [filterType, setFilterType] = useState("all");
   const [sortBy, setSortBy] = useState("dateAdded");

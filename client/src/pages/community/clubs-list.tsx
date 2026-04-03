@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { usePageMeta } from "@/hooks/usePageMeta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +32,11 @@ interface Club {
 }
 
 export default function ClubsList() {
+    usePageMeta({
+      title: "Clubs",
+      description: "Browse and join movie discussion clubs on CineGraph.",
+    });
+
     const [searchQuery, setSearchQuery] = useState("");
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [newClubTitle, setNewClubTitle] = useState("");

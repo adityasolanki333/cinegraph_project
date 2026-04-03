@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { usePageMeta } from "@/hooks/usePageMeta";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -47,6 +48,11 @@ type TimeFilter = 'daily' | 'weekly' | 'monthly';
 type SortBy = 'awards' | 'comments' | 'helpful';
 
 export default function Community() {
+  usePageMeta({
+    title: "Community",
+    description: "Join the CineGraph community. Discover reviews, trending content, and connect with fellow movie fans.",
+  });
+
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('weekly');
   const [sortBy, setSortBy] = useState<SortBy>('awards');
   const [searchQuery, setSearchQuery] = useState('');
@@ -333,7 +339,8 @@ export default function Community() {
                           <img
                             src={`https://image.tmdb.org/t/p/w154${item.posterPath}`}
                             alt={item.title}
-                            className="w-20 h-[7.5rem] object-cover rounded"
+                            loading="lazy"
+                            className="w-20 h-30 object-cover rounded"
                           />
                         )}
                         <div className="flex-1">
@@ -357,6 +364,7 @@ export default function Community() {
                           <img
                             src={`https://image.tmdb.org/t/p/w154${(item as any).posterPath}`}
                             alt={(item as any).title}
+                            loading="lazy"
                             className="w-16 h-24 object-cover rounded"
                           />
                         )}
@@ -536,6 +544,7 @@ export default function Community() {
                         <img
                           src={`https://image.tmdb.org/t/p/w342${item.posterPath}`}
                           alt={item.title}
+                          loading="lazy"
                           className="w-full h-full object-cover transition-transform group-hover:scale-105"
                         />
                       ) : (
@@ -886,7 +895,8 @@ export default function Community() {
                                 <img
                                   src={`https://image.tmdb.org/t/p/w154${item.posterPath}`}
                                   alt={item.title}
-                                  className="w-20 h-[7.5rem] object-cover rounded"
+                                  loading="lazy"
+                                  className="w-20 h-30 object-cover rounded"
                                 />
                               )}
                               <div className="flex-1">

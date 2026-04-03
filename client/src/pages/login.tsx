@@ -9,8 +9,14 @@ import { LogIn, UserPlus, CheckCircle2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, Link } from "wouter";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 export default function Login() {
+  usePageMeta({
+    title: "Sign In",
+    description: "Sign in or create a CineGraph account to track movies, write reviews, and get personalized recommendations.",
+  });
+
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

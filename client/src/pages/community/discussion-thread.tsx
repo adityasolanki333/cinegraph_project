@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { usePageMeta } from "@/hooks/usePageMeta";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,11 @@ import { ArrowLeft, MessageSquare, Pin, Send, CornerDownRight } from "lucide-rea
 import { formatDistanceToNow } from "date-fns";
 
 export default function DiscussionThread() {
+    usePageMeta({
+      title: "Discussion",
+      description: "Join the conversation in this CineGraph community discussion.",
+    });
+
     const [match, params] = useRoute("/community/clubs/threads/:id");
     const threadId = params?.id;
     const { user } = useAuth();

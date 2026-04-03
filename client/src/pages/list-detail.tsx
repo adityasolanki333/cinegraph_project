@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
+import { usePageMeta } from "@/hooks/usePageMeta";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -112,6 +113,11 @@ function ListItemCard({ item, isOwnList, onRemove }: { item: any; isOwnList: boo
 }
 
 export default function ListDetail() {
+  usePageMeta({
+    title: "List Details",
+    description: "View and manage a curated movie list on CineGraph.",
+  });
+
   const [match, params] = useRoute<{ id: string }>("/lists/:id");
   const [, setLocation] = useLocation();
   const { user, isAuthenticated } = useAuth();

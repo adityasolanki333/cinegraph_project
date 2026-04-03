@@ -23,8 +23,14 @@ import { UserBadges } from "@/components/UserBadges";
 import { UserImpactDashboard } from "@/components/user-impact-dashboard";
 import { PatternInsights } from "@/components/pattern-insights";
 import { getLevelBadge, getLevelProgress } from "@shared/helpers";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 export default function Profile() {
+  usePageMeta({
+    title: "Profile",
+    description: "View your CineGraph profile, reviews, favorites, and viewing stats.",
+  });
+
   const [, setLocation] = useLocation();
   const { user, isAuthenticated, isLoading: authLoading, refetchUser } = useAuth();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
