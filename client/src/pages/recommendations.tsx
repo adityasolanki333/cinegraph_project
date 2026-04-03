@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
-import AIChat from "@/components/ai-chat";
 import { AdvancedRecommendations } from "@/components/advanced-recommendations";
 
 import { MediaCard } from "@/components/media-card";
@@ -209,7 +208,8 @@ export default function Recommendations() {
   });
 
   const [activeTab, setActiveTab] = useState<string>(() => {
-    return sessionStorage.getItem('recommendations_activeTab') || 'chat';
+    const saved = sessionStorage.getItem('recommendations_activeTab');
+    return saved === 'chat' ? 'advanced' : (saved || 'advanced');
   });
 
   const [selectedMood, setSelectedMood] = useState<string | null>(() => {
@@ -543,12 +543,7 @@ export default function Recommendations() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col flex-1">
-          <TabsList className="grid w-full grid-cols-3 mb-2 sm:mb-3 gap-0.5 sm:gap-1">
-            <TabsTrigger value="chat" className="flex items-center gap-1 md:gap-2 text-xs sm:text-sm px-2 sm:px-3" data-testid="tab-ai-chat">
-              <Sparkles className="h-3 w-3 md:h-4 md:w-4" />
-              <span className="hidden sm:inline">AI Chat</span>
-              <span className="sm:hidden">Chat</span>
-            </TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 mb-2 sm:mb-3 gap-0.5 sm:gap-1">
             <TabsTrigger value="advanced" className="flex items-center gap-1 md:gap-2 text-xs sm:text-sm px-2 sm:px-3" data-testid="tab-advanced-finder">
               <Search className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Advanced Finder</span>
@@ -560,11 +555,6 @@ export default function Recommendations() {
               <span className="sm:hidden">Why</span>
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="chat" className="flex-1 mt-0">
-            {/* AI Chat Interface - Full screen */}
-            <AIChat className="w-full h-[calc(100dvh-10rem)] sm:h-[calc(100dvh-13rem)]" />
-          </TabsContent>
 
           <TabsContent value="advanced">
             <AdvancedRecommendations />

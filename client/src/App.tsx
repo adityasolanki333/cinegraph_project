@@ -12,6 +12,7 @@ import { Loader2 } from "lucide-react";
 import Navbar from "@/components/layout/navbar";
 import MobileBottomNav from "@/components/layout/mobile-bottom-nav";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
+import AIChat from "@/components/ai-chat";
 import "@/i18n";
 
 // Lazy load pages
@@ -111,6 +112,7 @@ function Router() {
         </Suspense>
         </main>
         <MobileBottomNav />
+        <AIChat />
       </div>
     </ErrorBoundary>
   );
