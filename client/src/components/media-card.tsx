@@ -12,7 +12,7 @@ import { useWatchlist } from "@/hooks/useWatchlist";
 import { useToast } from "@/hooks/use-toast";
 import { TrailerDialog } from "@/components/trailer-dialog";
 import { ExplanationDialog } from "@/components/explanation-dialog";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Movie } from "@shared/schema";
 import { ChevronUp, Brain } from "lucide-react";
 
@@ -234,6 +234,17 @@ export function MediaCard({
           title: "Got it!",
           description: "We'll stop showing this to you.",
         });
+        // Remove this item from the cached recommendations list immediately
+        const tmdbId = typeof movie.id === 'string' ? parseInt(movie.id) : movie.id;
+        queryClient.setQueriesData(
+          { queryKey: ['/api/recommendations/hybrid'] },
+          (old: any) => {
+            if (!Array.isArray(old)) return old;
+            return old.filter((m: any) => m.id !== tmdbId && m.id !== movie.id);
+          }
+        );
+        // Also invalidate so the next background fetch excludes it server-side
+        queryClient.invalidateQueries({ queryKey: ['/api/recommendations/hybrid'] });
       }
     },
     onError: (error) => {
