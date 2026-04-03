@@ -28,7 +28,7 @@ import {
   Trophy,
   Clapperboard
 } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { getLevelBadge, AWARD_TYPES, userIdToUsername } from "@shared/helpers";
@@ -52,7 +52,6 @@ export default function Community() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<'lists' | 'users'>('lists');
   const { user } = useAuth();
-  const [, navigate] = useLocation();
 
   const { data: activityPrompts, isLoading: promptsLoading } = useQuery<any[]>({
     queryKey: [`/api/community/activity-prompts/${user?.id}`],
@@ -215,51 +214,53 @@ export default function Community() {
       <Tabs defaultValue="feed" className="w-full">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-6">
           <div className="overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
-            <TabsList className="inline-flex w-max gap-0.5" data-testid="tabs-community">
-              <TabsTrigger value="feed" data-testid="tab-activity-feed">
-                <Clock className="h-4 w-4 mr-1.5" />
-                <span className="hidden sm:inline">Activity Feed</span>
-                <span className="sm:hidden">Feed</span>
-              </TabsTrigger>
-              <TabsTrigger value="reviews" data-testid="tab-top-reviews">
-                <Star className="h-4 w-4 mr-1.5" />
-                <span className="hidden sm:inline">Top Reviews</span>
-                <span className="sm:hidden">Reviews</span>
-              </TabsTrigger>
-              <TabsTrigger value="trending" data-testid="tab-trending">
-                <TrendingUp className="h-4 w-4 mr-1.5" />
-                <span>Trending</span>
-              </TabsTrigger>
-              <TabsTrigger value="foryou" data-testid="tab-for-you">
-                <Heart className="h-4 w-4 mr-1.5" />
-                <span>For You</span>
-              </TabsTrigger>
-              <TabsTrigger value="search" data-testid="tab-search">
-                <Search className="h-4 w-4 mr-1.5" />
-                <span>Search</span>
-              </TabsTrigger>
-              <TabsTrigger value="leaderboards" data-testid="tab-leaderboards">
-                <Trophy className="h-4 w-4 mr-1.5" />
-                <span className="hidden sm:inline">Leaderboards</span>
-                <span className="sm:hidden">Leaders</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="clubs"
+            <div className="inline-flex items-center rounded-md bg-muted p-1 h-10 gap-0.5" data-testid="tabs-community">
+              <TabsList className="inline-flex w-max gap-0.5 bg-transparent p-0 h-auto rounded-none">
+                <TabsTrigger value="feed" data-testid="tab-activity-feed">
+                  <Clock className="h-4 w-4 mr-1.5" />
+                  <span className="hidden sm:inline">Activity Feed</span>
+                  <span className="sm:hidden">Feed</span>
+                </TabsTrigger>
+                <TabsTrigger value="reviews" data-testid="tab-top-reviews">
+                  <Star className="h-4 w-4 mr-1.5" />
+                  <span className="hidden sm:inline">Top Reviews</span>
+                  <span className="sm:hidden">Reviews</span>
+                </TabsTrigger>
+                <TabsTrigger value="trending" data-testid="tab-trending">
+                  <TrendingUp className="h-4 w-4 mr-1.5" />
+                  <span>Trending</span>
+                </TabsTrigger>
+                <TabsTrigger value="foryou" data-testid="tab-for-you">
+                  <Heart className="h-4 w-4 mr-1.5" />
+                  <span>For You</span>
+                </TabsTrigger>
+                <TabsTrigger value="search" data-testid="tab-search">
+                  <Search className="h-4 w-4 mr-1.5" />
+                  <span>Search</span>
+                </TabsTrigger>
+                <TabsTrigger value="leaderboards" data-testid="tab-leaderboards">
+                  <Trophy className="h-4 w-4 mr-1.5" />
+                  <span className="hidden sm:inline">Leaderboards</span>
+                  <span className="sm:hidden">Leaders</span>
+                </TabsTrigger>
+              </TabsList>
+              <Link
+                href="/community/clubs"
                 data-testid="tab-clubs"
-                onClick={() => navigate('/community/clubs')}
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium text-muted-foreground ring-offset-background transition-all hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <Clapperboard className="h-4 w-4 mr-1.5" />
                 <span>Clubs</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="lists"
+              </Link>
+              <Link
+                href="/community/lists"
                 data-testid="tab-lists"
-                onClick={() => navigate('/community/lists')}
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium text-muted-foreground ring-offset-background transition-all hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <List className="h-4 w-4 mr-1.5" />
                 <span>Lists</span>
-              </TabsTrigger>
-            </TabsList>
+              </Link>
+            </div>
           </div>
 
           <Select value={timeFilter} onValueChange={(v) => setTimeFilter(v as TimeFilter)}>
