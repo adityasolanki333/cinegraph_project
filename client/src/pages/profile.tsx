@@ -51,7 +51,7 @@ export default function Profile() {
     }
   }, [authLoading, isAuthenticated, setLocation]);
 
-  const { data: profileUser } = useQuery({
+  const { data: profileUser, isLoading: profileUserLoading } = useQuery({
     queryKey: ['/api/users/by-username', identifier],
     queryFn: async () => {
       if (!identifier) return user;
@@ -327,7 +327,7 @@ export default function Profile() {
   });
 
   const levelInfo = getLevelBadge(userStats?.experiencePoints || 0);
-  const isLoading = authLoading || statsLoading;
+  const isLoading = authLoading || statsLoading || (!!identifier && profileUserLoading);
 
   if (isLoading) {
     return (
