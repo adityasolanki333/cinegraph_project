@@ -40,6 +40,7 @@ export function ContinueWatching() {
   // Fetch viewing history
   const { data: viewingHistoryData, isLoading: historyLoading } = useQuery<{items: ViewingHistoryItem[]} | ViewingHistoryItem[]>({
     queryKey: ['/api/users', user?.id, 'watched'],
+    staleTime: 1000 * 60 * 2,
     queryFn: async () => {
       const res = await fetch(`/api/users/${user?.id}/watched`, {
         headers: { ...getAuthHeaders() },
@@ -61,6 +62,7 @@ export function ContinueWatching() {
     analysis: PatternAnalysis;
   }>({
     queryKey: ['/api/recommendations/pattern/analyze', user?.id],
+    staleTime: 1000 * 60 * 15,
     queryFn: async () => {
       const res = await fetch(`/api/recommendations/pattern/analyze/${user?.id}`, {
         headers: { ...getAuthHeaders() },

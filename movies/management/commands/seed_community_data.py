@@ -16,38 +16,39 @@ import random
 
 
 SAMPLE_MOVIES = [
-    {'tmdb_id': 550,    'title': 'Fight Club',              'media_type': 'movie', 'genres': ['Drama', 'Thriller']},
-    {'tmdb_id': 13,     'title': 'Forrest Gump',            'media_type': 'movie', 'genres': ['Drama', 'Romance']},
-    {'tmdb_id': 155,    'title': 'The Dark Knight',         'media_type': 'movie', 'genres': ['Action', 'Crime']},
-    {'tmdb_id': 238,    'title': 'The Godfather',           'media_type': 'movie', 'genres': ['Crime', 'Drama']},
-    {'tmdb_id': 680,    'title': 'Pulp Fiction',            'media_type': 'movie', 'genres': ['Crime', 'Thriller']},
-    {'tmdb_id': 120,    'title': 'The Lord of the Rings: The Fellowship of the Ring', 'media_type': 'movie', 'genres': ['Adventure', 'Fantasy']},
-    {'tmdb_id': 278,    'title': 'The Shawshank Redemption', 'media_type': 'movie', 'genres': ['Drama']},
-    {'tmdb_id': 27205,  'title': 'Inception',               'media_type': 'movie', 'genres': ['Sci-Fi', 'Thriller']},
-    {'tmdb_id': 603,    'title': 'The Matrix',              'media_type': 'movie', 'genres': ['Sci-Fi', 'Action']},
-    {'tmdb_id': 157336, 'title': 'Interstellar',            'media_type': 'movie', 'genres': ['Sci-Fi', 'Drama']},
-    {'tmdb_id': 807,    'title': 'Se7en',                   'media_type': 'movie', 'genres': ['Crime', 'Thriller']},
-    {'tmdb_id': 244786, 'title': 'Whiplash',                'media_type': 'movie', 'genres': ['Drama', 'Music']},
-    {'tmdb_id': 11,     'title': 'Star Wars: A New Hope',  'media_type': 'movie', 'genres': ['Sci-Fi', 'Adventure']},
-    {'tmdb_id': 389,    'title': '12 Angry Men',            'media_type': 'movie', 'genres': ['Drama']},
-    {'tmdb_id': 496243, 'title': 'Parasite',                'media_type': 'movie', 'genres': ['Thriller', 'Drama']},
-    {'tmdb_id': 299536, 'title': 'Avengers: Infinity War',  'media_type': 'movie', 'genres': ['Action', 'Sci-Fi']},
-    {'tmdb_id': 76341,  'title': 'Mad Max: Fury Road',      'media_type': 'movie', 'genres': ['Action', 'Thriller']},
-    {'tmdb_id': 19995,  'title': 'Avatar',                  'media_type': 'movie', 'genres': ['Sci-Fi', 'Adventure']},
-    {'tmdb_id': 424,    'title': "Schindler's List",        'media_type': 'movie', 'genres': ['Drama', 'History']},
-    {'tmdb_id': 598,    'title': 'City of God',             'media_type': 'movie', 'genres': ['Crime', 'Drama']},
+    {'tmdb_id': 550,    'title': 'Fight Club',              'media_type': 'movie', 'poster_path': '/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg', 'genres': ['Drama', 'Thriller']},
+    {'tmdb_id': 13,     'title': 'Forrest Gump',            'media_type': 'movie', 'poster_path': '/saHP97rTPS5eLmrLQEcANmKrsFl.jpg', 'genres': ['Drama', 'Romance']},
+    {'tmdb_id': 155,    'title': 'The Dark Knight',         'media_type': 'movie', 'poster_path': '/qJ2tW6WMUDux911r6m7haRef0WH.jpg', 'genres': ['Action', 'Crime']},
+    {'tmdb_id': 238,    'title': 'The Godfather',           'media_type': 'movie', 'poster_path': '/3bhkrj58Vtu7enYsLe1vcwtykok.jpg', 'genres': ['Crime', 'Drama']},
+    {'tmdb_id': 680,    'title': 'Pulp Fiction',            'media_type': 'movie', 'poster_path': '/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg', 'genres': ['Crime', 'Thriller']},
+    {'tmdb_id': 120,    'title': 'The Lord of the Rings: The Fellowship of the Ring', 'media_type': 'movie', 'poster_path': '/6oom5QYQ2yQTMJIbnvbkBL9cHo6.jpg', 'genres': ['Adventure', 'Fantasy']},
+    {'tmdb_id': 278,    'title': 'The Shawshank Redemption', 'media_type': 'movie', 'poster_path': '/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg', 'genres': ['Drama']},
+    {'tmdb_id': 27205,  'title': 'Inception',               'media_type': 'movie', 'poster_path': '/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg', 'genres': ['Sci-Fi', 'Thriller']},
+    {'tmdb_id': 603,    'title': 'The Matrix',              'media_type': 'movie', 'poster_path': '/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg', 'genres': ['Sci-Fi', 'Action']},
+    {'tmdb_id': 157336, 'title': 'Interstellar',            'media_type': 'movie', 'poster_path': '/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg', 'genres': ['Sci-Fi', 'Drama']},
+    {'tmdb_id': 807,    'title': 'Se7en',                   'media_type': 'movie', 'poster_path': '/69Sns8WoET6CfaYlIkHbla4l7nC.jpg', 'genres': ['Crime', 'Thriller']},
+    {'tmdb_id': 244786, 'title': 'Whiplash',                'media_type': 'movie', 'poster_path': '/7fn624j5lj3xTme2SgiLCeuedmO.jpg', 'genres': ['Drama', 'Music']},
+    {'tmdb_id': 11,     'title': 'Star Wars: A New Hope',  'media_type': 'movie', 'poster_path': '/6FfCtAuVAW8XJjZ7eWeLibRLWTw.jpg', 'genres': ['Sci-Fi', 'Adventure']},
+    {'tmdb_id': 389,    'title': '12 Angry Men',            'media_type': 'movie', 'poster_path': '/ppd84D2i9W8jXmsyInGyihiSyqz.jpg', 'genres': ['Drama']},
+    {'tmdb_id': 496243, 'title': 'Parasite',                'media_type': 'movie', 'poster_path': '/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg', 'genres': ['Thriller', 'Drama']},
+    {'tmdb_id': 299536, 'title': 'Avengers: Infinity War',  'media_type': 'movie', 'poster_path': '/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg', 'genres': ['Action', 'Sci-Fi']},
+    {'tmdb_id': 76341,  'title': 'Mad Max: Fury Road',      'media_type': 'movie', 'poster_path': '/hA2ple9q4qnwxp3hKVNhroipsir.jpg', 'genres': ['Action', 'Thriller']},
+    {'tmdb_id': 19995,  'title': 'Avatar',                  'media_type': 'movie', 'poster_path': '/jRXYjXNq0Cs2TcJjLkki24MLp7u.jpg', 'genres': ['Sci-Fi', 'Adventure']},
+    {'tmdb_id': 424,    'title': "Schindler's List",        'media_type': 'movie', 'poster_path': '/sF1U4EUQS8YHUYjNl3pMGNIQyr0.jpg', 'genres': ['Drama', 'History']},
+    {'tmdb_id': 598,    'title': 'City of God',             'media_type': 'movie', 'poster_path': '/k7eYdWvhYQyRQoU2TB2A2Xu2grZ.jpg', 'genres': ['Crime', 'Drama']},
 ]
 
 SAMPLE_TV = [
-    {'tmdb_id': 1396,  'title': 'Breaking Bad',      'media_type': 'tv', 'genres': ['Crime', 'Drama']},
-    {'tmdb_id': 1399,  'title': 'Game of Thrones',   'media_type': 'tv', 'genres': ['Fantasy', 'Drama']},
-    {'tmdb_id': 66732, 'title': 'Stranger Things',   'media_type': 'tv', 'genres': ['Sci-Fi', 'Horror']},
-    {'tmdb_id': 1668,  'title': 'Friends',           'media_type': 'tv', 'genres': ['Comedy']},
-    {'tmdb_id': 1418,  'title': 'The Big Bang Theory','media_type': 'tv', 'genres': ['Comedy']},
-    {'tmdb_id': 46952, 'title': 'Black Mirror',      'media_type': 'tv', 'genres': ['Sci-Fi', 'Thriller']},
-    {'tmdb_id': 1434,  'title': 'Family Guy',        'media_type': 'tv', 'genres': ['Comedy', 'Animation']},
-    {'tmdb_id': 57243, 'title': 'Doctor Who',        'media_type': 'tv', 'genres': ['Sci-Fi', 'Adventure']},
+    {'tmdb_id': 1396,  'title': 'Breaking Bad',      'media_type': 'tv', 'poster_path': '/ggFHVNu6YYI5L9pCfOacjizRGt.jpg',  'genres': ['Crime', 'Drama']},
+    {'tmdb_id': 1399,  'title': 'Game of Thrones',   'media_type': 'tv', 'poster_path': '/1XS1oqL89opfnbLl8WnZY1O1uJx.jpg', 'genres': ['Fantasy', 'Drama']},
+    {'tmdb_id': 66732, 'title': 'Stranger Things',   'media_type': 'tv', 'poster_path': '/49WJfeN0moxb9IPfGn8AIqMGskD.jpg', 'genres': ['Sci-Fi', 'Horror']},
+    {'tmdb_id': 1668,  'title': 'Friends',           'media_type': 'tv', 'poster_path': '/f496cm9enuEsZkSPzCwnTESEK5s.jpg', 'genres': ['Comedy']},
+    {'tmdb_id': 1418,  'title': 'The Big Bang Theory','media_type': 'tv','poster_path': '/ooBGRQBdbGzBxAVfExiO8r7kloA.jpg', 'genres': ['Comedy']},
+    {'tmdb_id': 46952, 'title': 'Black Mirror',      'media_type': 'tv', 'poster_path': '/5UaYsGZOFhjFDwQh6GuLjjA1WlF.jpg', 'genres': ['Sci-Fi', 'Thriller']},
+    {'tmdb_id': 1434,  'title': 'Family Guy',        'media_type': 'tv', 'poster_path': '/y0HUz4eqQ0sMbiFf5QNKCO1Hseg.jpg', 'genres': ['Comedy', 'Animation']},
+    {'tmdb_id': 57243, 'title': 'Doctor Who',        'media_type': 'tv', 'poster_path': '/4edFyasCrkH4MKs6H4mHqlrxA6b.jpg', 'genres': ['Sci-Fi', 'Adventure']},
 ]
+
 
 ALL_CONTENT = SAMPLE_MOVIES + SAMPLE_TV
 
@@ -165,6 +166,63 @@ CURATED_LISTS = [
     },
 ]
 
+CURATED_CLUBS = [
+    {
+        'title': 'Sci-Fi Addicts',
+        'description': 'A place to discuss all things Sci-Fi movies and TV. We love space, time travel, and lasers.',
+        'owner_username': 'scifi_sarah',
+        'cover_image_url': 'https://images.unsplash.com/photo-1543722530-d2c3201371e7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+        'threads': [
+            {
+                'title': 'Best time travel movie of all time?',
+                'content': 'I think Interstellar sets the bar for emotional time dilation, but what about Back to the Future for pure perfection?',
+                'pinned': True,
+                'author': 'scifi_sarah',
+                'posts': [
+                    {'author': 'cinephile_alex', 'content': 'Primer is arguably the best strictly "time travel" movie, though confusing.'},
+                    {'author': 'action_raj', 'content': 'Terminator 2 is a masterpiece, period.'}
+                ]
+            }
+        ]
+    },
+    {
+        'title': 'The Criterion Corner',
+        'description': 'For those who appreciate the fine art of cinema. Indie, foreign, and classic films.',
+        'owner_username': 'cinephile_alex',
+        'cover_image_url': 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+        'threads': [
+            {
+                'title': 'Thoughts on Parasite?',
+                'content': 'Did it deserve the historic Best Picture win? I personally think it is a masterclass in class commentary.',
+                'pinned': True,
+                'author': 'cinephile_alex',
+                'posts': [
+                    {'author': 'indie_james', 'content': 'Absolutely. Director Bong Joon-ho captured lightning in a bottle.'},
+                    {'author': 'film_noah', 'content': 'The cinematography alone the stairs scenes is phenomenal.'}
+                ]
+            }
+        ]
+    },
+    {
+        'title': 'Binge Watchers Anonymous',
+        'description': 'Sharing the latest series obsessions and asking the timeless question: "Are you still watching?"',
+        'owner_username': 'binge_emma',
+        'cover_image_url': 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+        'threads': [
+            {
+                'title': 'What are you watching this weekend?',
+                'content': 'I am finally finishing Breaking Bad. What is everyone else binging?',
+                'pinned': False,
+                'author': 'binge_emma',
+                'posts': [
+                    {'author': 'comedy_mike', 'content': 'The Office season 4, again. It never gets old!'},
+                    {'author': 'horror_luna', 'content': 'Just started Stranger Things. Way scarier than I expected.'}
+                ]
+            }
+        ]
+    }
+]
+
 
 class Command(BaseCommand):
     help = 'Seed rich community data: 8 users, 60+ reviews, 5 curated lists, follow relationships'
@@ -180,7 +238,7 @@ class Command(BaseCommand):
         from movies.models import (
             UserWatchlist, UserFavorites, UserReview,
             ViewingHistory, UserPreferences, UserList, ListItem,
-            UserActivityStats
+            UserActivityStats, Club, ClubMember, ClubThread, ClubPost
         )
 
         if options.get('clear'):
@@ -247,6 +305,7 @@ class Command(BaseCommand):
                     defaults={
                         'title': content['title'],
                         'media_type': content['media_type'],
+                        'poster_path': content.get('poster_path', ''),
                         'rating': rating,
                         'review_text': text,
                         'is_public': True,
@@ -270,7 +329,7 @@ class Command(BaseCommand):
                     defaults={
                         'title': content['title'],
                         'media_type': content['media_type'],
-                        'poster_path': '',
+                        'poster_path': content.get('poster_path', ''),
                     }
                 )
                 if created:
@@ -356,6 +415,75 @@ class Command(BaseCommand):
             stats.user_level = stats.calculate_level()
             stats.save()
 
+        # ── 8. Create clubs and threads ────────────────────────────────────────
+        club_count = 0
+        thread_count = 0
+        post_count = 0
+
+        for club_data in CURATED_CLUBS:
+            try:
+                owner = User.objects.get(username=club_data['owner_username'])
+            except User.DoesNotExist:
+                owner = demo_user
+
+            club, created = Club.objects.get_or_create(
+                title=club_data['title'],
+                defaults={
+                    'description': club_data['description'],
+                    'owner': owner,
+                    'cover_image_url': club_data.get('cover_image_url', ''),
+                    'is_public': True,
+                    'member_count': 1
+                }
+            )
+            
+            if created:
+                club_count += 1
+                ClubMember.objects.get_or_create(club=club, user=owner, defaults={'role': 'admin'})
+
+                # Add some random members
+                others = [u for u in all_users if u != owner]
+                to_join = random.sample(others, min(random.randint(2, 5), len(others)))
+                for u in to_join:
+                    ClubMember.objects.get_or_create(club=club, user=u, defaults={'role': 'member'})
+                club.member_count = 1 + len(to_join)
+                club.save()
+
+                # Add threads and posts
+                for thread_data in club_data['threads']:
+                    try:
+                        author = User.objects.get(username=thread_data['author'])
+                    except User.DoesNotExist:
+                        author = owner
+                    
+                    thread, t_created = ClubThread.objects.get_or_create(
+                        club=club,
+                        title=thread_data['title'],
+                        defaults={
+                            'author': author,
+                            'content': thread_data['content'],
+                            'pinned': thread_data['pinned'],
+                            'view_count': random.randint(10, 100),
+                        }
+                    )
+                    if t_created:
+                        thread_count += 1
+                        
+                        for post_data in thread_data['posts']:
+                            try:
+                                post_author = User.objects.get(username=post_data['author'])
+                            except User.DoesNotExist:
+                                post_author = owner
+                            
+                            ClubPost.objects.create(
+                                thread=thread,
+                                author=post_author,
+                                content=post_data['content']
+                            )
+                            post_count += 1
+
+        self.stdout.write(f'Created {club_count} clubs, {thread_count} threads, and {post_count} posts.')
+
         self.stdout.write(self.style.SUCCESS(
             f'\n✅ Community seed complete!\n'
             f'  • {len(created_users)} community users\n'
@@ -363,5 +491,6 @@ class Command(BaseCommand):
             f'  • {fav_count} favorites\n'
             f'  • {list_count} curated lists\n'
             f'  • {follow_count} follow relationships\n'
-            f'\nCommunity feed, leaderboards, and trending should now be populated.'
+            f'  • {club_count} clubs, {thread_count} threads, {post_count} posts\n'
+            f'\nCommunity feed, leaderboards, clubs, and trending should now be populated.'
         ))

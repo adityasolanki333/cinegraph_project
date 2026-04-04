@@ -20,7 +20,8 @@ export function NotificationBell() {
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ['/api/community/notifications/unread/count'],
     enabled: isAuthenticated,
-    refetchInterval: 60000,
+    staleTime: 1000 * 60 * 2,
+    refetchInterval: 120000,
   });
   const unreadCount = unreadData?.count ?? 0;
 

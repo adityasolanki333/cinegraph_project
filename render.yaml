@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: cinegraph-backend
+    runtime: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn movieflix.wsgi:application"
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: PYTHON_VERSION
+        value: "3.11.10"
+      - fromGroup: cinegraph-secrets

@@ -27,10 +27,23 @@ export default function Movies() {
 
   const [location] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedGenre, setSelectedGenre] = useState("all");
+  const [selectedGenre, setSelectedGenre] = useState(() => {
+    try {
+      const g = new URLSearchParams(window.location.search).get("genre");
+      return g ? decodeURIComponent(g) : "all";
+    } catch {
+      return "all";
+    }
+  });
   const [selectedYear, setSelectedYear] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [activeTab, setActiveTab] = useState("discover");
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("tab") || "discover";
+    } catch {
+      return "discover";
+    }
+  });
   const { isInWatchlist } = useWatchlist();
   const [searchType, setSearchType] = useState("movies");
 
@@ -64,27 +77,19 @@ export default function Movies() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentPage, trendingPage, nowPlayingPage, upcomingPage, topRatedPage, indianPage]);
 
-  // Get genres from TMDB
+  const needsGenres = activeTab === "discover" || activeTab === "indian";
+
+  // Get genres from TMDB (discover + Indian tabs only — avoids extra TMDB calls on other tabs)
   const { data: genresData } = useQuery({
     queryKey: ['/api/tmdb/genres/movies'],
+    enabled: needsGenres,
     select: (data: any) => data.genres || []
-  });
-
-  // Get movie certifications
-  const { data: certificationsData } = useQuery({
-    queryKey: ['/api/tmdb/certification/movie/list'],
-    select: (data: any) => data.certifications || {}
-  });
-
-  // Get recent movie changes
-  const { data: changesData } = useQuery({
-    queryKey: ['/api/tmdb/movie/changes'],
-    select: (data: any) => data.results || []
   });
 
   // Get trending movies
   const { data: trendingData, isLoading: trendingLoading } = useQuery({
     queryKey: ['/api/tmdb/trending', trendingPage],
+    enabled: activeTab === 'trending',
     queryFn: async () => {
       const response = await fetch(`/api/tmdb/trending?page=${trendingPage}`);
       if (!response.ok) throw new Error('Failed to fetch trending movies');
@@ -95,6 +100,7 @@ export default function Movies() {
   // Get now playing movies
   const { data: nowPlayingData, isLoading: nowPlayingLoading } = useQuery({
     queryKey: ['/api/tmdb/movies/now-playing', nowPlayingPage],
+    enabled: activeTab === 'now-playing',
     queryFn: async () => {
       const response = await fetch(`/api/tmdb/movies/now-playing?page=${nowPlayingPage}`);
       if (!response.ok) throw new Error('Failed to fetch now playing movies');
@@ -105,6 +111,7 @@ export default function Movies() {
   // Get upcoming movies
   const { data: upcomingData, isLoading: upcomingLoading } = useQuery({
     queryKey: ['/api/tmdb/movies/upcoming', upcomingPage],
+    enabled: activeTab === 'upcoming',
     queryFn: async () => {
       const response = await fetch(`/api/tmdb/movies/upcoming?page=${upcomingPage}`);
       if (!response.ok) throw new Error('Failed to fetch upcoming movies');
@@ -114,6 +121,7 @@ export default function Movies() {
 
   const { data: topRatedData, isLoading: topRatedLoading } = useQuery({
     queryKey: ['/api/tmdb/movies/top-rated', topRatedPage],
+    enabled: activeTab === 'top-rated',
     queryFn: async () => {
       const response = await fetch(`/api/tmdb/movies/top-rated?page=${topRatedPage}`);
       if (!response.ok) throw new Error('Failed to fetch top rated movies');
@@ -124,6 +132,9 @@ export default function Movies() {
   // Get Indian movies with search and region filter
   const { data: indianMoviesData, isLoading: indianMoviesLoading } = useQuery({
     queryKey: ['/api/tmdb/movies/indian', indianPage, indianSearchQuery, indianRegion, indianGenre, indianYear, indianSortBy],
+    enabled:
+      activeTab === 'indian' &&
+      (indianGenre === 'all' || !!genresData),
     queryFn: async () => {
       // Determine languages based on region filter
       let allowedLanguages = ['hi', 'ta', 'te', 'ml', 'kn', 'bn']; // All Indian languages
@@ -274,7 +285,9 @@ export default function Movies() {
         total_pages: discoverResults.total_pages
       };
     },
-    enabled: selectedGenre === "all" || !!searchQuery || !!genresData
+    enabled:
+      activeTab === 'discover' &&
+      (selectedGenre === "all" || !!searchQuery || !!genresData)
   });
 
   const movies = moviesData?.results || [];

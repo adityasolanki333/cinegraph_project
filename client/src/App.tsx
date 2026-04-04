@@ -1,6 +1,6 @@
 import { useEffect, lazy, Suspense, ComponentType } from "react";
 import { Switch, Route, useLocation, Redirect } from "wouter";
-import { queryClient, prefetchCommonData } from "./lib/queryClient";
+import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,12 +14,15 @@ import MobileBottomNav from "@/components/layout/mobile-bottom-nav";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
 import AIChat from "@/components/ai-chat";
 import "@/i18n";
+import { scheduleIdlePrefetchRoutes } from "@/lib/routePrefetch";
 
-// Lazy load pages
+// Core browse pages: eager load so Movies / TV / Home tab switches do not download a new chunk each time.
+import Home from "@/pages/home";
+import Movies from "@/pages/movies";
+import TVShows from "@/pages/tvshows";
+
+// Lazy load less common pages
 const NotFound = lazy(() => import("@/pages/not-found"));
-const Home = lazy(() => import("@/pages/home"));
-const Movies = lazy(() => import("@/pages/movies"));
-const TVShows = lazy(() => import("@/pages/tvshows"));
 const Recommendations = lazy(() => import("@/pages/recommendations"));
 const MyList = lazy(() => import("@/pages/my-list"));
 const Profile = lazy(() => import("@/pages/profile"));
@@ -64,9 +67,9 @@ function ScrollToTop() {
 function Router() {
   // Initialize WebSocket connection for real-time updates
   useWebSocket();
-  
+
   useEffect(() => {
-    prefetchCommonData();
+    scheduleIdlePrefetchRoutes();
   }, []);
 
   return (

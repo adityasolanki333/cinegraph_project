@@ -133,6 +133,8 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   const [showScrollButton, setShowScrollButton] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  /** Prevents double submit before React re-renders isLoading (double-click / Enter quirks). */
+  const sendInFlightRef = useRef(false);
 
   const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
     const saved = localStorage.getItem('aiChat_fabPos');
@@ -282,7 +284,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
 
   const handleStreamingResponse = useCallback(async (userInput: string) => {
     const history = getConversationHistory();
-    const streamingMsgId = Date.now().toString();
+    const streamingMsgId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     let streamingReceivedContent = false;
 
     setMessages(prev => [...prev, {
@@ -315,6 +317,98 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
 
       const contentType = response.headers.get('content-type') || '';
 
+      const applySseEvent = (event: Record<string, unknown>) => {
+        const t = event.type as string;
+        if (t === 'status') {
+          setMessages(prev => prev.map(m =>
+            m.id === streamingMsgId
+              ? { ...m, statusMessage: event.message as string }
+              : m
+          ));
+        } else if (t === 'chunk' && typeof event.content === 'string') {
+          streamingReceivedContent = true;
+          setMessages(prev => prev.map(m =>
+            m.id === streamingMsgId
+              ? { ...m, content: m.content + event.content, statusMessage: undefined }
+              : m
+          ));
+          scrollToBottom();
+        } else if (t === 'movies_loading') {
+          setMessages(prev => prev.map(m =>
+            m.id === streamingMsgId
+              ? { ...m, moviesLoading: event.count as number, moviesDone: false, movies: [] }
+              : m
+          ));
+          scrollToBottom();
+        } else if (t === 'movie' && event.movie) {
+          streamingReceivedContent = true;
+          setMessages(prev => prev.map(m =>
+            m.id === streamingMsgId
+              ? { ...m, movies: [...(m.movies || []), event.movie] }
+              : m
+          ));
+          scrollToBottom();
+        } else if (t === 'done') {
+          streamingReceivedContent = true;
+          setMessages(prev => prev.map(m =>
+            m.id === streamingMsgId
+              ? {
+                  ...m,
+                  // Only replace movies when the server sent a non-empty list ([] is truthy in JS)
+                  movies: Array.isArray(event.movies) && (event.movies as unknown[]).length > 0
+                    ? (event.movies as typeof m.movies)
+                    : (m.movies || []),
+                  isStreaming: false,
+                  moviesDone: true,
+                  moviesLoading: undefined,
+                }
+              : m
+          ));
+        } else if (t === 'fallback') {
+          streamingReceivedContent = true;
+          setMessages(prev => prev.map(m =>
+            m.id === streamingMsgId
+              ? {
+                  ...m,
+                  content: (event.response as string) || m.content,
+                  movies:
+                    Array.isArray(event.movies) && (event.movies as unknown[]).length > 0
+                      ? (event.movies as typeof m.movies)
+                      : (m.movies || []),
+                  source: 'fallback',
+                  isStreaming: false,
+                  moviesDone: true,
+                }
+              : m
+          ));
+        } else if (t === 'error') {
+          setMessages(prev => prev.map(m =>
+            m.id === streamingMsgId
+              ? {
+                  ...m,
+                  content: (event.message as string) || 'Something went wrong. Please try again.',
+                  isStreaming: false,
+                  moviesDone: true,
+                  moviesLoading: undefined,
+                  statusMessage: undefined,
+                }
+              : m
+          ));
+        }
+      };
+
+      const parseSseDataLine = (line: string) => {
+        const trimmed = line.replace(/\r$/, '').trim();
+        if (!trimmed.startsWith('data:')) return;
+        const payload = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed.slice(5).trimStart();
+        if (payload === '[DONE]') return;
+        try {
+          applySseEvent(JSON.parse(payload) as Record<string, unknown>);
+        } catch {
+          // Malformed chunk; skip so the stream can continue
+        }
+      };
+
       if (contentType.includes('text/event-stream')) {
         const reader = response.body?.getReader();
         if (!reader) throw new Error('No reader');
@@ -327,101 +421,35 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
+          const lines = buffer.split(/\r?\n/);
           buffer = lines.pop() || '';
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const event = JSON.parse(line.slice(6));
-
-                if (event.type === 'status') {
-                  setMessages(prev => prev.map(m =>
-                    m.id === streamingMsgId
-                      ? { ...m, statusMessage: event.message }
-                      : m
-                  ));
-                } else if (event.type === 'chunk') {
-                  streamingReceivedContent = true;
-                  setMessages(prev => prev.map(m =>
-                    m.id === streamingMsgId
-                      ? { ...m, content: m.content + event.content, statusMessage: undefined }
-                      : m
-                  ));
-                  scrollToBottom();
-                } else if (event.type === 'movies_loading') {
-                  setMessages(prev => prev.map(m =>
-                    m.id === streamingMsgId
-                      ? { ...m, moviesLoading: event.count, moviesDone: false, movies: [] }
-                      : m
-                  ));
-                  scrollToBottom();
-                } else if (event.type === 'movie') {
-                  streamingReceivedContent = true;
-                  setMessages(prev => prev.map(m =>
-                    m.id === streamingMsgId
-                      ? { ...m, movies: [...(m.movies || []), event.movie] }
-                      : m
-                  ));
-                  scrollToBottom();
-                } else if (event.type === 'done') {
-                  streamingReceivedContent = true;
-                  setMessages(prev => prev.map(m =>
-                    m.id === streamingMsgId
-                      ? {
-                          ...m,
-                          movies: event.movies || m.movies || [],
-                          isStreaming: false,
-                          moviesDone: true,
-                          moviesLoading: undefined,
-                        }
-                      : m
-                  ));
-                } else if (event.type === 'fallback') {
-                  streamingReceivedContent = true;
-                  setMessages(prev => prev.map(m =>
-                    m.id === streamingMsgId
-                      ? {
-                          ...m,
-                          content: event.response || m.content,
-                          movies: event.movies || m.movies || [],
-                          source: 'fallback',
-                          isStreaming: false,
-                          moviesDone: true,
-                        }
-                      : m
-                  ));
-                } else if (event.type === 'error') {
-                  setMessages(prev => prev.map(m =>
-                    m.id === streamingMsgId
-                      ? {
-                          ...m,
-                          content: event.message || 'Something went wrong. Please try again.',
-                          isStreaming: false,
-                          moviesDone: true,
-                          moviesLoading: undefined,
-                          statusMessage: undefined,
-                        }
-                      : m
-                  ));
-                }
-              } catch {
-              }
-            }
+            parseSseDataLine(line);
           }
         }
 
-        setMessages(prev => prev.map(m =>
-          m.id === streamingMsgId
-            ? {
-                ...m,
-                isStreaming: false,
-                moviesDone: true,
-                moviesLoading: undefined,
-                statusMessage: undefined,
-              }
-            : m
-        ));
+        if (buffer.trim()) {
+          for (const line of buffer.split(/\r?\n/)) {
+            parseSseDataLine(line);
+          }
+        }
+
+        setMessages(prev => prev.map(m => {
+          if (m.id !== streamingMsgId) return m;
+          const hasText = Boolean(m.content?.trim());
+          const hasMovies = Boolean(m.movies?.length);
+          return {
+            ...m,
+            isStreaming: false,
+            moviesDone: true,
+            moviesLoading: undefined,
+            statusMessage: undefined,
+            ...(!hasText && !hasMovies
+              ? { content: "I didn't get a complete reply. Please try again in a moment." }
+              : {}),
+          };
+        }));
 
       } else {
         const data = await response.json();
@@ -546,34 +574,48 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   }, [user, getConversationHistory]);
 
   const handleSendMessage = useCallback(async () => {
-    if (!inputValue.trim() || isLoading) return;
+    const text = inputValue.trim();
+    if (!text || isLoading || sendInFlightRef.current) return;
+
+    sendInFlightRef.current = true;
 
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       type: "user",
-      content: inputValue,
+      content: text,
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, userMessage]);
-    const currentInput = inputValue;
     setInputValue("");
     setIsLoading(true);
 
     try {
-      await handleStreamingResponse(currentInput);
+      await handleStreamingResponse(text);
     } catch {
     } finally {
+      sendInFlightRef.current = false;
       setIsLoading(false);
     }
   }, [inputValue, isLoading, handleStreamingResponse]);
 
-  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key !== "Enter" || e.shiftKey) return;
+      if (e.nativeEvent.isComposing) return;
       e.preventDefault();
-      handleSendMessage();
-    }
-  }, [handleSendMessage]);
+      void handleSendMessage();
+    },
+    [handleSendMessage]
+  );
+
+  if (!user) {
+    return null;
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <>
@@ -795,7 +837,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
               <Input
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                onKeyPress={handleKeyPress}
+                onKeyDown={handleKeyDown}
                 placeholder="Ask for movie recommendations..."
                 disabled={isLoading}
                 className="flex-1 h-11 md:h-9 text-base md:text-sm rounded-full bg-muted border-0 focus-visible:ring-1"
@@ -812,7 +854,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
               </Button>
             </div>
           </div>
-        </div>
+         </div>
         </div>
       )}
 

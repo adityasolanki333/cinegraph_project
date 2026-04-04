@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Home, Film, Tv, Sparkles, Users, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
+import { prefetchRoute } from "@/lib/routePrefetch";
 
 export default function MobileBottomNav() {
   const [location] = useLocation();
@@ -29,7 +30,12 @@ export default function MobileBottomNav() {
             : location === item.href || location.startsWith(item.href + "/");
 
           return (
-            <Link key={item.href} href={item.href} className="flex-1">
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex-1"
+              onPointerEnter={() => prefetchRoute(item.href)}
+            >
               <button
                 aria-label={item.label}
                 aria-current={isActive ? "page" : undefined}

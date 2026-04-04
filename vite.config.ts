@@ -9,6 +9,11 @@ const __dirname = path.dirname(__filename);
 export default defineConfig({
     plugins: [react()],
     root: "client",
+    // lucide-react ships some .map files that esbuild treats as JS and can fail to parse (e.g. wifi.js.map).
+    // Skipping pre-bundle avoids that; icons load as native ESM in dev.
+    optimizeDeps: {
+        exclude: ["lucide-react"],
+    },
     resolve: {
         alias: {
             "@": path.resolve(__dirname, "client/src"),

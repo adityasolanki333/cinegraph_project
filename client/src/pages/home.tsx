@@ -58,9 +58,13 @@ export default function Home() {
   const { toast } = useToast();
   const { user } = useAuth();
 
+  const tmdbListStaleMs = 1000 * 60 * 10;
+  const hybridStaleMs = 1000 * 60 * 10;
+
   // Fetch data from TMDB API
   const { data: trendingData, isLoading: trendingLoading, error: trendingError } = useQuery({
     queryKey: ['/api/tmdb/trending'],
+    staleTime: tmdbListStaleMs,
     select: (data: any) => {
       if (data.error || !data.results || data.results.length === 0) {
         return [];
@@ -94,6 +98,7 @@ export default function Home() {
 
   const { data: popularMoviesData, isLoading: popularLoading } = useQuery({
     queryKey: ['/api/tmdb/movies/popular'],
+    staleTime: tmdbListStaleMs,
     select: (data: any) => {
       if (data.error || !data.results || data.results.length === 0) {
         return [];
@@ -104,6 +109,7 @@ export default function Home() {
 
   const { data: topRatedData, isLoading: topRatedLoading } = useQuery({
     queryKey: ['/api/tmdb/movies/top-rated'],
+    staleTime: tmdbListStaleMs,
     select: (data: any) => {
       if (data.error || !data.results || data.results.length === 0) {
         return [];
@@ -114,6 +120,7 @@ export default function Home() {
 
   const { data: popularTVData, isLoading: tvLoading } = useQuery({
     queryKey: ['/api/tmdb/tv/popular'],
+    staleTime: tmdbListStaleMs,
     select: (data: any) => {
       if (data.error || !data.results || data.results.length === 0) {
         return [];
@@ -145,6 +152,7 @@ export default function Home() {
   const { data: hybridData, isLoading: hybridLoading } = useQuery({
     queryKey: ['/api/recommendations/hybrid', user?.id],
     enabled: !!user?.id,
+    staleTime: hybridStaleMs,
     queryFn: async () => {
       const response = await fetch(`/api/recommendations/hybrid/${user?.id}`, {
         headers: { ...getAuthHeaders() },
@@ -406,37 +414,49 @@ export default function Home() {
     );
   }, []);
 
-  if (trendingLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">{t("home.loading")}</h2>
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-        </div>
-      </div>
-    );
-  }
+  const listsStillLoading = popularLoading || topRatedLoading || tvLoading;
 
-  // Show API key error if no data is available
-  const hasNoData = !featuredMovies.length && !popularMovies.length && !topRatedContent.length && !trendingTVShows.length;
-  if (hasNoData && !trendingLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6">
-          <h2 className="text-2xl font-bold mb-4 text-red-500">{t("home.apiKeyRequired")}</h2>
-          <p className="text-muted-foreground mb-4">
-            {t("home.apiKeyDescription")}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {t("home.apiKeyInvalid")}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // Show API key error only after main list requests finish — avoids a false "no data"
+  // screen while trending/hero is slow but other rows would still populate.
+  const hasNoData =
+    !listsStillLoading &&
+    !trendingLoading &&
+    !featuredMovies.length &&
+    !popularMovies.length &&
+    !topRatedContent.length &&
+    !trendingTVShows.length;
 
   return (
     <div className="min-h-screen bg-background">
+      {hasNoData ? (
+        <div className="min-h-[50vh] flex items-center justify-center px-4">
+          <div className="text-center max-w-md mx-auto p-6">
+            <h2 className="text-2xl font-bold mb-4 text-red-500">{t("home.apiKeyRequired")}</h2>
+            <p className="text-muted-foreground mb-4">
+              {t("home.apiKeyDescription")}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {t("home.apiKeyInvalid")}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+      {/* Hero: placeholder while trending loads so the page is not an empty shell */}
+      {trendingLoading && featuredMovies.length === 0 ? (
+        <div
+          className="relative h-[150vw] max-h-[100vh] sm:h-[70vh] lg:h-[80vh] overflow-hidden bg-muted"
+          aria-busy="true"
+          aria-label={t("home.loading")}
+        >
+          <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-muted via-muted/80 to-background" />
+          <div className="absolute bottom-16 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 left-4 sm:left-8 max-w-md space-y-4">
+            <div className="h-6 w-24 rounded bg-muted-foreground/20 animate-pulse" />
+            <div className="h-10 sm:h-14 w-3/4 rounded bg-muted-foreground/20 animate-pulse" />
+            <div className="h-16 w-full rounded bg-muted-foreground/15 animate-pulse" />
+          </div>
+        </div>
+      ) : null}
       {/* Hero Section — CSS scroll-snap infinite carousel */}
       {featuredMovies.length > 0 && (
         <div
@@ -756,6 +776,8 @@ export default function Home() {
           trailers={trailers}
           title={trailerInfo.title}
         />
+      )}
+        </>
       )}
     </div>
   );

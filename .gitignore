@@ -82,6 +82,7 @@ Thumbs.db
 .replit
 .replit_1
 .local/
+.config/
 
 # =========================
 # Misc / large assets
@@ -92,3 +93,6 @@ pyproject.toml
 reportprevious.md
 Interview/
 testsprite_tests/
+
+# Local Netlify folder
+.netlify

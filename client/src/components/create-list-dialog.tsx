@@ -36,7 +36,7 @@ export function CreateListDialog({ onSuccess, trigger }: CreateListDialogProps) 
       if (!isAuthenticated || !user?.id) throw new Error("Must be logged in to create a list");
       const response = await apiRequest("POST", `/api/users/${user.id}/lists/create`, {
         title: title.trim(),
-        description: description.trim() || null,
+        description: description.trim(),
         isPublic,
       });
       return response.json() as Promise<{ id: string }>;
