@@ -22,7 +22,12 @@ SECRET_KEY = _secret
 
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    'cinegraph-project.onrender.com',
+    '.onrender.com', # Allow all Render subdomains
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
