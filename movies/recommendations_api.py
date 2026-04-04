@@ -6,6 +6,7 @@ import requests
 import concurrent.futures
 import logging
 from datetime import datetime, date
+from django.core.cache import cache
 from django.http import StreamingHttpResponse
 from .models import UserPreferences, UserReview, UserWatchlist, UserFavorites, ViewingHistory
 from .api import tmdb_request
@@ -19,6 +20,8 @@ TMDB_GENRE_MAP = _GENRE_NAME_TO_ID_MAP
 GENRE_ID_TO_NAME = _GENRE_ID_TO_NAME_MAP
 
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+# Caches the expensive Gemini paragraph on home “Continue watching” / pattern analyze (seconds → ms on repeat).
+PATTERN_INSIGHT_CACHE_TTL = int(os.environ.get('PATTERN_INSIGHT_CACHE_TTL', '900'))
 
 _MGMT_COMMANDS = {'migrate', 'makemigrations', 'collectstatic', 'check',
                   'showmigrations', 'sqlmigrate', 'inspectdb', 'shell',
@@ -320,6 +323,19 @@ def call_gemini_streaming(prompt):
             else:
                 logger.warning(f"Streaming: Gemini {model} error: {e}")
                 continue
+
+    # SDK streaming failed (no client, all models errored, or empty stream). One-shot completion
+    # still returns a full reply so the user is not left with a blank bubble.
+    if GEMINI_API_KEY:
+        logger.info("Streaming: using non-streaming Gemini fallback")
+        text, err = call_gemini_api(prompt, max_retries=2, use_json_mode=False)
+        if text and not err:
+            from types import SimpleNamespace
+
+            def _single_chunk_stream():
+                yield SimpleNamespace(text=text)
+
+            return _single_chunk_stream()
 
     return None
 
@@ -713,7 +729,11 @@ def ai_chat_stream(request):
 
                 if not full_text and not movie_titles:
                     fallback = get_fallback_trending_movies()
-                    yield f"data: {json.dumps({'type': 'done', 'movies': fallback})}\n\n"
+                    _empty_stream_msg = (
+                        "I couldn't finish that reply just now. "
+                        "Here are some trending picks you might like:"
+                    )
+                    yield f"data: {json.dumps({'type': 'fallback', 'response': _empty_stream_msg, 'movies': fallback, 'source': 'fallback'})}\n\n"
                     return
 
                 if movie_titles:
@@ -860,7 +880,10 @@ def pattern_analyze(request, user_id):
 
         gemini_insight = None
         if history.count() > 0 or reviews.count() > 0:
-            insight_prompt = f"""You are a film critic and viewing habit analyst. Based on this user's data, write a concise, insightful 3-4 sentence analysis of their viewing personality and taste evolution. Be specific and reference their actual movies/ratings.
+            insight_cache_key = f'pattern_ai_insight:{user.id}'
+            gemini_insight = cache.get(insight_cache_key)
+            if gemini_insight is None:
+                insight_prompt = f"""You are a film critic and viewing habit analyst. Based on this user's data, write a concise, insightful 3-4 sentence analysis of their viewing personality and taste evolution. Be specific and reference their actual movies/ratings.
 
 Viewing Data:
 - Recently watched: {json.dumps(history_titles[:15])}
@@ -873,7 +896,9 @@ Viewing Data:
 
 Write an engaging, personalized insight paragraph (not a list). Focus on patterns, taste sophistication, and what makes their viewing profile unique."""
 
-            gemini_insight, _ = call_gemini_api(insight_prompt)
+                gemini_insight, _ = call_gemini_api(insight_prompt)
+                if gemini_insight:
+                    cache.set(insight_cache_key, gemini_insight, PATTERN_INSIGHT_CACHE_TTL)
 
         base_response = {
             'userId': str(user_id),

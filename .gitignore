@@ -93,3 +93,6 @@ pyproject.toml
 reportprevious.md
 Interview/
 testsprite_tests/
+
+# Local Netlify folder
+.netlify

@@ -17,6 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 import { tmdbService } from "@/lib/tmdb";
 import { NotificationBell } from "./NotificationBell";
 import { useTranslation } from "react-i18next";
+import { prefetchRoute } from "@/lib/routePrefetch";
 
 const LANGUAGES = [
   { code: "en", label: "English" },
@@ -144,7 +145,7 @@ export default function Navbar() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <div className="flex items-center flex-shrink-0">
-            <Link href="/" className="flex items-center space-x-1.5 sm:space-x-2">
+            <Link href="/" className="flex items-center space-x-1.5 sm:space-x-2" onPointerEnter={() => prefetchRoute("/")}>
               <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-primary">
                 <Film className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
               </div>
@@ -159,7 +160,7 @@ export default function Navbar() {
                 const Icon = item.icon;
                 const isActive = location === item.href;
                 return (
-                  <Link key={item.href} href={item.href}>
+                  <Link key={item.href} href={item.href} onPointerEnter={() => prefetchRoute(item.href)}>
                     <Button
                       variant="ghost"
                       className={cn(
@@ -235,6 +236,7 @@ export default function Navbar() {
                           <button
                             type="button"
                             key={`${result.id}-${type}`}
+                            onPointerEnter={() => prefetchRoute(`/${type}/${result.id}`)}
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -333,19 +335,19 @@ export default function Navbar() {
                 {isAuthenticated ? (
                   <>
                     <DropdownMenuItem asChild>
-                      <Link href="/profile" className="flex items-center" data-testid="link-profile">
+                      <Link href="/profile" className="flex items-center" data-testid="link-profile" onPointerEnter={() => prefetchRoute("/profile")}>
                         <User className="mr-2 h-4 w-4" />
                         <span>{t("nav.profile")}</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/settings" className="flex items-center" data-testid="link-settings">
+                      <Link href="/settings" className="flex items-center" data-testid="link-settings" onPointerEnter={() => prefetchRoute("/settings")}>
                         <Settings className="mr-2 h-4 w-4" />
                         <span>{t("nav.settings")}</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/my-list" className="flex items-center" data-testid="link-my-list">
+                      <Link href="/my-list" className="flex items-center" data-testid="link-my-list" onPointerEnter={() => prefetchRoute("/my-list")}>
                         <Bookmark className="mr-2 h-4 w-4" />
                         <span>{t("nav.myList")}</span>
                       </Link>
@@ -393,7 +395,7 @@ export default function Navbar() {
                 const Icon = item.icon;
                 const isActive = location === item.href;
                 return (
-                  <Link key={item.href} href={item.href}>
+                  <Link key={item.href} href={item.href} onPointerEnter={() => prefetchRoute(item.href)}>
                     <Button
                       variant="ghost"
                       className={cn(
@@ -471,6 +473,7 @@ export default function Navbar() {
                           <button
                             type="button"
                             key={`mobile-${result.id}-${type}`}
+                            onPointerEnter={() => prefetchRoute(`/${type}/${result.id}`)}
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();

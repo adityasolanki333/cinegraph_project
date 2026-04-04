@@ -140,7 +140,8 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
+        # One query with profile join instead of user + separate profile query
+        user = User.objects.select_related('profile').get(pk=request.user.pk)
         profile_image_url = None
         bio = ''
         try:
