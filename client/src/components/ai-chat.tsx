@@ -575,6 +575,10 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
     }
   }, [handleSendMessage]);
 
+  if (!user) {
+    return null;
+  }
+
   return (
     <>
       {isOpen && (
@@ -812,7 +816,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
               </Button>
             </div>
           </div>
-        </div>
+         </div>
         </div>
       )}
 
