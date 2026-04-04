@@ -111,20 +111,26 @@ FRONTEND_BUILD_DIR = BASE_DIR / 'dist' / 'public'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:5000,http://127.0.0.1:5000').split(',')
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5000',
+    'http://127.0.0.1:5000',
+    'https://dancing-paprenjak-34b0cb.netlify.app',
+    'https://cinegraph-project.onrender.com'
+]
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
 SESSION_COOKIE_SAMESITE = 'Lax'
 
 
 # CORS: restrict to known origins. Set CORS_ALLOWED_ORIGINS in .env for production.
-_cors_origins_env = os.environ.get('CORS_ALLOWED_ORIGINS', '')
-if _cors_origins_env:
-    CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins_env.split(',') if o.strip()]
-    CORS_ALLOW_ALL_ORIGINS = False
-else:
-    CORS_ALLOW_ALL_ORIGINS = False
-    CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:5000,http://127.0.0.1:5000').split(',')
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5000',
+    'http://127.0.0.1:5000',
+    'https://dancing-paprenjak-34b0cb.netlify.app',
+    'https://cinegraph-project.onrender.com'
+]
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
