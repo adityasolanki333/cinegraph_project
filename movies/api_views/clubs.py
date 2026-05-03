@@ -6,9 +6,17 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import serializers
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
-from movies.models import Club, ClubMember, ClubThread, ClubPost
+from movies.models import Club, ClubMember, ClubThread, ClubPost, UserList
 
 logger = logging.getLogger(__name__)
+
+
+def display_name(user):
+    """Return a human-readable display name, never an email address."""
+    if user.first_name:
+        full = f"{user.first_name} {user.last_name}".strip()
+        return full
+    return user.email.split('@')[0]
 
 
 class CreateClubSerializer(serializers.Serializer):
@@ -68,6 +76,80 @@ class ClubsListView(APIView):
             return Response({'error': 'An internal error occurred', 'code': 'INTERNAL_ERROR'}, status=500)
 
 
+class ClubUpdateView(APIView):
+    """PATCH /api/clubs/<club_id>/update — update cover photo or description (owner/admin only)."""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, club_id):
+        club = get_object_or_404(Club, id=club_id)
+        # Only owner or admin member can update
+        is_admin = ClubMember.objects.filter(club=club, user=request.user, role='admin').exists()
+        if club.owner != request.user and not is_admin:
+            return Response({'error': 'Not authorized', 'code': 'FORBIDDEN'}, status=403)
+        cover_image_url = request.data.get('cover_image_url')
+        description = request.data.get('description')
+        title = request.data.get('title')
+        if cover_image_url is not None:
+            club.cover_image_url = cover_image_url
+        if description is not None:
+            club.description = description
+        if title is not None:
+            club.title = title
+        club.save()
+        return Response({
+            'id': club.id,
+            'title': club.title,
+            'description': club.description,
+            'cover_image_url': club.cover_image_url,
+            'message': 'Club updated successfully'
+        })
+
+
+class ClubListsView(APIView):
+    """GET/POST /api/clubs/<club_id>/lists — view or pin movie lists to a club."""
+    permission_classes = [AllowAny]
+
+    def get(self, request, club_id):
+        club = get_object_or_404(Club, id=club_id)
+        # Return public lists from members of this club
+        member_ids = ClubMember.objects.filter(club=club).values_list('user_id', flat=True)
+        lists = UserList.objects.filter(user__in=member_ids, is_public=True).order_by('-updated_at')[:20]
+        return Response({
+            'lists': [{
+                'id': lst.id,
+                'title': lst.title,
+                'description': lst.description,
+                'owner': display_name(lst.user),
+                'follower_count': lst.follower_count,
+                'item_count': lst.items.count(),
+                'created_at': lst.created_at.isoformat(),
+            } for lst in lists]
+        })
+
+    def post(self, request, club_id):
+        """Create a new list and associate it with the club owner."""
+        if not request.user.is_authenticated:
+            return Response({'error': 'Authentication required', 'code': 'AUTH_REQUIRED'}, status=401)
+        club = get_object_or_404(Club, id=club_id)
+        if not ClubMember.objects.filter(club=club, user=request.user).exists():
+            return Response({'error': 'Must be a member to add lists', 'code': 'FORBIDDEN'}, status=403)
+        title = request.data.get('title', '').strip()
+        description = request.data.get('description', '').strip()
+        if not title:
+            return Response({'error': 'Title is required', 'code': 'VALIDATION_ERROR'}, status=400)
+        lst = UserList.objects.create(
+            user=request.user,
+            title=title,
+            description=description,
+            is_public=True
+        )
+        return Response({
+            'id': lst.id,
+            'title': lst.title,
+            'message': 'List created successfully'
+        }, status=201)
+
+
 class ClubDetailView(RetrieveAPIView):
     permission_classes = [AllowAny]
 
@@ -87,11 +169,11 @@ class ClubDetailView(RetrieveAPIView):
             'id': club.id, 'title': club.title, 'description': club.description,
             'cover_image_url': club.cover_image_url, 'member_count': club.member_count,
             'is_member': is_member, 'role': user_role,
-            'owner': {'id': club.owner.id, 'username': club.owner.username},
+            'owner': {'id': club.owner.id, 'username': display_name(club.owner)},
             'recent_threads': [{
                 'id': t.id, 'title': t.title, 'view_count': t.view_count,
                 'post_count': t.posts.count(),
-                'author': {'id': t.author.id, 'username': t.author.username},
+                'author': {'id': t.author.id, 'username': display_name(t.author)},
                 'updated_at': t.updated_at.isoformat()
             } for t in threads],
             'created_at': club.created_at.isoformat()
@@ -122,7 +204,7 @@ class JoinClubView(APIView):
 
 
 class ClubThreadsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request, club_id):
         club = get_object_or_404(Club, id=club_id)
@@ -131,7 +213,7 @@ class ClubThreadsView(APIView):
             'threads': [{
                 'id': t.id, 'title': t.title,
                 'author': {
-                    'id': t.author.id, 'username': t.author.username,
+                    'id': t.author.id, 'username': display_name(t.author),
                     'avatar': t.author.profile.profile_image_url if hasattr(t.author, 'profile') else None
                 },
                 'view_count': t.view_count, 'post_count': t.posts.count(),
@@ -141,6 +223,8 @@ class ClubThreadsView(APIView):
         })
 
     def post(self, request, club_id):
+        if not request.user.is_authenticated:
+            return Response({'error': 'Authentication required', 'code': 'AUTH_REQUIRED'}, status=401)
         club = get_object_or_404(Club, id=club_id)
         if not ClubMember.objects.filter(club=club, user=request.user).exists():
             return Response({'error': 'Must be a member to post threads', 'code': 'FORBIDDEN'}, status=403)
@@ -157,33 +241,63 @@ class ClubThreadsView(APIView):
         }, status=201)
 
 
-class ThreadDetailView(RetrieveAPIView):
+class ThreadDetailView(APIView):
     permission_classes = [AllowAny]
 
-    def retrieve(self, request, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         thread = get_object_or_404(ClubThread, id=self.kwargs['thread_id'])
         thread.view_count += 1
         thread.save()
+        
+        can_delete = False
+        if request.user.is_authenticated:
+            is_author = thread.author == request.user
+            is_owner = thread.club.owner == request.user
+            is_admin = ClubMember.objects.filter(club=thread.club, user=request.user, role='admin').exists()
+            can_delete = is_author or is_owner or is_admin
+
         posts = thread.posts.all().order_by('created_at')
         return Response({
             'id': thread.id,
-            'club': {'id': thread.club.id, 'title': thread.club.title},
+            'club': {
+                'id': thread.club.id, 
+                'title': thread.club.title,
+                'owner_id': thread.club.owner.id
+            },
+            'can_delete': can_delete,
             'title': thread.title, 'content': thread.content,
             'author': {
-                'id': thread.author.id, 'username': thread.author.username,
+                'id': thread.author.id, 'username': display_name(thread.author),
                 'avatar': thread.author.profile.profile_image_url if hasattr(thread.author, 'profile') else None
             },
             'view_count': thread.view_count, 'pinned': thread.pinned,
             'posts': [{
                 'id': p.id, 'content': p.content,
                 'author': {
-                    'id': p.author.id, 'username': p.author.username,
+                    'id': p.author.id, 'username': display_name(p.author),
                     'avatar': p.author.profile.profile_image_url if hasattr(p.author, 'profile') else None
                 },
                 'created_at': p.created_at.isoformat()
             } for p in posts],
             'created_at': thread.created_at.isoformat()
         })
+
+    def delete(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({'error': 'Authentication required', 'code': 'AUTH_REQUIRED'}, status=401)
+        
+        thread = get_object_or_404(ClubThread, id=self.kwargs['thread_id'])
+        
+        # Permissions: Author, Club Owner, or Club Admin
+        is_author = thread.author == request.user
+        is_owner = thread.club.owner == request.user
+        is_admin = ClubMember.objects.filter(club=thread.club, user=request.user, role='admin').exists()
+        
+        if not (is_author or is_owner or is_admin):
+            return Response({'error': 'You do not have permission to delete this thread', 'code': 'FORBIDDEN'}, status=403)
+        
+        thread.delete()
+        return Response({'success': True, 'message': 'Thread deleted successfully'}, status=200)
 
 
 class CreatePostView(CreateAPIView):
@@ -205,7 +319,7 @@ class CreatePostView(CreateAPIView):
             'id': post.id, 'message': 'Reply posted successfully',
             'post': {
                 'id': post.id, 'content': post.content,
-                'author': {'id': post.author.id, 'username': post.author.username},
+                'author': {'id': post.author.id, 'username': display_name(post.author)},
                 'created_at': post.created_at.isoformat()
             }
         }, status=201)

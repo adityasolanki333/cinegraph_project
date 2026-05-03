@@ -25,8 +25,6 @@ DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    'cinegraph-project.onrender.com',
-    '.onrender.com', # Allow all Render subdomains
 ]
 
 INSTALLED_APPS = [
@@ -73,18 +71,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'movieflix.wsgi.application'
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if DATABASE_URL:
-    DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL)
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -113,21 +105,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5000',
-    'http://127.0.0.1:5000',
-    'https://cinegraph-project.netlify.app',
-    'https://cinegraph-project.onrender.com'
+    'http://127.0.0.1:5000'
 ]
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
 SESSION_COOKIE_SAMESITE = 'Lax'
 
 
-# CORS: restrict to known origins. Set CORS_ALLOWED_ORIGINS in .env for production.
+# CORS: restrict to known origins.
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5000',
-    'http://127.0.0.1:5000',
-    'https://cinegraph-project.netlify.app',
-    'https://cinegraph-project.onrender.com'
+    'http://127.0.0.1:5000'
 ]
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
@@ -230,23 +218,13 @@ if _cache_backend == 'db':
 else:
     CACHES = {
         'default': {
-            'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
-            'LOCATION': os.path.join(BASE_DIR, '.cache'),
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'cinegraph-cache',
             'TIMEOUT': 86400,
-            'OPTIONS': {
-                'MAX_ENTRIES': 5000,
-            }
         }
     }
 
-if not DEBUG:
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_SSL_REDIRECT = True
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+# Removed production-only secure settings (SSL/HSTS) as the project is local-only now.
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')

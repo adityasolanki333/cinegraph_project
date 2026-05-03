@@ -148,26 +148,36 @@ class MovieLensEngine:
             cls._instance._cache: Dict[str, List] = {}
             cls._instance._loaded = False
             cls._instance._failed = False
+            cls._instance._loading_in_progress = False
         return cls._instance
 
     def _ensure_loaded(self):
-        if self._loaded or self._failed:
+        if self._loaded or self._failed or self._loading_in_progress:
             return
-        try:
-            if not os.path.exists(os.path.join(ML_DATA_DIR, 'ratings.csv')):
-                _download_movielens()
+            
+        self._loading_in_progress = True
 
-            if os.path.exists(SIMILARITY_CACHE):
-                with open(SIMILARITY_CACHE) as f:
-                    self._cache = json.load(f)
-                logger.info('MovieLens: loaded similarity cache (%d movies)', len(self._cache))
-            else:
-                self._cache = _build_similarity_cache()
+        import threading
+        def _load_bg():
+            try:
+                if not os.path.exists(os.path.join(ML_DATA_DIR, 'ratings.csv')):
+                    _download_movielens()
 
-            self._loaded = True
-        except Exception as e:
-            logger.error('MovieLens engine failed to load: %s', e)
-            self._failed = True
+                if os.path.exists(SIMILARITY_CACHE):
+                    with open(SIMILARITY_CACHE) as f:
+                        self._cache = json.load(f)
+                    logger.info('MovieLens: loaded similarity cache (%d movies)', len(self._cache))
+                else:
+                    self._cache = _build_similarity_cache()
+
+                self._loaded = True
+            except Exception as e:
+                logger.error('MovieLens engine failed to load: %s', e)
+                self._failed = True
+            finally:
+                self._loading_in_progress = False
+                
+        threading.Thread(target=_load_bg, daemon=True).start()
 
     def is_ready(self) -> bool:
         self._ensure_loaded()
@@ -175,7 +185,8 @@ class MovieLensEngine:
 
     def get_similar(self, tmdb_id: int, k: int = 20) -> List[Tuple[int, float]]:
         """Return top-k similar TMDB IDs with similarity scores."""
-        self._ensure_loaded()
+        if not self._loaded:
+            return []
         neighbours = self._cache.get(str(tmdb_id), [])
         return [(int(n[0]), float(n[1])) for n in neighbours[:k]]
 

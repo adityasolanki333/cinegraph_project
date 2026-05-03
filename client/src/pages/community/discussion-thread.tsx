@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { getAuthHeaders } from "@/lib/queryClient";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { usePageMeta } from "@/hooks/usePageMeta";
@@ -10,8 +10,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { 
+    AlertDialog, 
+    AlertDialogAction, 
+    AlertDialogCancel, 
+    AlertDialogContent, 
+    AlertDialogDescription, 
+    AlertDialogFooter, 
+    AlertDialogHeader, 
+    AlertDialogTitle, 
+    AlertDialogTrigger 
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, MessageSquare, Pin, Send, CornerDownRight } from "lucide-react";
+import { ArrowLeft, MessageSquare, Pin, Send, CornerDownRight, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export default function DiscussionThread() {
@@ -22,6 +33,7 @@ export default function DiscussionThread() {
 
     const [match, params] = useRoute("/community/clubs/threads/:id");
     const threadId = params?.id;
+    const [, setLocation] = useLocation();
     const { user } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -32,7 +44,11 @@ export default function DiscussionThread() {
         queryKey: ['/api/clubs/threads', threadId],
         enabled: !!threadId,
         queryFn: async () => {
-            const res = await fetch(`/api/clubs/threads/${threadId}`);
+            const res = await fetch(`/api/clubs/threads/${threadId}`, {
+                headers: {
+                    ...getAuthHeaders(),
+                }
+            });
             if (!res.ok) throw new Error("Failed to fetch thread");
             return res.json();
         }
@@ -61,6 +77,42 @@ export default function DiscussionThread() {
                 title: "Reply posted",
                 description: "Your reply has been added to the discussion.",
             });
+        },
+        onError: (error: Error) => {
+            toast({
+                title: "Error",
+                description: error.message,
+                variant: "destructive",
+            });
+        }
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch(`/api/clubs/threads/${threadId}`, {
+                method: 'DELETE',
+                headers: {
+                    ...getAuthHeaders(),
+                },
+            });
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.error || "Failed to delete thread");
+            }
+            return res.json();
+        },
+        onSuccess: () => {
+            toast({
+                title: "Thread deleted",
+                description: "The discussion has been removed.",
+            });
+            // Redirect back to the club page
+            if (thread?.club?.id) {
+                setLocation(`/community/clubs/${thread.club.id}`);
+            } else {
+                setLocation('/community');
+            }
+            queryClient.invalidateQueries({ queryKey: ['/api/clubs'] });
         },
         onError: (error: Error) => {
             toast({
@@ -109,7 +161,7 @@ export default function DiscussionThread() {
             <Card className="mb-8 border-primary/20 shadow-sm">
                 <CardHeader className="pb-3">
                     <div className="flex justify-between items-start gap-4">
-                        <div>
+                        <div className="flex-1">
                             <CardTitle className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
                                 {thread.pinned && <Pin className="h-5 w-5 text-primary fill-primary rotate-45" />}
                                 {thread.title}
@@ -126,10 +178,39 @@ export default function DiscussionThread() {
                                 <span>{formatDistanceToNow(new Date(thread.created_at), { addSuffix: true })}</span>
                             </div>
                         </div>
-                        <Badge variant="secondary" className="hidden sm:flex items-center gap-1">
-                            <MessageSquare className="h-3 w-3" />
-                            {thread.posts?.length || 0} replies
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                            {thread.can_delete && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                                            <Trash2 className="h-5 w-5" />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This action cannot be undone. This will permanently delete the discussion
+                                                thread and all its replies.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction 
+                                                onClick={() => deleteMutation.mutate()}
+                                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            >
+                                                Delete Thread
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
+                            <Badge variant="secondary" className="hidden sm:flex items-center gap-1">
+                                <MessageSquare className="h-3 w-3" />
+                                {thread.posts?.length || 0} replies
+                            </Badge>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>

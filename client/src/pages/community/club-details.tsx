@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Users, MessageSquare, Plus, ArrowLeft, Pin, Calendar } from "lucide-react";
+import { Users, MessageSquare, Plus, ArrowLeft, Pin, Calendar, ImageIcon, List } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,11 +34,18 @@ export default function ClubDetails() {
     const [newThreadTitle, setNewThreadTitle] = useState("");
     const [newThreadContent, setNewThreadContent] = useState("");
 
+    const [isEditPhotoOpen, setIsEditPhotoOpen] = useState(false);
+    const [newCoverUrl, setNewCoverUrl] = useState("");
+
+    const [isAddListOpen, setIsAddListOpen] = useState(false);
+    const [newListTitle, setNewListTitle] = useState("");
+    const [newListDescription, setNewListDescription] = useState("");
+
     const { data: club, isLoading: clubLoading } = useQuery({
         queryKey: ['/api/clubs', clubId],
         enabled: !!clubId,
         queryFn: async () => {
-            const res = await fetch(`/api/clubs/${clubId}`);
+            const res = await fetch(`/api/clubs/${clubId}`, { headers: { ...getAuthHeaders() } });
             if (!res.ok) throw new Error("Failed to fetch club details");
             return res.json();
         }
@@ -48,8 +55,18 @@ export default function ClubDetails() {
         queryKey: ['/api/clubs', clubId, 'threads'],
         enabled: !!clubId,
         queryFn: async () => {
-            const res = await fetch(`/api/clubs/${clubId}/threads`);
+            const res = await fetch(`/api/clubs/${clubId}/threads`, { headers: { ...getAuthHeaders() } });
             if (!res.ok) throw new Error("Failed to fetch threads");
+            return res.json();
+        }
+    });
+
+    const { data: clubListsResponse } = useQuery({
+        queryKey: ['/api/clubs', clubId, 'lists'],
+        enabled: !!clubId,
+        queryFn: async () => {
+            const res = await fetch(`/api/clubs/${clubId}/lists`, { headers: { ...getAuthHeaders() } });
+            if (!res.ok) throw new Error("Failed to fetch club lists");
             return res.json();
         }
     });
@@ -72,6 +89,45 @@ export default function ClubDetails() {
                 description: data.message,
             });
         }
+    });
+
+    const editPhotoMutation = useMutation({
+        mutationFn: async (cover_image_url: string) => {
+            const res = await fetch(`/api/clubs/${clubId}/update`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify({ cover_image_url }),
+            });
+            if (!res.ok) throw new Error("Failed to update club photo");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['/api/clubs', clubId] });
+            setIsEditPhotoOpen(false);
+            setNewCoverUrl("");
+            toast({ title: "Cover updated!", description: "Club photo has been updated." });
+        },
+        onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    });
+
+    const createListMutation = useMutation({
+        mutationFn: async (data: { title: string; description: string }) => {
+            const res = await fetch(`/api/clubs/${clubId}/lists`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify(data),
+            });
+            if (!res.ok) throw new Error("Failed to create list");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['/api/clubs', clubId, 'lists'] });
+            setIsAddListOpen(false);
+            setNewListTitle("");
+            setNewListDescription("");
+            toast({ title: "List created!", description: "New list added to this club." });
+        },
+        onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
     });
 
     const createThreadMutation = useMutation({
@@ -135,6 +191,8 @@ export default function ClubDetails() {
     if (!club) return <div className="p-8 text-center">Club not found</div>;
 
     const threads = threadsResponse?.threads || [];
+    const clubLists = clubListsResponse?.lists || [];
+    const isOwnerOrAdmin = user && (club?.owner?.id === user.id || club?.role === 'admin');
 
     return (
         <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -172,17 +230,48 @@ export default function ClubDetails() {
                             </div>
                         </div>
 
-                        {user && (
-                            <Button
-                                size="lg"
-                                variant={club.is_member ? "outline" : "default"}
-                                className={club.is_member ? "bg-white/10 hover:bg-white/20 text-white border-white/20" : ""}
-                                onClick={() => joinMutation.mutate()}
-                                disabled={joinMutation.isPending}
-                            >
-                                {club.is_member ? "Leave Club" : "Join Club"}
-                            </Button>
-                        )}
+                        <div className="flex items-center gap-2">
+                                {isOwnerOrAdmin && (
+                                    <Dialog open={isEditPhotoOpen} onOpenChange={setIsEditPhotoOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button size="sm" variant="outline" className="bg-white/10 hover:bg-white/20 text-white border-white/20">
+                                                <ImageIcon className="h-4 w-4 mr-1" />
+                                                Edit Photo
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                            <DialogHeader><DialogTitle>Update Cover Photo</DialogTitle></DialogHeader>
+                                            <div className="space-y-3 py-2">
+                                                <Label>Cover Image URL</Label>
+                                                <Input
+                                                    placeholder="https://example.com/image.jpg"
+                                                    value={newCoverUrl}
+                                                    onChange={(e) => setNewCoverUrl(e.target.value)}
+                                                />
+                                                {newCoverUrl && (
+                                                    <img src={newCoverUrl} alt="Preview" className="w-full h-32 object-cover rounded-lg" onError={(e) => (e.currentTarget.style.display='none')} />
+                                                )}
+                                            </div>
+                                            <DialogFooter>
+                                                <Button onClick={() => editPhotoMutation.mutate(newCoverUrl)} disabled={!newCoverUrl || editPhotoMutation.isPending}>
+                                                    {editPhotoMutation.isPending ? 'Saving...' : 'Save Photo'}
+                                                </Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+                                )}
+                                {user && (
+                                    <Button
+                                        size="lg"
+                                        variant={club.is_member ? "outline" : "default"}
+                                        className={club.is_member ? "bg-white/10 hover:bg-white/20 text-white border-white/20" : ""}
+                                        onClick={() => joinMutation.mutate()}
+                                        disabled={joinMutation.isPending}
+                                    >
+                                        {club.is_member ? "Leave Club" : "Join Club"}
+                                    </Button>
+                                )}
+                            </div>
                     </div>
                 </div>
             </div>
@@ -190,8 +279,9 @@ export default function ClubDetails() {
             <div className="grid lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2">
                     <Tabs defaultValue="discussions" className="w-full">
-                        <TabsList className="mb-6 w-full sm:w-auto">
+                    <TabsList className="mb-6 w-full sm:w-auto">
                             <TabsTrigger value="discussions">Discussions</TabsTrigger>
+                            <TabsTrigger value="lists">Lists</TabsTrigger>
                             <TabsTrigger value="about">About</TabsTrigger>
                             <TabsTrigger value="members">Members</TabsTrigger>
                         </TabsList>
@@ -232,8 +322,19 @@ export default function ClubDetails() {
                                                     />
                                                 </div>
                                                 <DialogFooter>
-                                                    <Button type="submit" disabled={createThreadMutation.isPending}>
-                                                        Post Thread
+                                                    <Button 
+                                                        type="submit" 
+                                                        disabled={createThreadMutation.isPending || !newThreadTitle.trim() || !newThreadContent.trim()}
+                                                        className="w-full sm:w-auto"
+                                                    >
+                                                        {createThreadMutation.isPending ? (
+                                                            <>
+                                                                <span className="animate-spin mr-2">◌</span>
+                                                                Posting...
+                                                            </>
+                                                        ) : (
+                                                            "Post Thread"
+                                                        )}
                                                     </Button>
                                                 </DialogFooter>
                                             </form>
@@ -254,8 +355,8 @@ export default function ClubDetails() {
                             ) : threads.length > 0 ? (
                                 <div className="space-y-4">
                                     {threads.map((thread: any) => (
-                                        <Link key={thread.id} href={`/community/clubs/threads/${thread.id}`}>
-                                            <Card className="hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-transparent hover:border-l-primary">
+                                        <Link key={thread.id} href={`/community/clubs/threads/${thread.id}`} className="block transition-transform hover:scale-[1.01] active:scale-[0.99]">
+                                            <Card className="hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-transparent hover:border-l-primary h-full">
                                                 <CardHeader className="pb-2">
                                                     <div className="flex justify-between items-start">
                                                         <div className="space-y-1">
@@ -286,6 +387,71 @@ export default function ClubDetails() {
                                     <p className="text-muted-foreground mb-4">Be the first to start a conversation!</p>
                                     {club.is_member && (
                                         <Button onClick={() => setIsCreateThreadOpen(true)}>Start Discussion</Button>
+                                    )}
+                                </div>
+                            )}
+                        </TabsContent>
+
+                        <TabsContent value="lists" className="space-y-4">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-semibold">Club Lists</h3>
+                                {club.is_member && (
+                                    <Dialog open={isAddListOpen} onOpenChange={setIsAddListOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button size="sm">
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                Add List
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                            <DialogHeader><DialogTitle>Create a Club List</DialogTitle></DialogHeader>
+                                            <div className="space-y-4 py-2">
+                                                <div className="space-y-2">
+                                                    <Label>List Title</Label>
+                                                    <Input placeholder="e.g. Must-Watch Sci-Fi" value={newListTitle} onChange={(e) => setNewListTitle(e.target.value)} />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>Description (optional)</Label>
+                                                    <Textarea placeholder="What's this list about?" value={newListDescription} onChange={(e) => setNewListDescription(e.target.value)} />
+                                                </div>
+                                            </div>
+                                            <DialogFooter>
+                                                <Button onClick={() => createListMutation.mutate({ title: newListTitle, description: newListDescription })} disabled={!newListTitle.trim() || createListMutation.isPending}>
+                                                    {createListMutation.isPending ? 'Creating...' : 'Create List'}
+                                                </Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+                                )}
+                            </div>
+
+                            {clubLists.length > 0 ? (
+                                <div className="space-y-3">
+                                    {clubLists.map((lst: any) => (
+                                        <Link key={lst.id} href={`/community/lists/${lst.id}`}>
+                                            <Card className="hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-transparent hover:border-l-primary">
+                                                <CardHeader className="pb-1">
+                                                    <CardTitle className="text-base group-hover:text-primary transition-colors">{lst.title}</CardTitle>
+                                                    <CardDescription className="text-sm">{lst.description || 'No description'}</CardDescription>
+                                                </CardHeader>
+                                                <CardContent className="pt-0">
+                                                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                                        <span>By {lst.owner}</span>
+                                                        <span>{lst.item_count} items</span>
+                                                        <span>{lst.follower_count} followers</span>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        </Link>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-12 border rounded-lg bg-muted/20">
+                                    <List className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                                    <h3 className="text-lg font-medium mb-1">No lists yet</h3>
+                                    <p className="text-muted-foreground mb-4">Members can add movie lists to share with the club.</p>
+                                    {club.is_member && (
+                                        <Button onClick={() => setIsAddListOpen(true)}>Create First List</Button>
                                     )}
                                 </div>
                             )}

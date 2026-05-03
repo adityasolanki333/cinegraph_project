@@ -114,9 +114,7 @@ class PineconeService:
 
             self.index = pc.Index(INDEX_NAME)
 
-            logger.info("PineconeService: loading sentence-transformer model...")
-            self.model = SentenceTransformer("all-MiniLM-L6-v2")
-
+            # Lazy load the sentence model when actually needed
             self._initialized = True
             stats = self.index.describe_index_stats()
             logger.info(
@@ -126,6 +124,13 @@ class PineconeService:
 
         except Exception as e:
             logger.error("PineconeService init error: %s", e)
+
+    def _get_model(self):
+        if self.model is None:
+            logger.info("PineconeService: loading sentence-transformer model...")
+            from sentence_transformers import SentenceTransformer
+            self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        return self.model
 
     def is_initialized(self) -> bool:
         return self._initialized and self.index is not None
@@ -140,7 +145,7 @@ class PineconeService:
             return []
 
         try:
-            query_vec = self.model.encode(query).tolist()
+            query_vec = self._get_model().encode(query).tolist()
             is_franchise = _is_franchise_query(query)
 
             response = self.index.query(
@@ -270,7 +275,7 @@ class PineconeService:
 
             movie_data_with_year = {**movie_data, "release_year": release_year}
             text_to_encode = _build_enriched_text(movie_data_with_year)
-            vector = self.model.encode(text_to_encode).tolist()
+            vector = self._get_model().encode(text_to_encode).tolist()
 
             title = str(movie_data.get("title", ""))
             overview = str(movie_data.get("overview", ""))

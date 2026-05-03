@@ -244,8 +244,10 @@ urlpatterns = [
 
     path('clubs', clubs_views.ClubsListView.as_view(), name='api_clubs_list'),
     path('clubs/<int:club_id>', clubs_views.ClubDetailView.as_view(), name='api_club_details'),
+    path('clubs/<int:club_id>/update', clubs_views.ClubUpdateView.as_view(), name='api_club_update'),
     path('clubs/<int:club_id>/join', clubs_views.JoinClubView.as_view(), name='api_join_club'),
     path('clubs/<int:club_id>/threads', clubs_views.ClubThreadsView.as_view(), name='api_club_threads'),
+    path('clubs/<int:club_id>/lists', clubs_views.ClubListsView.as_view(), name='api_club_lists'),
     path('clubs/threads/<int:thread_id>', clubs_views.ThreadDetailView.as_view(), name='api_thread_details'),
     path('clubs/threads/<int:thread_id>/posts', clubs_views.CreatePostView.as_view(), name='api_create_post'),
 ]

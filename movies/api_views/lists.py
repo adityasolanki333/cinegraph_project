@@ -238,7 +238,7 @@ class ListFollowView(APIView):
 class ListUnfollowView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, list_id):
+    def _do_unfollow(self, request, list_id):
         try:
             user_list = UserList.objects.get(id=list_id)
         except UserList.DoesNotExist:
@@ -252,6 +252,12 @@ class ListUnfollowView(APIView):
             user_list.save()
 
         return Response({'success': True, 'deleted': deleted > 0, 'followerCount': user_list.follower_count})
+
+    def post(self, request, list_id):
+        return self._do_unfollow(request, list_id)
+
+    def delete(self, request, list_id):
+        return self._do_unfollow(request, list_id)
 
 
 class ListFollowersView(APIView):

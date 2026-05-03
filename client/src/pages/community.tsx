@@ -78,7 +78,9 @@ export default function Community() {
   } = useInfiniteQuery({
     queryKey: ['/api/community/community-feed', timeFilter],
     queryFn: async ({ pageParam = 0 }) => {
-      const response = await fetch(`/api/community/community-feed?timeFilter=${timeFilter}&offset=${pageParam}`);
+      const response = await fetch(`/api/community/community-feed?timeFilter=${timeFilter}&offset=${pageParam}`, {
+        headers: { ...getAuthHeaders() }
+      });
       if (!response.ok) throw new Error('Failed to fetch feed');
       return response.json();
     },
@@ -96,7 +98,9 @@ export default function Community() {
   } = useInfiniteQuery({
     queryKey: ['/api/community/top-reviews', timeFilter, sortBy],
     queryFn: async ({ pageParam = 0 }) => {
-      const response = await fetch(`/api/community/top-reviews?timeFilter=${timeFilter}&sortBy=${sortBy}&offset=${pageParam}`);
+      const response = await fetch(`/api/community/top-reviews?timeFilter=${timeFilter}&sortBy=${sortBy}&offset=${pageParam}`, {
+        headers: { ...getAuthHeaders() }
+      });
       if (!response.ok) throw new Error('Failed to fetch top reviews');
       return response.json();
     },
@@ -120,7 +124,9 @@ export default function Community() {
   } = useInfiniteQuery({
     queryKey: ['/api/community/trending', timeFilter],
     queryFn: async ({ pageParam = 0 }) => {
-      const response = await fetch(`/api/community/trending?timeFilter=${timeFilter}&offset=${pageParam}`);
+      const response = await fetch(`/api/community/trending?timeFilter=${timeFilter}&offset=${pageParam}`, {
+        headers: { ...getAuthHeaders() }
+      });
       if (!response.ok) throw new Error('Failed to fetch trending');
       return response.json();
     },
@@ -546,7 +552,7 @@ export default function Community() {
                     data-testid={`trending-item-${item.tmdbId}`}
                   >
                     <div className="relative aspect-[2/3] overflow-hidden rounded-xl shadow-md group-hover:shadow-xl transition-shadow duration-300">
-                      {item.posterPath ? (
+                      {item.posterPath && item.posterPath !== "null" ? (
                         <img
                           src={`https://image.tmdb.org/t/p/w342${item.posterPath}`}
                           alt={item.title}

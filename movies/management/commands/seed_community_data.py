@@ -220,6 +220,60 @@ CURATED_CLUBS = [
                 ]
             }
         ]
+    },
+    {
+        'title': 'Horror Nightmares',
+        'description': 'For fans of the macabre, the supernatural, and the psychological thrillers. If it bleeds, we watch it.',
+        'owner_username': 'horror_luna',
+        'cover_image_url': 'https://images.unsplash.com/photo-1505634467193-78571da69a34?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+        'threads': [
+            {
+                'title': 'What is the scariest movie of all time?',
+                'content': 'I am looking for something that will genuinely keep me up tonight. Any suggestions?',
+                'pinned': True,
+                'author': 'horror_luna',
+                'posts': [
+                    {'author': 'cinephile_alex', 'content': 'The Exorcist (1973) is the gold standard.'},
+                    {'author': 'scifi_sarah', 'content': 'Hereditary (2018). I still cant forget that one scene.'}
+                ]
+            }
+        ]
+    },
+    {
+        'title': 'Adrenaline Junkies',
+        'description': 'Fast cars, big explosions, and high-stakes action. Join the pact for the ultimate adrenaline rush.',
+        'owner_username': 'action_raj',
+        'cover_image_url': 'https://images.unsplash.com/photo-1485846234645-a62644f84728?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+        'threads': [
+            {
+                'title': 'Mad Max: Fury Road vs. T2?',
+                'content': 'Which one has the better practical effects and stunt work?',
+                'pinned': False,
+                'author': 'action_raj',
+                'posts': [
+                    {'author': 'indie_james', 'content': 'Fury Road for pure visual madness.'},
+                    {'author': 'binge_emma', 'content': 'T2 for the emotional weight and iconic character.'}
+                ]
+            }
+        ]
+    },
+    {
+        'title': 'Anime & Animation Pals',
+        'description': 'Dedicated to the beautiful art of animation. Studio Ghibli, Disney, Pixar, and everything in between.',
+        'owner_username': 'indie_james',
+        'cover_image_url': 'https://images.unsplash.com/photo-1541562232579-512a21359920?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+        'threads': [
+            {
+                'title': 'Favorite Ghibli movie?',
+                'content': 'My Neighbor Totoro or Spirited Away? Or maybe something more obscure like Porco Rosso?',
+                'pinned': True,
+                'author': 'indie_james',
+                'posts': [
+                    {'author': 'cinephile_alex', 'content': 'Princess Mononoke. It is a masterpiece.'},
+                    {'author': 'horror_luna', 'content': 'Grave of the Fireflies, but only if you want to cry for three days.'}
+                ]
+            }
+        ]
     }
 ]
 
@@ -343,7 +397,7 @@ class Command(BaseCommand):
                         'title': content['title'],
                         'media_type': content['media_type'],
                         'watch_duration': random.randint(60, 150),
-                        'poster_path': '',
+                        'poster_path': content.get('poster_path', ''),
                     }
                 )
                 if created:
@@ -379,7 +433,7 @@ class Command(BaseCommand):
                             media_type=content['media_type'],
                             defaults={
                                 'title': content['title'],
-                                'poster_path': '',
+                                'poster_path': content.get('poster_path', ''),
                                 'position': pos,
                             }
                         )

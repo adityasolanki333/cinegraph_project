@@ -54,7 +54,7 @@ export default function ClubsList() {
             const url = searchQuery
                 ? `/api/clubs?q=${encodeURIComponent(searchQuery)}`
                 : '/api/clubs';
-            const res = await fetch(url);
+            const res = await fetch(url, { headers: { ...getAuthHeaders() } });
             if (!res.ok) throw new Error("Failed to fetch clubs");
             return res.json();
         }

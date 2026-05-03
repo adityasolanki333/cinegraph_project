@@ -82,7 +82,9 @@ function CommunityTab() {
     queryFn: async () => {
       const params = new URLSearchParams({ sort, limit: "24" });
       if (debouncedQuery) params.set("q", debouncedQuery);
-      const res = await fetch(`/api/community/lists/public?${params}`);
+      const res = await fetch(`/api/community/lists/public?${params}`, {
+        headers: { ...getAuthHeaders() }
+      });
       if (!res.ok) throw new Error("Failed to load lists");
       return res.json();
     },
@@ -202,7 +204,9 @@ function MyListsTab() {
   const { data: myLists = [], isLoading } = useQuery<UserList[]>({
     queryKey: ["/api/community/users", user?.id, "lists"],
     queryFn: async () => {
-      const res = await fetch(`/api/community/users/${user!.id}/lists`);
+      const res = await fetch(`/api/community/users/${user!.id}/lists`, {
+        headers: { ...getAuthHeaders() }
+      });
       if (!res.ok) return [];
       const data = await res.json();
       return data.lists || (Array.isArray(data) ? data : []);
