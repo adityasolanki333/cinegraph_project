@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { MediaCard } from "@/components/media-card";
 import MediaCardSkeleton from "@/components/media-card-skeleton";
+import { useTranslation } from "react-i18next";
 
 interface TmdbDetailItem {
   id: number;
@@ -44,6 +45,7 @@ interface SemanticSearchResponse {
 }
 
 function MatchIndicator({ similarity, matchQuality }: { similarity: number; matchQuality?: string }) {
+  const { t } = useTranslation();
   const pct = Math.round(similarity * 100);
 
   const getColor = () => {
@@ -73,7 +75,7 @@ function MatchIndicator({ similarity, matchQuality }: { similarity: number; matc
       <div className="flex items-center justify-between text-xs">
         <span className={`font-medium flex items-center gap-1 ${getColor()}`}>
           {getIcon()}
-          {pct}% match
+          {t('similarContent.matchPct', { pct })}
         </span>
         {matchQuality && matchQuality !== 'Related' && (
           <span className="text-[10px] text-muted-foreground truncate max-w-[80px]">{matchQuality}</span>
@@ -85,6 +87,7 @@ function MatchIndicator({ similarity, matchQuality }: { similarity: number; matc
 }
 
 export function SimilarContent({ title, overview, mediaType, currentTmdbId }: SimilarContentProps) {
+  const { t } = useTranslation();
   const { data: semanticResults, isLoading: semanticLoading } = useQuery({
     queryKey: ['/api/recommendations/semantic-search', title, overview],
     queryFn: async () => {
@@ -125,10 +128,10 @@ export function SimilarContent({ title, overview, mediaType, currentTmdbId }: Si
           <div>
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-accent" />
-              AI-Recommended Similar {mediaType === 'movie' ? 'Movies' : 'Shows'}
+              {t('similarContent.title', { type: mediaType === 'movie' ? t('similarContent.typeMovies') : t('similarContent.typeShows') })}
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Finding content with similar themes and storylines...
+              {t('similarContent.finding')}
             </p>
           </div>
         </div>
@@ -153,18 +156,18 @@ export function SimilarContent({ title, overview, mediaType, currentTmdbId }: Si
           <div>
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-accent" />
-              AI-Recommended Similar {mediaType === 'movie' ? 'Movies' : 'Shows'}
+              {t('similarContent.title', { type: mediaType === 'movie' ? t('similarContent.typeMovies') : t('similarContent.typeShows') })}
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Content with similar themes and storylines
+              {t('similarContent.subtitle')}
             </p>
           </div>
         </div>
         <div className="text-center py-12 bg-muted/30 rounded-lg" data-testid="empty-similar-content">
           <Sparkles className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-          <h3 className="text-xl font-semibold mb-2">No Semantic Matches Found</h3>
+          <h3 className="text-xl font-semibold mb-2">{t('similarContent.noMatches')}</h3>
           <p className="text-muted-foreground">
-            Try browsing other {mediaType === 'movie' ? 'movies' : 'shows'} or check back later
+            {t('similarContent.tryBrowsing', { type: mediaType === 'movie' ? t('similarContent.typeMovies').toLowerCase() : t('similarContent.typeShows').toLowerCase() })}
           </p>
         </div>
       </div>
@@ -191,7 +194,7 @@ export function SimilarContent({ title, overview, mediaType, currentTmdbId }: Si
           )}
           {semanticResults?.searchMethod && (
             <Badge variant="secondary" className="text-[10px]" data-testid="badge-search-method">
-              {semanticResults.searchMethod === 'pinecone_semantic' ? 'Vector' : 'TF-IDF'}
+              {semanticResults.searchMethod === 'pinecone_semantic' ? t('similarContent.vector') : t('similarContent.tfidf')}
             </Badge>
           )}
         </div>
@@ -232,7 +235,7 @@ export function SimilarContent({ title, overview, mediaType, currentTmdbId }: Si
       </ScrollArea>
 
       <div className="text-center text-sm text-muted-foreground" data-testid="text-similar-count">
-        Showing {itemDetails.length} AI-recommended similar {mediaType === 'movie' ? 'movies' : 'shows'}
+        {t('similarContent.showing', { count: itemDetails.length, type: mediaType === 'movie' ? t('similarContent.typeMovies').toLowerCase() : t('similarContent.typeShows').toLowerCase() })}
       </div>
     </div>
   );

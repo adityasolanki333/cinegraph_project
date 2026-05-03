@@ -380,7 +380,8 @@
     "noNotificationsYet": "まだ通知はありません",
     "noTypeNotifications": "{{type}}の通知はありません",
     "noNotificationsDesc": "誰かがあなたのコンテンツに反応すると、ここに表示されます。",
-    "pleaseLogIn": "通知を表示するにはログインしてください。"
+    "pleaseLogIn": "通知を表示するにはログインしてください。",
+    "viewAll": "すべて表示"
   },
   "auth": {
     "signIn": "サインイン",
@@ -408,7 +409,8 @@
     "movie": "映画",
     "tvSeries": "テレビシリーズ",
     "season": "シーズン",
-    "seasons": "シーズン"
+    "seasons": "シーズン",
+    "deleting": "削除中..."
   },
   "language": {
     "en": "English",
@@ -702,5 +704,85 @@
     "talk": "トーク",
     "warAndPolitics": "戦争・政治",
     "sciFi": "SF"
+  },
+  "search": {
+    "title": "映画・TVシリーズなどを検索",
+    "placeholder": "映画、TVシリーズ、フランチャイズを検索（例：「Thor」）...",
+    "searching": "検索中...",
+    "noResults": "「{{query}}」の結果が見つかりません",
+    "noResultsHint": "映画、TVシリーズ、フランチャイズ、人物、会社を検索してみてください",
+    "startTyping": "検索するには入力してください...",
+    "startTypingHint": "映画、TVシリーズ、フランチャイズ（Thor、Marvelなど）、人物、会社を検索",
+    "typeMovie": "映画",
+    "typeTV": "TVシリーズ",
+    "typePerson": "人物",
+    "typeCollection": "コレクション",
+    "typeCompany": "会社",
+    "tabAll": "すべて",
+    "tabMovies": "映画",
+    "tabTV": "TVシリーズ",
+    "tabFranchises": "フランチャイズ",
+    "tabPeople": "人物",
+    "tabCompanies": "会社"
+  },
+  "trailer": {
+    "noTrailerAvailable": "予告編はありません",
+    "noTrailerMessage": "このタイトルの予告編は現在ご利用いただけません。",
+    "trailerSuffix": "予告編",
+    "selectLanguage": "言語を選択"
+  },
+  "watchProviders": {
+    "title": "視聴方法",
+    "streaming": "ストリーミング",
+    "buy": "購入",
+    "rent": "レンタル",
+    "moreOptions": "JustWatchでさらに見る",
+    "poweredBy": "視聴可能データはJustWatch提供（US地域）"
+  },
+  "addToList": {
+    "button": "リストに追加",
+    "dialogTitle": "リストに追加",
+    "dialogDesc": "「{{title}}」を追加するリストを選択してください",
+    "createNew": "新しいリストを作成",
+    "addedTitle": "リストに追加しました",
+    "addedDesc": "「{{title}}」がリストに追加されました。",
+    "removedTitle": "リストから削除しました",
+    "removedDesc": "「{{title}}」がリストから削除されました。",
+    "listDeletedTitle": "リストを削除しました",
+    "listDeletedDesc": "リストが正常に削除されました。",
+    "failedAdd": "リストへの追加に失敗しました",
+    "failedRemove": "リストからの削除に失敗しました。もう一度お試しください。",
+    "failedDelete": "リストの削除に失敗しました。もう一度お試しください。",
+    "alreadyInList": "このアイテムはすでにそのリストにあります。",
+    "loginRequired": "ログインが必要です",
+    "loginRequiredDesc": "リストにアイテムを追加するにはログインしてください。",
+    "itemCount": "{{count}}件",
+    "noLists": "まだリストがありません",
+    "createFirst": "最初のリストを作成して始めましょう！",
+    "confirmDeleteTitle": "本当によろしいですか？",
+    "confirmDeleteDesc": "リスト「{{title}}」を完全に削除します。この操作は元に戻せません。"
+  },
+  "continueWatching": {
+    "title": "続きを見る",
+    "session": "セッション",
+    "bingeStreak": "一気見ストリーク",
+    "viewAll": "すべて表示",
+    "episodes": "エピソード",
+    "loading": "読み込み中...",
+    "empty": "まだ続きはありません"
+  },
+  "similarContent": {
+    "title": "類似コンテンツ",
+    "matchPct": "{{pct}}%マッチ",
+    "excellent": "優秀",
+    "great": "素晴らしい",
+    "good": "良い",
+    "fair": "普通",
+    "matchQuality": "マッチ品質",
+    "loading": "類似コンテンツを読み込み中...",
+    "empty": "類似コンテンツが見つかりません",
+    "aiSimilar": "AI類似",
+    "tmdbSimilar": "TMDB類似",
+    "lists": "リスト"
   }
 }

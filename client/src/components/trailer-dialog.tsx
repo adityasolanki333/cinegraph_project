@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Globe } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface Trailer {
   id: string;
@@ -46,6 +47,7 @@ const languageNames: Record<string, string> = {
 const ALLOWED_LANGUAGES = ['en', 'hi', 'ta', 'te', 'ml', 'kn'];
 
 export function TrailerDialog({ isOpen, onClose, trailerKey, trailers, title, originalLanguage }: TrailerDialogProps) {
+  const { t } = useTranslation();
   // Indian languages where TMDB often mislabels trailers as English
   const INDIAN_LANGUAGES = ['hi', 'ta', 'te', 'ml', 'kn', 'bn'];
   
@@ -111,10 +113,10 @@ export function TrailerDialog({ isOpen, onClose, trailerKey, trailers, title, or
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-5xl p-6">
           <DialogHeader>
-            <DialogTitle>{title} - No Trailer Available</DialogTitle>
+            <DialogTitle>{title} - {t('trailer.noTrailerAvailable')}</DialogTitle>
           </DialogHeader>
           <div className="py-8 text-center text-muted-foreground">
-            <p>Sorry, no trailer is currently available for this title.</p>
+            <p>{t('trailer.noTrailerMessage')}</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -126,11 +128,11 @@ export function TrailerDialog({ isOpen, onClose, trailerKey, trailers, title, or
       <DialogContent className="max-w-5xl p-0">
         <DialogHeader className="p-6 pb-4">
           <div className="flex items-center justify-between">
-            <DialogTitle>{title} - Trailer</DialogTitle>
+            <DialogTitle>{title} - {t('trailer.trailerSuffix')}</DialogTitle>
             <Select value={selectedTrailer} onValueChange={setSelectedTrailer}>
               <SelectTrigger className="w-[180px]" data-testid="select-trailer-language">
                 <Globe className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Select language" />
+                <SelectValue placeholder={t('trailer.selectLanguage')} />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(trailersByLanguage).map(([lang, langTrailers]) => 

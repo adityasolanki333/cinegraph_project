@@ -10,8 +10,10 @@ import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Notification } from "@shared/schema";
+import { useTranslation } from "react-i18next";
 
 export function NotificationBell() {
+  const { t } = useTranslation();
   const [, setLocation] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -109,7 +111,7 @@ export function NotificationBell() {
       {isOpen && (
         <div className="absolute right-0 mt-2 w-80 bg-background border border-border rounded-lg shadow-lg z-[100]">
           <div className="p-4 border-b border-border flex items-center justify-between">
-            <h3 className="font-semibold" data-testid="text-notifications-title">Notifications</h3>
+            <h3 className="font-semibold" data-testid="text-notifications-title">{t('notifications.title')}</h3>
             <Button
               variant="link"
               size="sm"
@@ -119,14 +121,14 @@ export function NotificationBell() {
               }}
               data-testid="button-view-all-notifications"
             >
-              View All
+              {t('notifications.viewAll')}
             </Button>
           </div>
 
           <ScrollArea className="h-96">
             {notifications.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground" data-testid="text-no-notifications">
-                No notifications yet
+                {t('notifications.noNotifications')}
               </div>
             ) : (
               <div className="divide-y divide-border">

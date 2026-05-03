@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tv, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useTranslation } from "react-i18next";
 
 interface WatchProvidersProps {
   tmdbId: number;
@@ -25,6 +26,7 @@ interface CountryProviders {
 }
 
 export function WatchProviders({ tmdbId, mediaType }: WatchProvidersProps) {
+  const { t } = useTranslation();
   const { data: providersData, isLoading, error } = useQuery({
     queryKey: ['/api/tmdb', mediaType, tmdbId, 'watch/providers'],
     queryFn: async () => {
@@ -41,7 +43,7 @@ export function WatchProviders({ tmdbId, mediaType }: WatchProvidersProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Tv className="h-5 w-5" />
-            Where to Watch
+            {t('watchProviders.title')}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -69,13 +71,13 @@ export function WatchProviders({ tmdbId, mediaType }: WatchProvidersProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Tv className="h-5 w-5" />
-          Where to Watch
+          {t('watchProviders.title')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {usProviders.flatrate && usProviders.flatrate.length > 0 && (
           <div>
-            <h4 className="font-semibold mb-3 text-sm">Streaming</h4>
+            <h4 className="font-semibold mb-3 text-sm">{t('watchProviders.streaming')}</h4>
             <div className="flex flex-wrap gap-3">
               {usProviders.flatrate.map((provider) => (
                 <div 
@@ -103,7 +105,7 @@ export function WatchProviders({ tmdbId, mediaType }: WatchProvidersProps) {
 
         {usProviders.buy && usProviders.buy.length > 0 && (
           <div>
-            <h4 className="font-semibold mb-3 text-sm">Buy</h4>
+            <h4 className="font-semibold mb-3 text-sm">{t('watchProviders.buy')}</h4>
             <div className="flex flex-wrap gap-3">
               {usProviders.buy.slice(0, 6).map((provider) => (
                 <div 
@@ -131,7 +133,7 @@ export function WatchProviders({ tmdbId, mediaType }: WatchProvidersProps) {
 
         {usProviders.rent && usProviders.rent.length > 0 && (
           <div>
-            <h4 className="font-semibold mb-3 text-sm">Rent</h4>
+            <h4 className="font-semibold mb-3 text-sm">{t('watchProviders.rent')}</h4>
             <div className="flex flex-wrap gap-3">
               {usProviders.rent.slice(0, 6).map((provider) => (
                 <div 
@@ -167,13 +169,13 @@ export function WatchProviders({ tmdbId, mediaType }: WatchProvidersProps) {
               data-testid="link-justwatch"
             >
               <ExternalLink className="h-3 w-3" />
-              More options on JustWatch
+              {t('watchProviders.moreOptions')}
             </a>
           </div>
         )}
 
         <p className="text-xs text-muted-foreground pt-2">
-          Availability data provided by JustWatch (US region)
+          {t('watchProviders.poweredBy')}
         </p>
       </CardContent>
     </Card>

@@ -380,7 +380,8 @@
     "noNotificationsYet": "Aún no tienes notificaciones",
     "noTypeNotifications": "Sin notificaciones de {{type}}",
     "noNotificationsDesc": "Cuando alguien interactúe con tu contenido, lo verás aquí.",
-    "pleaseLogIn": "Inicia sesión para ver tus notificaciones."
+    "pleaseLogIn": "Inicia sesión para ver tus notificaciones.",
+    "viewAll": "Ver todo"
   },
   "auth": {
     "signIn": "Iniciar sesión",
@@ -408,7 +409,8 @@
     "movie": "Película",
     "tvSeries": "Serie TV",
     "season": "Temporada",
-    "seasons": "Temporadas"
+    "seasons": "Temporadas",
+    "deleting": "Eliminando..."
   },
   "language": {
     "en": "English",
@@ -702,5 +704,85 @@
     "talk": "Entrevistas",
     "warAndPolitics": "Guerra y Política",
     "sciFi": "Ciencia Ficción"
+  },
+  "search": {
+    "title": "Buscar películas, series y más",
+    "placeholder": "Buscar películas, series, franquicias (ej. 'Thor')...",
+    "searching": "Buscando...",
+    "noResults": "No se encontraron resultados para \"{{query}}\"",
+    "noResultsHint": "Intenta buscar películas, series, franquicias, personas o empresas",
+    "startTyping": "Empieza a escribir para buscar...",
+    "startTypingHint": "Busca películas, series, franquicias (como Thor, Marvel), personas y empresas",
+    "typeMovie": "Película",
+    "typeTV": "Serie",
+    "typePerson": "Persona",
+    "typeCollection": "Colección",
+    "typeCompany": "Empresa",
+    "tabAll": "Todo",
+    "tabMovies": "Películas",
+    "tabTV": "Series",
+    "tabFranchises": "Franquicias",
+    "tabPeople": "Personas",
+    "tabCompanies": "Empresas"
+  },
+  "trailer": {
+    "noTrailerAvailable": "No hay tráiler disponible",
+    "noTrailerMessage": "Lo sentimos, no hay tráiler disponible para este título.",
+    "trailerSuffix": "Tráiler",
+    "selectLanguage": "Seleccionar idioma"
+  },
+  "watchProviders": {
+    "title": "Dónde ver",
+    "streaming": "Streaming",
+    "buy": "Comprar",
+    "rent": "Alquilar",
+    "moreOptions": "Más opciones en JustWatch",
+    "poweredBy": "Datos de disponibilidad proporcionados por JustWatch (región EE.UU.)"
+  },
+  "addToList": {
+    "button": "Añadir a lista",
+    "dialogTitle": "Añadir a lista",
+    "dialogDesc": "Elige en qué listas añadir \"{{title}}\"",
+    "createNew": "Crear nueva lista",
+    "addedTitle": "Añadido a la lista",
+    "addedDesc": "\"{{title}}\" ha sido añadido a tu lista.",
+    "removedTitle": "Eliminado de la lista",
+    "removedDesc": "\"{{title}}\" ha sido eliminado de tu lista.",
+    "listDeletedTitle": "Lista eliminada",
+    "listDeletedDesc": "Tu lista ha sido eliminada correctamente.",
+    "failedAdd": "Error al añadir a la lista",
+    "failedRemove": "Error al eliminar de la lista. Inténtalo de nuevo.",
+    "failedDelete": "Error al eliminar la lista. Inténtalo de nuevo.",
+    "alreadyInList": "Este elemento ya está en esa lista.",
+    "loginRequired": "Inicio de sesión requerido",
+    "loginRequiredDesc": "Por favor inicia sesión para añadir elementos a las listas.",
+    "itemCount": "{{count}} elementos",
+    "noLists": "Aún no tienes ninguna lista",
+    "createFirst": "¡Crea tu primera lista para empezar!",
+    "confirmDeleteTitle": "¿Estás seguro?",
+    "confirmDeleteDesc": "Esto eliminará permanentemente la lista \"{{title}}\". Esta acción no se puede deshacer."
+  },
+  "continueWatching": {
+    "title": "Continuar viendo",
+    "session": "Sesión",
+    "bingeStreak": "Racha de maratón",
+    "viewAll": "Ver todo",
+    "episodes": "episodios",
+    "loading": "Cargando...",
+    "empty": "Nada que continuar viendo aún"
+  },
+  "similarContent": {
+    "title": "Contenido similar",
+    "matchPct": "{{pct}}% coincidencia",
+    "excellent": "Excelente",
+    "great": "Genial",
+    "good": "Bueno",
+    "fair": "Regular",
+    "matchQuality": "Calidad de coincidencia",
+    "loading": "Cargando contenido similar...",
+    "empty": "No se encontró contenido similar",
+    "aiSimilar": "Similar IA",
+    "tmdbSimilar": "Similar TMDB",
+    "lists": "Listas"
   }
 }

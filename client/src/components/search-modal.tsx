@@ -9,6 +9,7 @@ import { Search, X, Film, Tv, User, Building } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { logSearchInteraction } from "@/lib/feedback";
+import { useTranslation } from "react-i18next";
 
 interface SearchModalProps {
   open: boolean;
@@ -37,6 +38,7 @@ interface SearchResult {
 }
 
 export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<'all' | 'movies' | 'tv' | 'people' | 'companies' | 'collections'>('all');
   const [, setLocation] = useLocation();
@@ -183,12 +185,12 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
   };
 
   const tabs = [
-    { id: 'all', label: 'All', count: searchResults?.results?.length || 0 },
-    { id: 'movies', label: 'Movies', count: movieResults?.results?.length || 0 },
-    { id: 'tv', label: 'TV Shows', count: tvResults?.results?.length || 0 },
-    { id: 'collections', label: 'Franchises', count: collectionResults?.results?.length || 0 },
-    { id: 'people', label: 'People', count: personResults?.results?.length || 0 },
-    { id: 'companies', label: 'Companies', count: companyResults?.results?.length || 0 },
+    { id: 'all', label: t('search.tabAll'), count: searchResults?.results?.length || 0 },
+    { id: 'movies', label: t('search.tabMovies'), count: movieResults?.results?.length || 0 },
+    { id: 'tv', label: t('search.tabTV'), count: tvResults?.results?.length || 0 },
+    { id: 'collections', label: t('search.tabFranchises'), count: collectionResults?.results?.length || 0 },
+    { id: 'people', label: t('search.tabPeople'), count: personResults?.results?.length || 0 },
+    { id: 'companies', label: t('search.tabCompanies'), count: companyResults?.results?.length || 0 },
   ];
 
   useEffect(() => {
@@ -204,7 +206,7 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
         <DialogHeader className="p-6 pb-4">
           <DialogTitle className="flex items-center space-x-2">
             <Search className="h-5 w-5" />
-            <span>Search Movies, TV Shows & More</span>
+            <span>{t('search.title')}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -214,7 +216,7 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
             <Input
               id="search-modal-input"
               name="search"
-              placeholder="Search for movies, TV shows, franchises (e.g., 'Thor')..."
+              placeholder={t('search.placeholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="pl-10 pr-10"
@@ -264,7 +266,7 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
                   <div className="flex items-center justify-center py-8 text-muted-foreground">
                     <div className="flex items-center space-x-2">
                       <Search className="h-4 w-4 animate-pulse" />
-                      <span>Searching...</span>
+                      <span>{t('search.searching')}</span>
                     </div>
                   </div>
                 ) : getResults().length > 0 ? (
@@ -316,11 +318,11 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
 
                           <div className="flex items-center space-x-2 mt-1">
                             <Badge variant="outline" className="text-xs">
-                              {result.media_type === 'movie' || result.title ? 'Movie' :
-                                result.media_type === 'tv' || result.first_air_date ? 'TV Show' :
-                                  result.media_type === 'person' || result.known_for_department ? 'Person' :
-                                    activeTab === 'collections' || (result.backdrop_path !== undefined && !result.overview) ? 'Collection' :
-                                      'Company'}
+                              {result.media_type === 'movie' || result.title ? t('search.typeMovie') :
+                                result.media_type === 'tv' || result.first_air_date ? t('search.typeTV') :
+                                  result.media_type === 'person' || result.known_for_department ? t('search.typePerson') :
+                                    activeTab === 'collections' || (result.backdrop_path !== undefined && !result.overview) ? t('search.typeCollection') :
+                                      t('search.typeCompany')}
                             </Badge>
 
                             {result.vote_average && result.vote_average > 0 && (
@@ -337,8 +339,8 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
                   <div className="text-center py-8 text-muted-foreground">
                     <div className="flex flex-col items-center space-y-2">
                       <Search className="h-8 w-8" />
-                      <p>No results found for "{query}"</p>
-                      <p className="text-sm">Try searching for movies, TV shows, franchises, people, or companies</p>
+                      <p>{t('search.noResults', { query })}</p>
+                      <p className="text-sm">{t('search.noResultsHint')}</p>
                     </div>
                   </div>
                 )}
@@ -351,8 +353,8 @@ export default function SearchModal({ open, onOpenChange }: SearchModalProps) {
           <div className="px-6 pb-6">
             <div className="text-center py-8 text-muted-foreground">
               <Search className="h-8 w-8 mx-auto mb-4" />
-              <p>Start typing to search...</p>
-              <p className="text-sm mt-2">Search movies, TV shows, franchises (like Thor, Marvel), people, and companies</p>
+              <p>{t('search.startTyping')}</p>
+              <p className="text-sm mt-2">{t('search.startTypingHint')}</p>
             </div>
           </div>
         )}

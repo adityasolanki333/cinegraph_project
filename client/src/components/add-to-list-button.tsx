@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { CreateListDialog } from "./create-list-dialog";
 import { useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
 
 interface AddToListButtonProps {
   tmdbId: number;
@@ -46,6 +47,7 @@ export function AddToListButton({
   variant = "outline",
   size = "default",
 }: AddToListButtonProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   // Add state for delete confirmation
   const [deleteListId, setDeleteListId] = useState<string | null>(null);
@@ -73,16 +75,16 @@ export function AddToListButton({
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', listId] });
       queryClient.invalidateQueries({ queryKey: ['/api/community/users', user?.id, 'lists'] });
       toast({
-        title: "Added to list",
-        description: `"${title}" has been added to your list.`,
+        title: t('addToList.addedTitle'),
+        description: t('addToList.addedDesc', { title }),
       });
     },
     onError: (error: any) => {
-      const errorMessage = error?.message || "Failed to add to list";
+      const errorMessage = error?.message || t('addToList.failedAdd');
       toast({
-        title: "Error",
+        title: t('common.error'),
         description: errorMessage.includes("already exists")
-          ? "This item is already in that list."
+          ? t('addToList.alreadyInList')
           : errorMessage,
         variant: "destructive",
       });
@@ -97,14 +99,14 @@ export function AddToListButton({
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists', listId] });
       queryClient.invalidateQueries({ queryKey: ['/api/community/users', user?.id, 'lists'] });
       toast({
-        title: "Removed from list",
-        description: `"${title}" has been removed from your list.`,
+        title: t('addToList.removedTitle'),
+        description: t('addToList.removedDesc', { title }),
       });
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to remove from list. Please try again.",
+        title: t('common.error'),
+        description: t('addToList.failedRemove'),
         variant: "destructive",
       });
     },
@@ -119,15 +121,15 @@ export function AddToListButton({
       // Invalidate all "lists containing media" queries so deleted list disappears from Similar > Lists tabs
       queryClient.invalidateQueries({ queryKey: ['/api/community/lists/containing'] });
       toast({
-        title: "List deleted",
-        description: "Your list has been deleted successfully.",
+        title: t('addToList.listDeletedTitle'),
+        description: t('addToList.listDeletedDesc'),
       });
       setDeleteListId(null);
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to delete list. Please try again.",
+        title: t('common.error'),
+        description: t('addToList.failedDelete'),
         variant: "destructive",
       });
       setDeleteListId(null);
@@ -137,8 +139,8 @@ export function AddToListButton({
   const handleOpenChange = (newOpen: boolean) => {
     if (!isAuthenticated && newOpen) {
       toast({
-        title: "Login required",
-        description: "Please log in to add items to lists.",
+        title: t('addToList.loginRequired'),
+        description: t('addToList.loginRequiredDesc'),
         variant: "destructive",
       });
       setTimeout(() => setLocation('/login'), 500);
@@ -189,14 +191,14 @@ export function AddToListButton({
         <DialogTrigger asChild>
           <Button variant={variant} size={size} data-testid="button-add-to-list">
             <ListPlus className="h-4 w-4 mr-2" />
-            Add to List
+            {t('addToList.button')}
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto" data-testid="dialog-add-to-list">
           <DialogHeader>
-            <DialogTitle>Add to List</DialogTitle>
+            <DialogTitle>{t('addToList.dialogTitle')}</DialogTitle>
             <DialogDescription>
-              Choose which lists to add "{title}" to
+              {t('addToList.dialogDesc', { title })}
             </DialogDescription>
           </DialogHeader>
 
@@ -206,7 +208,7 @@ export function AddToListButton({
               trigger={
                 <Button variant="outline" className="w-full" data-testid="button-create-new-list">
                   <Plus className="h-4 w-4 mr-2" />
-                  Create New List
+                  {t('addToList.createNew')}
                 </Button>
               }
             />
@@ -245,7 +247,7 @@ export function AddToListButton({
                             {list.title}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {list.itemCount || 0} items
+                            {t('addToList.itemCount', { count: list.itemCount || 0 })}
                           </p>
                         </div>
                         <Button
@@ -266,9 +268,9 @@ export function AddToListButton({
               </ScrollArea>
             ) : (
               <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">You don't have any lists yet</p>
+                <p className="text-muted-foreground mb-4">{t('addToList.noLists')}</p>
                 <p className="text-sm text-muted-foreground">
-                  Create your first list to get started!
+                  {t('addToList.createFirst')}
                 </p>
               </div>
             )}
@@ -279,13 +281,13 @@ export function AddToListButton({
       <AlertDialog open={!!deleteListId} onOpenChange={(open) => !open && setDeleteListId(null)}>
         <AlertDialogContent className="z-[100]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>{t('addToList.confirmDeleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the list "{deleteListTitle}". This action cannot be undone.
+              {t('addToList.confirmDeleteDesc', { title: deleteListTitle })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteListMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteListMutation.isPending}>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={(e) => {
@@ -297,10 +299,10 @@ export function AddToListButton({
               {deleteListMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
+                  {t('common.deleting')}
                 </>
               ) : (
-                "Delete"
+                t('common.delete')
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

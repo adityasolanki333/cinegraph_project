@@ -380,7 +380,8 @@
     "noNotificationsYet": "Du hast noch keine Benachrichtigungen",
     "noTypeNotifications": "Keine {{type}} Benachrichtigungen",
     "noNotificationsDesc": "Wenn jemand mit deinem Inhalt interagiert, siehst du es hier.",
-    "pleaseLogIn": "Bitte melde dich an, um deine Benachrichtigungen zu sehen."
+    "pleaseLogIn": "Bitte melde dich an, um deine Benachrichtigungen zu sehen.",
+    "viewAll": "Alle anzeigen"
   },
   "auth": {
     "signIn": "Anmelden",
@@ -408,7 +409,8 @@
     "movie": "Film",
     "tvSeries": "TV-Serie",
     "season": "Staffel",
-    "seasons": "Staffeln"
+    "seasons": "Staffeln",
+    "deleting": "Wird gelöscht..."
   },
   "language": {
     "en": "English",
@@ -702,5 +704,85 @@
     "talk": "Talkshow",
     "warAndPolitics": "Krieg & Politik",
     "sciFi": "Sci-Fi"
+  },
+  "search": {
+    "title": "Filme, Serien & mehr suchen",
+    "placeholder": "Filme, Serien, Franchises suchen (z.B. 'Thor')...",
+    "searching": "Suche läuft...",
+    "noResults": "Keine Ergebnisse für \"{{query}}\"",
+    "noResultsHint": "Suche nach Filmen, Serien, Franchises, Personen oder Unternehmen",
+    "startTyping": "Tippen zum Suchen...",
+    "startTypingHint": "Suche Filme, Serien, Franchises (wie Thor, Marvel), Personen und Unternehmen",
+    "typeMovie": "Film",
+    "typeTV": "Serie",
+    "typePerson": "Person",
+    "typeCollection": "Sammlung",
+    "typeCompany": "Unternehmen",
+    "tabAll": "Alle",
+    "tabMovies": "Filme",
+    "tabTV": "Serien",
+    "tabFranchises": "Franchises",
+    "tabPeople": "Personen",
+    "tabCompanies": "Unternehmen"
+  },
+  "trailer": {
+    "noTrailerAvailable": "Kein Trailer verfügbar",
+    "noTrailerMessage": "Leider ist kein Trailer für diesen Titel verfügbar.",
+    "trailerSuffix": "Trailer",
+    "selectLanguage": "Sprache auswählen"
+  },
+  "watchProviders": {
+    "title": "Wo ansehen",
+    "streaming": "Streaming",
+    "buy": "Kaufen",
+    "rent": "Leihen",
+    "moreOptions": "Weitere Optionen auf JustWatch",
+    "poweredBy": "Verfügbarkeitsdaten von JustWatch (US-Region)"
+  },
+  "addToList": {
+    "button": "Zur Liste hinzufügen",
+    "dialogTitle": "Zur Liste hinzufügen",
+    "dialogDesc": "Wählen Sie, zu welchen Listen \"{{title}}\" hinzugefügt werden soll",
+    "createNew": "Neue Liste erstellen",
+    "addedTitle": "Zur Liste hinzugefügt",
+    "addedDesc": "\"{{title}}\" wurde zu Ihrer Liste hinzugefügt.",
+    "removedTitle": "Von der Liste entfernt",
+    "removedDesc": "\"{{title}}\" wurde von Ihrer Liste entfernt.",
+    "listDeletedTitle": "Liste gelöscht",
+    "listDeletedDesc": "Ihre Liste wurde erfolgreich gelöscht.",
+    "failedAdd": "Fehler beim Hinzufügen zur Liste",
+    "failedRemove": "Fehler beim Entfernen von der Liste. Bitte versuchen Sie es erneut.",
+    "failedDelete": "Fehler beim Löschen der Liste. Bitte versuchen Sie es erneut.",
+    "alreadyInList": "Dieses Element befindet sich bereits in dieser Liste.",
+    "loginRequired": "Anmeldung erforderlich",
+    "loginRequiredDesc": "Bitte melden Sie sich an, um Elemente zu Listen hinzuzufügen.",
+    "itemCount": "{{count}} Elemente",
+    "noLists": "Sie haben noch keine Listen",
+    "createFirst": "Erstellen Sie Ihre erste Liste, um loszulegen!",
+    "confirmDeleteTitle": "Sind Sie sicher?",
+    "confirmDeleteDesc": "Die Liste \"{{title}}\" wird dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
+  },
+  "continueWatching": {
+    "title": "Weiterschauen",
+    "session": "Sitzung",
+    "bingeStreak": "Binge-Serie",
+    "viewAll": "Alle anzeigen",
+    "episodes": "Episoden",
+    "loading": "Wird geladen...",
+    "empty": "Noch nichts zum Weiterschauen"
+  },
+  "similarContent": {
+    "title": "Ähnlicher Inhalt",
+    "matchPct": "{{pct}}% Übereinstimmung",
+    "excellent": "Ausgezeichnet",
+    "great": "Sehr gut",
+    "good": "Gut",
+    "fair": "Okay",
+    "matchQuality": "Übereinstimmungsqualität",
+    "loading": "Ähnliche Inhalte werden geladen...",
+    "empty": "Keine ähnlichen Inhalte gefunden",
+    "aiSimilar": "KI-Ähnlich",
+    "tmdbSimilar": "TMDB-Ähnlich",
+    "lists": "Listen"
   }
 }

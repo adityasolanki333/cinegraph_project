@@ -15,6 +15,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
+import { useTranslation } from "react-i18next";
 
 interface ViewingHistoryItem {
   id: string;
@@ -35,6 +36,7 @@ interface PatternAnalysis {
 }
 
 export function ContinueWatching() {
+  const { t } = useTranslation();
   const { user } = useAuth();
 
   // Fetch viewing history
@@ -126,11 +128,11 @@ export function ContinueWatching() {
   const getSessionLabel = (sessionType: string) => {
     switch (sessionType) {
       case 'binge':
-        return 'Binge Watcher';
+        return t('continueWatching.bingeWatcher');
       case 'explorer':
-        return 'Explorer';
+        return t('continueWatching.explorer');
       default:
-        return 'Casual Viewer';
+        return t('continueWatching.casualViewer');
     }
   };
 
@@ -140,7 +142,7 @@ export function ContinueWatching() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <Play className="h-5 w-5 text-primary" />
-          <h2 className="text-xl font-bold">Continue Watching</h2>
+          <h2 className="text-xl font-bold">{t('continueWatching.title')}</h2>
         </div>
 
         {analysis && (
@@ -157,7 +159,7 @@ export function ContinueWatching() {
             {analysis.bingeWatcher && (
               <Badge variant="secondary" data-testid="badge-binge-score">
                 <TrendingUp className="h-3 w-3 mr-1" />
-                Binge Score: {Math.round(bingeScore * 100)}%
+                {t('continueWatching.bingeScore', { score: Math.round(bingeScore * 100) })}
               </Badge>
             )}
           </div>
@@ -171,15 +173,15 @@ export function ContinueWatching() {
             <div className="flex items-start gap-3">
               <Zap className="h-5 w-5 text-red-500 mt-0.5" />
               <div className="flex-1">
-                <h3 className="font-semibold text-sm mb-1">🔥 You're on a binge-watching streak!</h3>
+                <h3 className="font-semibold text-sm mb-1">{t('continueWatching.bingeStreakTitle')}</h3>
                 <p className="text-sm text-muted-foreground mb-2">
-                  Keep enjoying your favorite content!
+                  {t('continueWatching.bingeStreakDesc')}
                 </p>
                 {viewingHistory && analysis.avgRating > 0 && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>Watched {viewingHistory.length} titles</span>
+                    <span>{t('continueWatching.watchedTitles', { count: viewingHistory.length })}</span>
                     <span>•</span>
-                    <span>Avg rating: {analysis.avgRating.toFixed(1)}</span>
+                    <span>{t('continueWatching.avgRating', { rating: analysis.avgRating.toFixed(1) })}</span>
                   </div>
                 )}
               </div>
@@ -258,7 +260,7 @@ export function ContinueWatching() {
         <div className="flex justify-center pt-2">
           <Link href="/my-list?tab=watched">
             <Button variant="outline" data-testid="button-view-all-watched">
-              View All Watched ({viewingHistory.length})
+              {t('continueWatching.viewAll', { count: viewingHistory.length })}
             </Button>
           </Link>
         </div>

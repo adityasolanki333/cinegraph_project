@@ -380,7 +380,8 @@
     "noNotificationsYet": "You don't have any notifications yet",
     "noTypeNotifications": "No {{type}} notifications",
     "noNotificationsDesc": "When someone interacts with your content, you'll see it here.",
-    "pleaseLogIn": "Please log in to view your notifications."
+    "pleaseLogIn": "Please log in to view your notifications.",
+    "viewAll": "View All"
   },
   "auth": {
     "signIn": "Sign In",
@@ -408,7 +409,8 @@
     "movie": "Movie",
     "tvSeries": "TV Series",
     "season": "Season",
-    "seasons": "Seasons"
+    "seasons": "Seasons",
+    "deleting": "Deleting..."
   },
   "language": {
     "en": "English",
@@ -702,5 +704,85 @@
     "talk": "Talk",
     "warAndPolitics": "War & Politics",
     "sciFi": "Sci-Fi"
+  },
+  "search": {
+    "title": "Search Movies, TV Shows & More",
+    "placeholder": "Search for movies, TV shows, franchises (e.g., 'Thor')...",
+    "searching": "Searching...",
+    "noResults": "No results found for \"{{query}}\"",
+    "noResultsHint": "Try searching for movies, TV shows, franchises, people, or companies",
+    "startTyping": "Start typing to search...",
+    "startTypingHint": "Search movies, TV shows, franchises (like Thor, Marvel), people, and companies",
+    "typeMovie": "Movie",
+    "typeTV": "TV Show",
+    "typePerson": "Person",
+    "typeCollection": "Collection",
+    "typeCompany": "Company",
+    "tabAll": "All",
+    "tabMovies": "Movies",
+    "tabTV": "TV Shows",
+    "tabFranchises": "Franchises",
+    "tabPeople": "People",
+    "tabCompanies": "Companies"
+  },
+  "trailer": {
+    "noTrailerAvailable": "No Trailer Available",
+    "noTrailerMessage": "Sorry, no trailer is currently available for this title.",
+    "trailerSuffix": "Trailer",
+    "selectLanguage": "Select language"
+  },
+  "watchProviders": {
+    "title": "Where to Watch",
+    "streaming": "Streaming",
+    "buy": "Buy",
+    "rent": "Rent",
+    "moreOptions": "More options on JustWatch",
+    "poweredBy": "Availability data provided by JustWatch (US region)"
+  },
+  "addToList": {
+    "button": "Add to List",
+    "dialogTitle": "Add to List",
+    "dialogDesc": "Choose which lists to add \"{{title}}\" to",
+    "createNew": "Create New List",
+    "addedTitle": "Added to list",
+    "addedDesc": "\"{{title}}\" has been added to your list.",
+    "removedTitle": "Removed from list",
+    "removedDesc": "\"{{title}}\" has been removed from your list.",
+    "listDeletedTitle": "List deleted",
+    "listDeletedDesc": "Your list has been deleted successfully.",
+    "failedAdd": "Failed to add to list",
+    "failedRemove": "Failed to remove from list. Please try again.",
+    "failedDelete": "Failed to delete list. Please try again.",
+    "alreadyInList": "This item is already in that list.",
+    "loginRequired": "Login required",
+    "loginRequiredDesc": "Please log in to add items to lists.",
+    "itemCount": "{{count}} items",
+    "noLists": "You don't have any lists yet",
+    "createFirst": "Create your first list to get started!",
+    "confirmDeleteTitle": "Are you sure?",
+    "confirmDeleteDesc": "This will permanently delete the list \"{{title}}\". This action cannot be undone."
+  },
+  "continueWatching": {
+    "title": "Continue Watching",
+    "session": "Session",
+    "bingeStreak": "Binge streak",
+    "viewAll": "View All",
+    "episodes": "episodes",
+    "loading": "Loading...",
+    "empty": "Nothing to continue watching yet"
+  },
+  "similarContent": {
+    "title": "Similar Content",
+    "matchPct": "{{pct}}% match",
+    "excellent": "Excellent",
+    "great": "Great",
+    "good": "Good",
+    "fair": "Fair",
+    "matchQuality": "Match quality",
+    "loading": "Loading similar content...",
+    "empty": "No similar content found",
+    "aiSimilar": "AI Similar",
+    "tmdbSimilar": "TMDB Similar",
+    "lists": "Lists"
   }
 }

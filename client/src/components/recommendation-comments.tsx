@@ -4,8 +4,10 @@ import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useTranslation } from "react-i18next";
 
 export function RecommendationComments({ recommendationId, currentUserId, reason }: { recommendationId: string; currentUserId?: string; reason?: string }) {
+  const { t } = useTranslation();
   const [commentText, setCommentText] = useState("");
   const { toast } = useToast();
 
@@ -25,7 +27,7 @@ export function RecommendationComments({ recommendationId, currentUserId, reason
       return apiRequest('POST', `/api/users/${currentUserId}/recommendations/${recommendationId}/comments`, { comment });
     },
     onSuccess: () => {
-      toast({ title: "Comment added! 💬" });
+      toast({ title: t('recommendations.commentAdded') });
       setCommentText("");
       queryClient.invalidateQueries({ queryKey: ['/api/users/recommendations/comments', recommendationId] });
       queryClient.invalidateQueries({ queryKey: ['/api/users/recommendations/for'] });
@@ -38,7 +40,7 @@ export function RecommendationComments({ recommendationId, currentUserId, reason
         <div className="bg-primary/5 border border-primary/20 rounded-md p-3 flex items-start gap-2">
           <span className="text-lg">💡</span>
           <div className="flex-1">
-            <p className="text-xs font-semibold text-primary mb-1">Why this recommendation?</p>
+            <p className="text-xs font-semibold text-primary mb-1">{t('recommendations.whyRecommendation')}</p>
             <p className="text-sm">{reason}</p>
           </div>
         </div>
@@ -49,7 +51,7 @@ export function RecommendationComments({ recommendationId, currentUserId, reason
             type="text"
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
-            placeholder="Add a comment... 💭"
+            placeholder={t('recommendations.addCommentPlaceholder')}
             className="flex-1 px-3 py-2 text-sm border rounded-md bg-background text-foreground"
             data-testid={`input-comment-${recommendationId}`}
             onKeyPress={(e) => {
@@ -69,7 +71,7 @@ export function RecommendationComments({ recommendationId, currentUserId, reason
         </div>
       )}
       {isLoading ? (
-        <p className="text-xs text-muted-foreground">Loading comments...</p>
+        <p className="text-xs text-muted-foreground">{t('recommendations.loadingComments')}</p>
       ) : comments.length > 0 ? (
         <div className="space-y-2">
           {comments.map((comment: any) => (
@@ -78,7 +80,7 @@ export function RecommendationComments({ recommendationId, currentUserId, reason
                 <span>👤</span>
                 {comment.userFirstName && comment.userLastName
                   ? `${comment.userFirstName} ${comment.userLastName}`
-                  : comment.userEmail || 'Anonymous'}
+                  : comment.userEmail || t('recommendations.anonymous')}
               </p>
               <p className="text-sm mt-1">{comment.comment}</p>
             </div>

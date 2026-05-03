@@ -380,7 +380,8 @@
     "noNotificationsYet": "आपके पास अभी तक कोई सूचना नहीं है",
     "noTypeNotifications": "कोई {{type}} सूचना नहीं",
     "noNotificationsDesc": "जब कोई आपकी सामग्री से इंटरैक्ट करेगा, तो आप इसे यहां देखेंगे।",
-    "pleaseLogIn": "अपनी सूचनाएं देखने के लिए कृपया लॉग इन करें।"
+    "pleaseLogIn": "अपनी सूचनाएं देखने के लिए कृपया लॉग इन करें।",
+    "viewAll": "सभी देखें"
   },
   "auth": {
     "signIn": "साइन इन करें",
@@ -408,7 +409,8 @@
     "noResults": "कोई परिणाम नहीं मिला",
     "tryAgain": "पुनः प्रयास करें",
     "movies": "फ़िल्में",
-    "tvShows": "टीवी शो"
+    "tvShows": "टीवी शो",
+    "deleting": "हटाया जा रहा है..."
   },
   "language": {
     "en": "English",
@@ -702,5 +704,85 @@
     "talk": "टॉक",
     "warAndPolitics": "युद्ध और राजनीति",
     "sciFi": "साइ-फाई"
+  },
+  "search": {
+    "title": "फ़िल्में, TV शो और अधिक खोजें",
+    "placeholder": "फ़िल्में, TV शो, फ्रेंचाइज़ खोजें (जैसे 'Thor')...",
+    "searching": "खोजा जा रहा है...",
+    "noResults": "\"{{query}}\" के लिए कोई परिणाम नहीं मिला",
+    "noResultsHint": "फ़िल्में, TV शो, फ्रेंचाइज़, लोगों या कंपनियों को खोजें",
+    "startTyping": "खोजने के लिए टाइप करें...",
+    "startTypingHint": "फ़िल्में, TV शो, फ्रेंचाइज़ (जैसे Thor, Marvel), लोग और कंपनियाँ खोजें",
+    "typeMovie": "फ़िल्म",
+    "typeTV": "TV शो",
+    "typePerson": "व्यक्ति",
+    "typeCollection": "संग्रह",
+    "typeCompany": "कंपनी",
+    "tabAll": "सभी",
+    "tabMovies": "फ़िल्में",
+    "tabTV": "TV शो",
+    "tabFranchises": "फ्रेंचाइज़",
+    "tabPeople": "लोग",
+    "tabCompanies": "कंपनियाँ"
+  },
+  "trailer": {
+    "noTrailerAvailable": "कोई ट्रेलर उपलब्ध नहीं",
+    "noTrailerMessage": "क्षमा करें, इस शीर्षक के लिए कोई ट्रेलर उपलब्ध नहीं है।",
+    "trailerSuffix": "ट्रेलर",
+    "selectLanguage": "भाषा चुनें"
+  },
+  "watchProviders": {
+    "title": "कहाँ देखें",
+    "streaming": "स्ट्रीमिंग",
+    "buy": "खरीदें",
+    "rent": "किराये पर लें",
+    "moreOptions": "JustWatch पर और विकल्प",
+    "poweredBy": "उपलब्धता डेटा JustWatch द्वारा (US क्षेत्र)"
+  },
+  "addToList": {
+    "button": "सूची में जोड़ें",
+    "dialogTitle": "सूची में जोड़ें",
+    "dialogDesc": "\"{{title}}\" को किन सूचियों में जोड़ना है चुनें",
+    "createNew": "नई सूची बनाएं",
+    "addedTitle": "सूची में जोड़ा गया",
+    "addedDesc": "\"{{title}}\" आपकी सूची में जोड़ दिया गया है।",
+    "removedTitle": "सूची से हटाया गया",
+    "removedDesc": "\"{{title}}\" आपकी सूची से हटा दिया गया है।",
+    "listDeletedTitle": "सूची हटाई गई",
+    "listDeletedDesc": "आपकी सूची सफलतापूर्वक हटा दी गई है।",
+    "failedAdd": "सूची में जोड़ने में विफल",
+    "failedRemove": "सूची से हटाने में विफल। कृपया पुनः प्रयास करें।",
+    "failedDelete": "सूची हटाने में विफल। कृपया पुनः प्रयास करें।",
+    "alreadyInList": "यह आइटम पहले से उस सूची में है।",
+    "loginRequired": "लॉगिन आवश्यक है",
+    "loginRequiredDesc": "सूचियों में आइटम जोड़ने के लिए कृपया लॉगिन करें।",
+    "itemCount": "{{count}} आइटम",
+    "noLists": "आपकी अभी तक कोई सूची नहीं है",
+    "createFirst": "शुरू करने के लिए अपनी पहली सूची बनाएं!",
+    "confirmDeleteTitle": "क्या आप सुनिश्चित हैं?",
+    "confirmDeleteDesc": "यह \"{{title}}\" सूची को स्थायी रूप से हटा देगा। यह क्रिया पूर्ववत नहीं की जा सकती।"
+  },
+  "continueWatching": {
+    "title": "देखना जारी रखें",
+    "session": "सत्र",
+    "bingeStreak": "बिंज स्ट्रीक",
+    "viewAll": "सभी देखें",
+    "episodes": "एपिसोड",
+    "loading": "लोड हो रहा है...",
+    "empty": "अभी तक देखने के लिए कुछ नहीं"
+  },
+  "similarContent": {
+    "title": "समान सामग्री",
+    "matchPct": "{{pct}}% मेल",
+    "excellent": "उत्कृष्ट",
+    "great": "बहुत अच्छा",
+    "good": "अच्छा",
+    "fair": "ठीक है",
+    "matchQuality": "मेल की गुणवत्ता",
+    "loading": "समान सामग्री लोड हो रही है...",
+    "empty": "कोई समान सामग्री नहीं मिली",
+    "aiSimilar": "AI समान",
+    "tmdbSimilar": "TMDB समान",
+    "lists": "सूचियाँ"
   }
 }

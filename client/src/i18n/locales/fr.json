@@ -380,7 +380,8 @@
     "noNotificationsYet": "Vous n'avez pas encore de notifications",
     "noTypeNotifications": "Pas de notifications {{type}}",
     "noNotificationsDesc": "Lorsque quelqu'un interagit avec votre contenu, vous le verrez ici.",
-    "pleaseLogIn": "Veuillez vous connecter pour voir vos notifications."
+    "pleaseLogIn": "Veuillez vous connecter pour voir vos notifications.",
+    "viewAll": "Voir tout"
   },
   "auth": {
     "signIn": "Se connecter",
@@ -408,7 +409,8 @@
     "movie": "Film",
     "tvSeries": "Série TV",
     "season": "Saison",
-    "seasons": "Saisons"
+    "seasons": "Saisons",
+    "deleting": "Suppression..."
   },
   "language": {
     "en": "English",
@@ -702,5 +704,85 @@
     "talk": "Talk-show",
     "warAndPolitics": "Guerre et Politique",
     "sciFi": "SF"
+  },
+  "search": {
+    "title": "Rechercher films, séries et plus",
+    "placeholder": "Rechercher films, séries, franchises (ex. 'Thor')...",
+    "searching": "Recherche en cours...",
+    "noResults": "Aucun résultat pour \"{{query}}\"",
+    "noResultsHint": "Essayez de rechercher des films, séries, franchises, personnes ou sociétés",
+    "startTyping": "Commencez à écrire pour rechercher...",
+    "startTypingHint": "Recherchez films, séries, franchises (comme Thor, Marvel), personnes et sociétés",
+    "typeMovie": "Film",
+    "typeTV": "Série",
+    "typePerson": "Personne",
+    "typeCollection": "Collection",
+    "typeCompany": "Société",
+    "tabAll": "Tout",
+    "tabMovies": "Films",
+    "tabTV": "Séries",
+    "tabFranchises": "Franchises",
+    "tabPeople": "Personnes",
+    "tabCompanies": "Sociétés"
+  },
+  "trailer": {
+    "noTrailerAvailable": "Aucune bande-annonce disponible",
+    "noTrailerMessage": "Désolé, aucune bande-annonce n'est disponible pour ce titre.",
+    "trailerSuffix": "Bande-annonce",
+    "selectLanguage": "Choisir la langue"
+  },
+  "watchProviders": {
+    "title": "Où regarder",
+    "streaming": "Streaming",
+    "buy": "Acheter",
+    "rent": "Louer",
+    "moreOptions": "Plus d'options sur JustWatch",
+    "poweredBy": "Données de disponibilité fournies par JustWatch (région US)"
+  },
+  "addToList": {
+    "button": "Ajouter à la liste",
+    "dialogTitle": "Ajouter à la liste",
+    "dialogDesc": "Choisissez dans quelles listes ajouter \"{{title}}\"",
+    "createNew": "Créer une nouvelle liste",
+    "addedTitle": "Ajouté à la liste",
+    "addedDesc": "\"{{title}}\" a été ajouté à votre liste.",
+    "removedTitle": "Retiré de la liste",
+    "removedDesc": "\"{{title}}\" a été retiré de votre liste.",
+    "listDeletedTitle": "Liste supprimée",
+    "listDeletedDesc": "Votre liste a été supprimée avec succès.",
+    "failedAdd": "Échec de l'ajout à la liste",
+    "failedRemove": "Échec de la suppression de la liste. Veuillez réessayer.",
+    "failedDelete": "Échec de la suppression de la liste. Veuillez réessayer.",
+    "alreadyInList": "Cet élément est déjà dans cette liste.",
+    "loginRequired": "Connexion requise",
+    "loginRequiredDesc": "Veuillez vous connecter pour ajouter des éléments aux listes.",
+    "itemCount": "{{count}} éléments",
+    "noLists": "Vous n'avez pas encore de listes",
+    "createFirst": "Créez votre première liste pour commencer !",
+    "confirmDeleteTitle": "Êtes-vous sûr ?",
+    "confirmDeleteDesc": "Cela supprimera définitivement la liste \"{{title}}\". Cette action est irréversible."
+  },
+  "continueWatching": {
+    "title": "Continuer à regarder",
+    "session": "Session",
+    "bingeStreak": "Série de binge",
+    "viewAll": "Voir tout",
+    "episodes": "épisodes",
+    "loading": "Chargement...",
+    "empty": "Rien à continuer pour l'instant"
+  },
+  "similarContent": {
+    "title": "Contenu similaire",
+    "matchPct": "{{pct}}% de correspondance",
+    "excellent": "Excellent",
+    "great": "Super",
+    "good": "Bon",
+    "fair": "Correct",
+    "matchQuality": "Qualité de correspondance",
+    "loading": "Chargement du contenu similaire...",
+    "empty": "Aucun contenu similaire trouvé",
+    "aiSimilar": "Similaire IA",
+    "tmdbSimilar": "Similaire TMDB",
+    "lists": "Listes"
   }
 }
