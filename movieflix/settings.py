@@ -20,11 +20,15 @@ if not _secret:
     raise ValueError('SESSION_SECRET environment variable must be set')
 SECRET_KEY = _secret
 
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
+    '.replit.dev',
+    '.repl.co',
+    '.replit.app',
+    '*',
 ]
 
 INSTALLED_APPS = [
@@ -71,12 +75,18 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'movieflix.wsgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+_db_url = os.environ.get('DATABASE_URL')
+if _db_url:
+    DATABASES = {
+        'default': dj_database_url.parse(_db_url, conn_max_age=600)
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -103,10 +113,14 @@ FRONTEND_BUILD_DIR = BASE_DIR / 'dist' / 'public'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+_replit_domain = os.environ.get('REPLIT_DEV_DOMAIN', '')
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5000',
-    'http://127.0.0.1:5000'
-]
+    'http://127.0.0.1:5000',
+    'https://*.replit.dev',
+    'https://*.repl.co',
+    'https://*.replit.app',
+] + ([f'https://{_replit_domain}'] if _replit_domain else [])
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
 SESSION_COOKIE_SAMESITE = 'Lax'
@@ -115,7 +129,12 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 # CORS: restrict to known origins.
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5000',
-    'http://127.0.0.1:5000'
+    'http://127.0.0.1:5000',
+]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^https://.*\.replit\.dev$',
+    r'^https://.*\.repl\.co$',
+    r'^https://.*\.replit\.app$',
 ]
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
@@ -153,6 +172,9 @@ REST_FRAMEWORK = {
 }
 
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY', '')
+RAPIDAPI_KEY = os.environ.get('RAPIDAPI_KEY', '')
 
 LOGGING = {
     'version': 1,

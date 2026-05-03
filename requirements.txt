@@ -15,3 +15,7 @@ scikit-learn>=1.8.0
 sendgrid>=6.12.5
 sentence-transformers>=3.0.0
 vadersentiment>=3.3.2
+google-generativeai
+pinecone
+sendgrid
+sentence-transformers
