@@ -56,29 +56,64 @@ if not _is_mgmt:
 
 
 def get_user_context(user):
-    reviews = UserReview.objects.filter(user=user).order_by('-created_at')[:10]
-    watchlist = UserWatchlist.objects.filter(user=user).order_by('-added_at')[:10]
-    favorites = UserFavorites.objects.filter(user=user).order_by('-added_at')[:10]
-    history = ViewingHistory.objects.filter(user=user).order_by('-watched_at')[:10]
+    """Fetch all user context in parallel to minimize latency."""
+    def _fetch_reviews():
+        return list(
+            UserReview.objects.filter(user=user)
+            .order_by('-created_at')[:10]
+            .values('title', 'rating', 'media_type')
+        )
+
+    def _fetch_watchlist():
+        return list(
+            UserWatchlist.objects.filter(user=user)
+            .order_by('-added_at')[:10]
+            .values('title', 'media_type')
+        )
+
+    def _fetch_favorites():
+        return list(
+            UserFavorites.objects.filter(user=user)
+            .order_by('-added_at')[:10]
+            .values('title', 'media_type')
+        )
+
+    def _fetch_history():
+        return list(
+            ViewingHistory.objects.filter(user=user)
+            .order_by('-watched_at')[:10]
+            .values('title', 'media_type')
+        )
+
+    def _fetch_prefs():
+        try:
+            return UserPreferences.objects.get(user=user)
+        except UserPreferences.DoesNotExist:
+            return None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+        f_reviews   = ex.submit(_fetch_reviews)
+        f_watchlist = ex.submit(_fetch_watchlist)
+        f_favorites = ex.submit(_fetch_favorites)
+        f_history   = ex.submit(_fetch_history)
+        f_prefs     = ex.submit(_fetch_prefs)
+        reviews   = f_reviews.result()
+        watchlist = f_watchlist.result()
+        favorites = f_favorites.result()
+        history   = f_history.result()
+        prefs     = f_prefs.result()
 
     context = {
         'recent_ratings': [
-            {'title': r.title, 'rating': r.rating, 'mediaType': r.media_type}
+            {'title': r['title'], 'rating': r['rating'], 'mediaType': r['media_type']}
             for r in reviews
         ],
-        'watchlist': [{'title': w.title, 'mediaType': w.media_type} for w in watchlist],
-        'favorites': [{'title': f.title, 'mediaType': f.media_type} for f in favorites],
-        'recently_watched': [{'title': h.title, 'mediaType': h.media_type} for h in history],
+        'watchlist':        [{'title': w['title'], 'mediaType': w['media_type']} for w in watchlist],
+        'favorites':        [{'title': f['title'], 'mediaType': f['media_type']} for f in favorites],
+        'recently_watched': [{'title': h['title'], 'mediaType': h['media_type']} for h in history],
+        'preferred_genres': prefs.preferred_genres if prefs else [],
+        'disliked_genres':  prefs.disliked_genres  if prefs else [],
     }
-
-    try:
-        prefs = UserPreferences.objects.get(user=user)
-        context['preferred_genres'] = prefs.preferred_genres
-        context['disliked_genres'] = prefs.disliked_genres
-    except UserPreferences.DoesNotExist:
-        context['preferred_genres'] = []
-        context['disliked_genres'] = []
-
     return context
 
 
@@ -618,7 +653,6 @@ def trim_conversation_history(conversation_history, budget_tokens):
 
 def build_chat_prompt(user_message, user_context, conversation_history=None, current_movies=None):
     today = date.today().strftime("%B %d, %Y")
-    current_year = date.today().year
 
     user_message = sanitize_user_message(user_message)
 
@@ -846,7 +880,8 @@ def voice_chat(request):
         # fetch_current_movies() returns a list of formatted strings e.g.
         # "Inception (2010) - Rating: 8.8/10 - Genres: Action, Sci-Fi"
         raw_current = fetch_current_movies()
-        current_titles = raw_current[:6] if isinstance(raw_current, list) else []
+        now_playing = raw_current.get('now_playing', []) if isinstance(raw_current, dict) else []
+        current_titles = now_playing[:6]
         genre_prefs = user_context.get('preferred_genres', [])
         fav_titles = [f.get('title', '') for f in user_context.get('favorites', [])[:3]
                       if isinstance(f, dict) and f.get('title')]
@@ -1023,6 +1058,8 @@ def ai_chat_stream(request):
                 current_movies = movies_future.result()
 
             prompt = build_chat_prompt(user_message, user_context, conversation_history, current_movies)
+            # Send a status ping immediately — keeps the connection alive during Gemini startup latency
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Getting recommendations…'})}\n\n"
             stream = call_gemini_streaming(prompt)
 
             if stream is None:
@@ -1185,15 +1222,21 @@ def pattern_analyze(request, user_id):
     user = request.user
     
     try:
-        history = ViewingHistory.objects.filter(user=user).order_by('-watched_at')[:50]
-        reviews = UserReview.objects.filter(user=user).order_by('-created_at')[:50]
-        favorites = UserFavorites.objects.filter(user=user)[:20]
+        # Evaluate querysets to lists ONCE — avoids repeated COUNT queries on sliced querysets
+        history  = list(ViewingHistory.objects.filter(user=user).order_by('-watched_at')[:50])
+        reviews  = list(UserReview.objects.filter(user=user).order_by('-created_at')[:50])
+        favorites = list(UserFavorites.objects.filter(user=user)[:20])
+
+        # Exact counts (separate queries, but each runs once and is reused everywhere)
+        history_count  = ViewingHistory.objects.filter(user=user).count()
+        reviews_count  = UserReview.objects.filter(user=user).count()
+        favorites_count = UserFavorites.objects.filter(user=user).count()
 
         avg_rating = 0
         if reviews:
             avg_rating = sum(r.rating for r in reviews) / len(reviews)
 
-        is_binge_watcher = history.count() > 15 or (reviews.count() > 10 and avg_rating > 7)
+        is_binge_watcher = history_count > 15 or (reviews_count > 10 and avg_rating > 7)
 
         preferred_genre_ids = []
         try:
@@ -1215,7 +1258,7 @@ def pattern_analyze(request, user_id):
         genre_names = [GENRE_ID_TO_NAME.get(gid, 'Unknown') for gid in preferred_genre_ids]
 
         gemini_insight = None
-        if history.count() > 0 or reviews.count() > 0:
+        if history_count > 0 or reviews_count > 0:
             insight_cache_key = f'pattern_ai_insight:{user.id}'
             gemini_insight = cache.get(insight_cache_key)
             if gemini_insight is None:
@@ -1227,7 +1270,7 @@ Viewing Data:
 - Favorites: {json.dumps(favorite_titles[:10])}
 - Preferred genres: {json.dumps(genre_names)}
 - Average rating: {round(avg_rating, 1)}/10
-- Total movies watched: {history.count()}
+- Total movies watched: {history_count}
 - Binge tendency: {'Yes' if is_binge_watcher else 'No'}
 
 Write an engaging, personalized insight paragraph (not a list). Focus on patterns, taste sophistication, and what makes their viewing profile unique."""
@@ -1245,9 +1288,9 @@ Write an engaging, personalized insight paragraph (not a list). Focus on pattern
                 'predictedNextGenre': predicted_next,
             },
             'patterns': {
-                'totalWatched': history.count(),
-                'totalReviews': reviews.count(),
-                'totalFavorites': favorites.count(),
+                'totalWatched': history_count,
+                'totalReviews': reviews_count,
+                'totalFavorites': favorites_count,
             }
         }
 

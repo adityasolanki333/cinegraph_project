@@ -38,6 +38,9 @@ class UserWatchlist(models.Model):
     class Meta:
         unique_together = ['user', 'tmdb_id', 'media_type']
         ordering = ['-added_at']
+        indexes = [
+            models.Index(fields=['user', '-added_at'], name='watchlist_user_added_idx'),
+        ]
     
     def __str__(self):
         return f"{self.user.email} - {self.title}"
@@ -54,6 +57,9 @@ class UserFavorites(models.Model):
     class Meta:
         unique_together = ['user', 'tmdb_id', 'media_type']
         ordering = ['-added_at']
+        indexes = [
+            models.Index(fields=['user', '-added_at'], name='favorites_user_added_idx'),
+        ]
     
     def __str__(self):
         return f"{self.user.email} - {self.title}"
@@ -70,6 +76,9 @@ class ViewingHistory(models.Model):
     
     class Meta:
         ordering = ['-watched_at']
+        indexes = [
+            models.Index(fields=['user', '-watched_at'], name='history_user_watched_idx'),
+        ]
     
     def __str__(self):
         return f"{self.user.email} watched {self.title}"

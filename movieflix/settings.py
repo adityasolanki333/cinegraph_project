@@ -20,7 +20,7 @@ if not _secret:
     raise ValueError('SESSION_SECRET environment variable must be set')
 SECRET_KEY = _secret
 
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [
     'localhost',
@@ -28,7 +28,6 @@ ALLOWED_HOSTS = [
     '.replit.dev',
     '.repl.co',
     '.replit.app',
-    '*',
 ]
 
 INSTALLED_APPS = [
@@ -47,6 +46,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.gzip.GZipMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -111,6 +111,11 @@ STATICFILES_DIRS = [
     ] if d.exists()
 ]
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = (
+    'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    if not DEBUG else
+    'django.contrib.staticfiles.storage.StaticFilesStorage'
+)
 
 # Serve React build in production
 FRONTEND_BUILD_DIR = BASE_DIR / 'dist' / 'public'
@@ -143,7 +148,6 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -227,8 +231,8 @@ LOGGING = {
     },
 }
 
-# Cache Settings - env-gated backend selection
-# Set CACHE_BACKEND=db to use database-backed cache, defaults to file-based
+# Cache Settings ─ choose backend via CACHE_BACKEND env var
+# Options: 'file' (default, survives restarts), 'db', 'locmem'
 _cache_backend = os.environ.get('CACHE_BACKEND', 'file')
 if _cache_backend == 'db':
     CACHES = {
@@ -236,12 +240,10 @@ if _cache_backend == 'db':
             'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
             'LOCATION': 'django_cache_table',
             'TIMEOUT': 86400,
-            'OPTIONS': {
-                'MAX_ENTRIES': 5000,
-            }
+            'OPTIONS': {'MAX_ENTRIES': 5000},
         }
     }
-else:
+elif _cache_backend == 'locmem':
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -249,8 +251,30 @@ else:
             'TIMEOUT': 86400,
         }
     }
+else:
+    # File-based cache (default): persists across restarts, works with multiple workers
+    _cache_dir = BASE_DIR / '.cache'
+    _cache_dir.mkdir(exist_ok=True)
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+            'LOCATION': str(_cache_dir),
+            'TIMEOUT': 86400,
+            'OPTIONS': {'MAX_ENTRIES': 5000},
+        }
+    }
 
-# Removed production-only secure settings (SSL/HSTS) as the project is local-only now.
+# Production security settings (only when DEBUG=False)
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = False   # Replit terminates SSL at proxy — don't double-redirect
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')

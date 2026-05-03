@@ -191,6 +191,8 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   const finalTranscriptRef = useRef("");
   const handleSendRef = useRef<(text: string) => void>(() => {});
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const sessionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
     const saved = localStorage.getItem('aiChat_fabPos');
@@ -251,9 +253,19 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   }, [clampPos]);
 
   useEffect(() => {
-    const toSave = messages.map(m => ({ ...m, isStreaming: false, statusMessage: undefined, moviesLoading: undefined, moviesDone: true }));
-    sessionStorage.setItem('aiChat_messages_v2', JSON.stringify(toSave));
+    if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current);
+    sessionSaveTimerRef.current = setTimeout(() => {
+      const toSave = messages.map(m => ({ ...m, isStreaming: false, statusMessage: undefined, moviesLoading: undefined, moviesDone: true }));
+      try { sessionStorage.setItem('aiChat_messages_v2', JSON.stringify(toSave)); } catch {}
+    }, 500);
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+      if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current);
+    };
+  }, []);
 
   const scrollToBottom = useCallback((smooth = false) => {
     const sc = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
@@ -312,6 +324,10 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
     const streamingMsgId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     let streamingReceivedContent = false;
 
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setMessages(prev => [...prev, { id: streamingMsgId, type: "ai", content: "", movies: [], timestamp: new Date(), isStreaming: true }]);
 
     try {
@@ -319,6 +335,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ message: userInput, userId: user?.id ? String(user.id) : undefined, history }),
+        signal: controller.signal,
       });
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);

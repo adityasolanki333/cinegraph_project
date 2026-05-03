@@ -18,6 +18,9 @@ class UserReview(models.Model):
     class Meta:
         unique_together = ['user', 'tmdb_id', 'media_type']
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at'], name='review_user_created_idx'),
+        ]
     
     def __str__(self):
         return f"{self.user.email} reviewed {self.title}: {self.rating}/10"
