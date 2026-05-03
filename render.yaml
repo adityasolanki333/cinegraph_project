@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: cinegraph-backend
+    env: python
+    plan: free
+    buildCommand: |
+      npm install
+      npm run build
+      pip install uv
+      uv sync
+      python manage.py collectstatic --no-input
+      python manage.py migrate
+    startCommand: gunicorn movieflix.wsgi
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: SESSION_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: TMDB_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: RAPIDAPI_KEY
+        sync: false
+      - key: CACHE_BACKEND
+        value: "db"
