@@ -25,6 +25,8 @@ DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
+    'cinegraph-project-3wgq.onrender.com',
+    '.onrender.com',
 ]
 
 INSTALLED_APPS = [
