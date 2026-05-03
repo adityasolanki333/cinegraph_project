@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,20 +30,13 @@ export default function Login() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const search = useSearch();
-  const { isAuthenticated } = useAuth();
-  const loginAttempted = useRef(false);
+  const { refetchUser } = useAuth();
 
   const redirectTo = (() => {
     const params = new URLSearchParams(search);
     const r = params.get('redirect');
     return r && r.startsWith('/') && r !== '/login' ? r : '/';
   })();
-
-  useEffect(() => {
-    if (isAuthenticated && loginAttempted.current) {
-      setLocation(redirectTo);
-    }
-  }, [isAuthenticated, redirectTo]);
 
 
 
@@ -56,13 +49,13 @@ export default function Login() {
         const result = await register(email, password, firstName, lastName);
 
         if (result.success) {
-          loginAttempted.current = true;
           setShowSuccess(true);
-
           toast({
             title: t("login.accountCreated"),
             description: t("login.welcomePlatform"),
           });
+          await refetchUser();
+          setLocation(redirectTo);
         } else {
           throw new Error(result.error || 'Registration failed');
         }
@@ -70,13 +63,13 @@ export default function Login() {
         const result = await login(email, password);
 
         if (result.success) {
-          loginAttempted.current = true;
           setShowSuccess(true);
-
           toast({
             title: t("login.welcomeBackMsg"),
             description: t("login.loginSuccessMsg"),
           });
+          await refetchUser();
+          setLocation(redirectTo);
         } else {
           throw new Error(result.error || 'Login failed');
         }
