@@ -95,16 +95,16 @@ export function OnboardingWizard() {
     setIsSwiping(false);
   };
 
-  // ── Build my feed: save everything then fetch fresh recs ─────────────────
+  // ── Build my feed: save preferences, close immediately, warm recs in bg ──
   const handleFinish = async () => {
     if (isBuilding) return;
     setIsBuilding(true);
 
-    try {
-      // Save all liked → Favorites (seeds MovieLens engine)
-      const likedMovies  = decisions.filter(d => d.decision === "liked").map(d => d.movie);
-      const dislikedMovies = decisions.filter(d => d.decision === "disliked").map(d => d.movie);
+    const likedMovies = decisions.filter(d => d.decision === "liked").map(d => d.movie);
+    const dislikedMovies = decisions.filter(d => d.decision === "disliked").map(d => d.movie);
 
+    try {
+      // Save liked → Favorites & disliked → low-rating reviews (seeds ML engine)
       await Promise.allSettled([
         ...likedMovies.map(movie =>
           fetch(`/api/users/${user?.id}/favorites/add`, {
@@ -133,47 +133,45 @@ export function OnboardingWizard() {
           })
         ),
       ]);
-
-      // Now fetch fresh recommendations using the newly saved favorites as seeds
-      await queryClient.fetchQuery({
-        queryKey: ["/api/recommendations/hybrid", user?.id],
-        queryFn: async () => {
-          const res = await fetch(`/api/recommendations/hybrid/${user?.id}?limit=24`, {
-            headers: { ...getAuthHeaders() },
-          });
-          if (!res.ok) return [];
-          const data = await res.json();
-          return (data.recommendations || []).map((item: any) => ({
-            id: item.tmdb_id,
-            title: item.title,
-            year: item.release_date ? new Date(item.release_date).getFullYear() : new Date().getFullYear(),
-            genre: "Recommended",
-            rating: item.vote_average || 0,
-            synopsis: item.overview || "",
-            posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
-            type: item.media_type || "movie",
-            recommendationScore: item.score,
-            recommendationStrategy: item.type,
-            recommendationReason: item.reason,
-          }));
-        },
-        staleTime: 0,
-      });
-
-      // Invalidate related caches
-      queryClient.invalidateQueries({ queryKey: ["/api/users", user?.id, "favorites"] });
-
-    } catch (e) {
-      // Even on error, proceed — recommendations may still work
+    } catch {
+      // Non-critical — proceed regardless
     }
 
+    // Close dialog immediately — don't block on the ML pipeline
     localStorage.setItem(`onboarded_${user?.id}`, "true");
     setIsOpen(false);
     setIsBuilding(false);
 
     toast({
       title: "Your feed is ready! 🎬",
-      description: `We found ${decisions.filter(d => d.decision === "liked").length} movies you love — recommendations are live.`,
+      description: `Saved ${likedMovies.length} favourites — personalising your recommendations now.`,
+    });
+
+    // Warm the recommendations cache in the background (non-blocking)
+    queryClient.invalidateQueries({ queryKey: ["/api/users", user?.id, "favorites"] });
+    queryClient.prefetchQuery({
+      queryKey: ["/api/recommendations/hybrid", user?.id],
+      queryFn: async () => {
+        const res = await fetch(`/api/recommendations/hybrid/${user?.id}?limit=24`, {
+          headers: { ...getAuthHeaders() },
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (data.recommendations || []).map((item: any) => ({
+          id: item.tmdb_id,
+          title: item.title,
+          year: item.release_date ? new Date(item.release_date).getFullYear() : new Date().getFullYear(),
+          genre: "Recommended",
+          rating: item.vote_average || 0,
+          synopsis: item.overview || "",
+          posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
+          type: item.media_type || "movie",
+          recommendationScore: item.score,
+          recommendationStrategy: item.type,
+          recommendationReason: item.reason,
+        }));
+      },
+      staleTime: 0,
     });
   };
 
