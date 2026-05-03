@@ -16,7 +16,7 @@ def _chat_cache_key(user_id, message: str) -> str:
     """Per-user cache key for chat responses (personalized per user)."""
     uid = str(user_id) if user_id else "anon"
     normalized = " ".join(message.lower().strip().split())
-    key_data = f"chat:v2:{uid}:{normalized}"
+    key_data = f"chat:v3:{uid}:{normalized}"
     return "aichat_" + hashlib.md5(key_data.encode("utf-8")).hexdigest()
 
 from django.http import StreamingHttpResponse
@@ -484,35 +484,32 @@ def build_chat_prompt(user_message, user_context, conversation_history=None, cur
 
     user_message = sanitize_user_message(user_message)
 
+    # Only inject current movies when the user explicitly asks for new/current/trending content
+    _new_keywords = ['new', 'latest', 'recent', "what's out", 'now playing', 'trending', 'upcoming', 'theater', 'release', 'cinema']
+    _wants_current = any(kw in user_message.lower() for kw in _new_keywords)
     current_movies_section = ""
-    if current_movies:
-        trending_list = "\n".join(f"  - {m}" for m in current_movies.get('trending', []))
-        now_playing_list = "\n".join(f"  - {m}" for m in current_movies.get('now_playing', []))
-        upcoming_list = "\n".join(f"  - {m}" for m in current_movies.get('upcoming', []))
+    if current_movies and _wants_current:
+        now_playing_list = "\n".join(f"  - {m}" for m in current_movies.get('now_playing', [])[:6])
+        upcoming_list = "\n".join(f"  - {m}" for m in current_movies.get('upcoming', [])[:4])
         current_movies_section = f"""
-CURRENT MOVIES IN THEATERS & TRENDING (as of {today}):
-Trending This Week:
-{trending_list}
-
-Now Playing in Theaters:
+CURRENTLY IN THEATERS (as of {today}) — only use these when the user asks for new/current releases:
+Now Playing:
 {now_playing_list}
-
-Upcoming Releases:
+Coming Soon:
 {upcoming_list}
 """
 
-    base_prompt = f"""You are MovieVanders AI, an expert movie and TV show recommendation assistant. Today's date is {today}.
+    base_prompt = f"""You are CineBot, an expert movie and TV show recommendation assistant. Today's date is {today}.
 
-IMPORTANT GUIDELINES:
-- Prioritize recent releases ({current_year - 2}-{current_year}) and currently trending movies when relevant
-- When users ask about "new", "latest", "what's out now", or "recent" movies, focus on movies from the current movies list below
-- Blend in acclaimed classics only when specifically asked or when they perfectly fit the request
-- ALWAYS include the release year in parentheses after each title
-- Be conversational, enthusiastic, and specific about why each recommendation fits
-- Reference the user's viewing history and preferences to personalize suggestions
-- If the user references a previous recommendation in the conversation, acknowledge it and build on it
+GUIDELINES:
+- Recommend based on the user's TASTE PROFILE and their specific request — do NOT default to whatever is generically popular
+- Draw on your full knowledge of cinema across all eras, genres, and countries
+- ALWAYS bold every title and include the year: **Title (Year)**
+- Be conversational and explain specifically why each pick suits this user
+- Mix well-known films with hidden gems and cult classics that match the taste
+- Avoid repeating titles already mentioned in this conversation
 {current_movies_section}
-User's Profile:
+User's Taste Profile:
 - Recently rated: {json.dumps(user_context['recent_ratings'][:5])}
 - Favorites: {json.dumps(user_context['favorites'][:5])}
 - Recently watched: {json.dumps(user_context['recently_watched'][:5])}
@@ -536,18 +533,18 @@ User's Profile:
                     content = sanitize_user_message(content)
                 history_lines.append(f"{role}: {content}")
             conversation_section = f"""
-CONVERSATION HISTORY (for context - reference previous suggestions when relevant):
+CONVERSATION HISTORY:
 {chr(10).join(history_lines)}
 """
 
     prompt = base_prompt + conversation_section + f"""
-User's Current Request: {user_message}
+User: {user_message}
 
-Provide a helpful, personalized response. When recommending movies/TV shows, format as a numbered list:
-1. **Movie Title (Year)** - Specific reason why they'd enjoy it based on their taste
-2. **Another Title (Year)** - Reason
+Respond naturally. When listing movies/TV shows use this exact format:
+1. **Title (Year)** - Brief personal reason tailored to this user's taste
+2. **Title (Year)** - Reason
 
-Aim for 5-8 recommendations mixing recent hits with hidden gems. Keep it conversational."""
+Give 4-6 recommendations. Bold every title with its year like **Title (Year)**."""
 
     return prompt
 
@@ -617,9 +614,8 @@ def ai_chat(request):
                 'source': 'fallback'
             }
 
-        movie_titles = extract_movie_titles_structured(response_text)
-        if not movie_titles:
-            movie_titles = parse_movie_recommendations(response_text)
+        # Skip structured extraction (always fails with gemma — no JSON mode); use regex directly
+        movie_titles = parse_movie_recommendations(response_text)
 
         movies = []
 
@@ -894,9 +890,9 @@ def ai_chat_stream(request):
                         full_text += chunk.text
                         yield f"data: {json.dumps({'type': 'chunk', 'content': chunk.text})}\n\n"
 
-                movie_titles = extract_movie_titles_structured(full_text)
-                if not movie_titles:
-                    movie_titles = parse_movie_recommendations(full_text)
+                # Skip structured extraction (always fails with gemma — no JSON mode)
+                # Go straight to the regex parser which handles **Title (Year)** format
+                movie_titles = parse_movie_recommendations(full_text)
 
                 if not full_text and not movie_titles:
                     fallback = get_fallback_trending_movies()
