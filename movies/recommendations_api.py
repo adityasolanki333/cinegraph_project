@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+import random
 import hashlib
 import requests
 import concurrent.futures
@@ -349,6 +350,95 @@ def call_gemini_streaming(prompt):
     return None
 
 
+# ── Mood detection ─────────────────────────────────────────────────────────
+MOOD_GENRE_MAP = {
+    # horror / thriller
+    'scary': [27], 'horror': [27], 'spooky': [27], 'creepy': [27], 'frightening': [27],
+    'thriller': [53], 'suspense': [53], 'suspenseful': [53], 'tense': [53],
+    # comedy
+    'funny': [35], 'comedy': [35], 'laugh': [35], 'hilarious': [35], 'lighthearted': [35],
+    # romance
+    'romantic': [10749], 'romance': [10749], 'love': [10749], 'date night': [10749],
+    # action / adventure
+    'action': [28], 'adventure': [12], 'exciting': [28, 12], 'explosive': [28],
+    'superhero': [28, 878], 'epic': [28, 12],
+    # drama
+    'drama': [18], 'emotional': [18], 'cry': [18], 'tearjerker': [18], 'moving': [18],
+    # sci-fi / fantasy
+    'sci-fi': [878], 'science fiction': [878], 'fantasy': [14], 'mind-bending': [878, 9648],
+    'futuristic': [878], 'space': [878],
+    # mystery / crime
+    'mystery': [9648], 'detective': [9648, 80], 'crime': [80], 'heist': [80],
+    'whodunit': [9648],
+    # family / animation
+    'animated': [16], 'animation': [16], 'family': [10751], 'kids': [16, 10751],
+    'pixar': [16], 'disney': [16, 10751],
+    # other moods
+    'feel-good': [35, 10749], 'uplifting': [35, 18], 'inspirational': [18, 36],
+    'historical': [36], 'war': [10752], 'western': [37],
+    'documentary': [99], 'true story': [99, 36], 'musical': [10402],
+}
+
+_MOOD_INDICATORS = [
+    'in the mood', 'feel like', 'feeling', 'i want', 'i need', 'want to watch',
+    'something', 'recommend', 'suggest', 'show me', 'give me', 'looking for',
+]
+
+def detect_mood_genres(message: str):
+    """Return list of TMDB genre IDs if the message looks like a mood/vibe query."""
+    msg = message.lower()
+    # Must contain at least one mood phrase + a genre keyword
+    has_indicator = any(ind in msg for ind in _MOOD_INDICATORS)
+    genre_ids = []
+    for keyword, ids in MOOD_GENRE_MAP.items():
+        if keyword in msg:
+            for g in ids:
+                if g not in genre_ids:
+                    genre_ids.append(g)
+    # Accept if there's a mood indicator + genre keyword, OR just a strong genre keyword alone
+    strong_genres = ['horror', 'comedy', 'thriller', 'romance', 'action', 'sci-fi',
+                     'mystery', 'animated', 'documentary', 'drama', 'fantasy']
+    is_strong = any(kw in msg for kw in strong_genres)
+    if genre_ids and (has_indicator or is_strong):
+        return genre_ids
+    return []
+
+
+def fetch_trending_by_genre(genre_ids: list, limit: int = 4):
+    """Fetch popular movies for the given TMDB genre IDs with randomised page so results vary."""
+    genre_str = ','.join(str(g) for g in genre_ids[:2])
+    # Randomly pick from first 4 pages so every call can return a different set
+    page = random.randint(1, 4)
+    try:
+        data = tmdb_request("/discover/movie", {
+            "with_genres": genre_str,
+            "sort_by": "popularity.desc",
+            "vote_count.gte": 200,
+            "page": page,
+        })
+        pool = [
+            {
+                'id': item.get('id'),
+                'tmdbId': item.get('id'),
+                'title': item.get('title') or item.get('name'),
+                'media_type': 'movie',
+                'poster_path': item.get('poster_path'),
+                'overview': item.get('overview', ''),
+                'vote_average': item.get('vote_average'),
+                'release_date': item.get('release_date'),
+                'genre_ids': item.get('genre_ids', []),
+            }
+            for item in data.get('results', [])
+            if item.get('poster_path')
+        ]
+        # Shuffle so repeated calls to the same genre feel fresh
+        random.shuffle(pool)
+        return pool[:limit]
+    except Exception as e:
+        logger.warning(f"fetch_trending_by_genre failed (page={page}): {e}")
+        return []
+
+
 def parse_movie_recommendations_from_json(text):
     try:
         data = json.loads(text)
@@ -577,13 +667,18 @@ def ai_chat(request):
         if not user_message:
             return error_response('Message is required', 'VALIDATION_ERROR', 400)
 
-        # ── Cache check ────────────────────────────────────────────────────
+        # ── Mood detection: bypass cache so every mood query gets fresh results ──
+        _mood_genres = detect_mood_genres(user_message)
+        _is_mood_query = bool(_mood_genres)
+
+        # ── Cache check (skipped for mood queries) ─────────────────────────
         _chat_key = _chat_cache_key(user.id if user else None, user_message)
-        _cached_chat = cache.get(_chat_key)
-        if _cached_chat is not None:
-            logger.info(f"AI chat cache HIT for user={user.id if user else 'anon'}")
-            _cached_chat["fromCache"] = True
-            return _cached_chat
+        if not _is_mood_query:
+            _cached_chat = cache.get(_chat_key)
+            if _cached_chat is not None:
+                logger.info(f"AI chat cache HIT for user={user.id if user else 'anon'}")
+                _cached_chat["fromCache"] = True
+                return _cached_chat
 
         if user:
             user_context = get_user_context(user)
@@ -614,10 +709,17 @@ def ai_chat(request):
                 'source': 'fallback'
             }
 
-        # Skip structured extraction (always fails with gemma — no JSON mode); use regex directly
-        movie_titles = parse_movie_recommendations(response_text)
-
+        # For mood queries, pull genre-filtered trending movies directly from TMDB
         movies = []
+        if _is_mood_query:
+            logger.info(f"Mood query detected, genre_ids={_mood_genres}. Fetching genre-trending movies.")
+            movies = fetch_trending_by_genre(_mood_genres, limit=4)
+
+        if not movies:
+            # Skip structured extraction (always fails with gemma — no JSON mode); use regex directly
+            movie_titles = parse_movie_recommendations(response_text)
+        else:
+            movie_titles = []
 
         def search_movie(title):
             try:
@@ -653,9 +755,9 @@ def ai_chat(request):
             'response': response_text,
             'movies': movies,
         }
-        # ── Cache store ────────────────────────────────────────────────────
+        # ── Cache store (skipped for mood queries — results must stay fresh) ─
         try:
-            if response_text:
+            if response_text and not _is_mood_query:
                 cache.set(_chat_key, _chat_result, AI_CHAT_CACHE_TTL)
         except Exception as _ce:
             logger.warning(f"AI chat cache store failed: {_ce}")
@@ -808,6 +910,10 @@ def ai_chat_stream(request):
         if not user_message:
             return error_response('Message is required', 'VALIDATION_ERROR', 400)
 
+        # ── Mood detection (outer scope so event_stream closure can read it) ──
+        _mood_genres = detect_mood_genres(user_message)
+        _is_mood_query = bool(_mood_genres)
+
         def search_movie(title):
             try:
                 search_data = tmdb_request("/search/multi", {"query": title, "page": 1})
@@ -829,24 +935,24 @@ def ai_chat_stream(request):
             return None
 
         def event_stream():
-            # ── Cache check: replay instantly without hitting Gemini ────────
+            # ── Cache check: skipped for mood queries so results stay fresh ─
             _stream_key = _chat_cache_key(user.id if user else None, user_message)
-            _cached_stream = cache.get(_stream_key)
-            if _cached_stream is not None:
-                logger.info(f"AI chat stream cache HIT for user={user.id if user else 'anon'}")
-                yield f"data: {json.dumps({'type': 'status', 'message': 'Loading response...'})}\n\n"
-                cached_text = _cached_stream.get('response', '')
-                # Stream cached text in small chunks to keep the streaming UX
-                chunk_size = 45
-                for _i in range(0, len(cached_text), chunk_size):
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': cached_text[_i:_i + chunk_size]})}\n\n"
-                cached_movies = _cached_stream.get('movies', [])
-                if cached_movies:
-                    yield f"data: {json.dumps({'type': 'movies_loading', 'count': len(cached_movies)})}\n\n"
-                    for _m in cached_movies:
-                        yield f"data: {json.dumps({'type': 'movie', 'movie': _m})}\n\n"
-                yield f"data: {json.dumps({'type': 'done', 'fromCache': True})}\n\n"
-                return
+            if not _is_mood_query:
+                _cached_stream = cache.get(_stream_key)
+                if _cached_stream is not None:
+                    logger.info(f"AI chat stream cache HIT for user={user.id if user else 'anon'}")
+                    yield f"data: {json.dumps({'type': 'status', 'message': 'Loading response...'})}\n\n"
+                    cached_text = _cached_stream.get('response', '')
+                    chunk_size = 45
+                    for _i in range(0, len(cached_text), chunk_size):
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': cached_text[_i:_i + chunk_size]})}\n\n"
+                    cached_movies = _cached_stream.get('movies', [])
+                    if cached_movies:
+                        yield f"data: {json.dumps({'type': 'movies_loading', 'count': len(cached_movies)})}\n\n"
+                        for _m in cached_movies:
+                            yield f"data: {json.dumps({'type': 'movie', 'movie': _m})}\n\n"
+                    yield f"data: {json.dumps({'type': 'done', 'fromCache': True})}\n\n"
+                    return
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as prep_executor:
                 if user:
@@ -890,11 +996,7 @@ def ai_chat_stream(request):
                         full_text += chunk.text
                         yield f"data: {json.dumps({'type': 'chunk', 'content': chunk.text})}\n\n"
 
-                # Skip structured extraction (always fails with gemma — no JSON mode)
-                # Go straight to the regex parser which handles **Title (Year)** format
-                movie_titles = parse_movie_recommendations(full_text)
-
-                if not full_text and not movie_titles:
+                if not full_text:
                     fallback = get_fallback_trending_movies()
                     _empty_stream_msg = (
                         "I couldn't finish that reply just now. "
@@ -903,23 +1005,34 @@ def ai_chat_stream(request):
                     yield f"data: {json.dumps({'type': 'fallback', 'response': _empty_stream_msg, 'movies': fallback, 'source': 'fallback'})}\n\n"
                     return
 
-                if movie_titles:
-                    yield f"data: {json.dumps({'type': 'movies_loading', 'count': min(len(movie_titles), 4)})}\n\n"
+                # ── Movie cards: mood queries use genre-filtered trending ───
+                if _is_mood_query:
+                    logger.info(f"Mood stream query, genre_ids={_mood_genres}. Fetching genre-trending movies.")
+                    mood_movies = fetch_trending_by_genre(_mood_genres, limit=4)
+                    if mood_movies:
+                        yield f"data: {json.dumps({'type': 'movies_loading', 'count': len(mood_movies)})}\n\n"
+                        for _mm in mood_movies:
+                            collected_movies.append(_mm)
+                            yield f"data: {json.dumps({'type': 'movie', 'movie': _mm})}\n\n"
+                else:
+                    # Regex-parse AI response for specific titles, then search TMDB
+                    movie_titles = parse_movie_recommendations(full_text)
+                    if movie_titles:
+                        yield f"data: {json.dumps({'type': 'movies_loading', 'count': min(len(movie_titles), 4)})}\n\n"
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                            future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:4]}
+                            for future in concurrent.futures.as_completed(future_to_title):
+                                try:
+                                    result = future.result()
+                                    if result:
+                                        collected_movies.append(result)
+                                        yield f"data: {json.dumps({'type': 'movie', 'movie': result})}\n\n"
+                                except Exception as e:
+                                    logger.warning(f"Movie search thread error: {e}")
 
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                        future_to_title = {executor.submit(search_movie, title): title for title in movie_titles[:4]}
-                        for future in concurrent.futures.as_completed(future_to_title):
-                            try:
-                                result = future.result()
-                                if result:
-                                    collected_movies.append(result)
-                                    yield f"data: {json.dumps({'type': 'movie', 'movie': result})}\n\n"
-                            except Exception as e:
-                                logger.warning(f"Movie search thread error: {e}")
-
-                # ── Cache store ────────────────────────────────────────────
+                # ── Cache store (skipped for mood queries) ─────────────────
                 try:
-                    if full_text:
+                    if full_text and not _is_mood_query:
                         cache.set(_stream_key, {'response': full_text, 'movies': collected_movies}, AI_CHAT_CACHE_TTL)
                 except Exception as _ce:
                     logger.warning(f"AI chat stream cache store failed: {_ce}")
