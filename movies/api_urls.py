@@ -154,6 +154,7 @@ urlpatterns = [
 
     path('ai/chat', rec_views.AiChatView.as_view(), name='api_ai_chat'),
     path('ai/chat/stream', rec_views.AiChatStreamView.as_view(), name='api_ai_chat_stream'),
+    path('ai/voice-chat', rec_views.VoiceChatView.as_view(), name='api_ai_voice_chat'),
     path('recommendations/preferences', rec_views.SavePreferencesView.as_view(), name='api_save_preferences'),
     path('users/<str:user_id>/preferences', rec_views.GetPreferencesView.as_view(), name='api_get_preferences'),
 

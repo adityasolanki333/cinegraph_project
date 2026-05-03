@@ -672,6 +672,132 @@ def ai_chat(request):
         return error_response('An unexpected error occurred. Please try again.', 'INTERNAL_ERROR', 500)
 
 
+def voice_chat(request):
+    """Process voice message using Gemini's audio understanding (multimodal)."""
+    user = request.user if request.user.is_authenticated else None
+
+    try:
+        data = request.data if isinstance(request.data, dict) else json.loads(request.data)
+        audio_b64 = data.get('audio', '')
+        mime_type = data.get('mimeType', 'audio/webm')
+        conversation_history = data.get('history', [])
+
+        if not audio_b64:
+            return error_response('Audio data is required', 'VALIDATION_ERROR', 400)
+
+        if not GEMINI_API_KEY or not gemini_client:
+            return error_response('AI service not configured', 'SERVICE_UNAVAILABLE', 503)
+
+        from google.genai import types as genai_types
+
+        if user:
+            user_context = get_user_context(user)
+        else:
+            user_context = {
+                'recent_ratings': [], 'watchlist': [], 'favorites': [],
+                'recently_watched': [], 'preferred_genres': [], 'disliked_genres': []
+            }
+        current_movies = fetch_current_movies()
+        current_titles = [m.get('title', '') for m in current_movies[:6] if m.get('title')]
+        genre_prefs = user_context.get('preferred_genres', [])
+        fav_titles = [f.get('title', '') for f in user_context.get('favorites', [])[:3]]
+
+        ctx_lines = []
+        if current_titles:
+            ctx_lines.append(f"Currently trending/in theaters: {', '.join(current_titles)}")
+        if genre_prefs:
+            ctx_lines.append(f"User's preferred genres: {', '.join(genre_prefs[:5])}")
+        if fav_titles:
+            ctx_lines.append(f"User's favourites: {', '.join(fav_titles)}")
+
+        system_text = (
+            "You are CineBot, an expert movie AI assistant.\n\n"
+            + ("\n".join(ctx_lines) + "\n\n" if ctx_lines else "")
+            + "Instructions:\n"
+            "1. Transcribe exactly what the user said in the audio.\n"
+            "2. Respond helpfully as a movie recommendation assistant.\n"
+            "3. Format movie titles as **Title (Year)**.\n\n"
+            'Respond ONLY with valid JSON: {"transcript":"<words user spoke>","response":"<your response>"}'
+        )
+
+        try:
+            response = gemini_client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[
+                    genai_types.Content(parts=[
+                        genai_types.Part(
+                            inline_data=genai_types.Blob(mime_type=mime_type, data=audio_b64)
+                        ),
+                        genai_types.Part(text=system_text),
+                    ])
+                ]
+            )
+        except Exception as e:
+            logger.error(f"Gemini voice call failed: {e}")
+            return error_response('Could not process audio. Please try again.', 'AI_ERROR', 500)
+
+        if not response or not response.text:
+            return error_response('No response from AI', 'AI_ERROR', 500)
+
+        raw = response.text.strip()
+        # Strip markdown code fences if present
+        raw = re.sub(r'^```(?:json)?\s*', '', raw)
+        raw = re.sub(r'\s*```$', '', raw)
+
+        try:
+            parsed = json.loads(raw)
+            transcript = parsed.get('transcript', 'Voice message')
+            ai_response = parsed.get('response', raw)
+        except json.JSONDecodeError:
+            tm = re.search(r'"transcript"\s*:\s*"((?:[^"\\]|\\.)*)"', raw)
+            rm = re.search(r'"response"\s*:\s*"((?:[^"\\]|\\.)*)"', raw)
+            transcript = tm.group(1) if tm else 'Voice message'
+            ai_response = rm.group(1) if rm else raw
+
+        movie_titles = extract_movie_titles_structured(ai_response)
+        if not movie_titles:
+            movie_titles = parse_movie_recommendations(ai_response)
+
+        movies = []
+
+        def _search_movie(title):
+            try:
+                sd = tmdb_request("/search/multi", {"query": title, "page": 1})
+                for item in (sd.get('results') or [])[:5]:
+                    if item.get('media_type') in ['movie', 'tv'] and item.get('poster_path'):
+                        return {
+                            'id': item['id'], 'tmdbId': item['id'],
+                            'title': item.get('title') or item.get('name'),
+                            'media_type': item['media_type'],
+                            'poster_path': item['poster_path'],
+                            'overview': item.get('overview', ''),
+                            'vote_average': item.get('vote_average'),
+                            'release_date': item.get('release_date') or item.get('first_air_date'),
+                        }
+            except Exception as ex:
+                logger.warning(f"TMDB voice search failed for '{title}': {ex}")
+            return None
+
+        if movie_titles:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+                futures = {ex.submit(_search_movie, t): t for t in movie_titles[:4]}
+                for fut in concurrent.futures.as_completed(futures):
+                    try:
+                        r = fut.result()
+                        if r:
+                            movies.append(r)
+                    except Exception as ex2:
+                        logger.warning(f"Voice movie search thread error: {ex2}")
+
+        return {'transcript': transcript, 'response': ai_response, 'movies': movies}
+
+    except json.JSONDecodeError:
+        return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
+    except Exception as e:
+        logger.error(f"Voice chat error: {e}", exc_info=True)
+        return error_response('Could not process voice message. Please try again.', 'INTERNAL_ERROR', 500)
+
+
 def ai_chat_stream(request):
     user = request.user if request.user.is_authenticated else None
     

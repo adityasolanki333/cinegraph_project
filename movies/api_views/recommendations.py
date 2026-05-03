@@ -33,6 +33,14 @@ class AiChatStreamView(APIView):
         return _to_response(ai_chat_stream(request))
 
 
+class VoiceChatView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from movies.recommendations_api import voice_chat
+        return _to_response(voice_chat(request))
+
+
 class SavePreferencesView(APIView):
     permission_classes = [IsAuthenticated]
 

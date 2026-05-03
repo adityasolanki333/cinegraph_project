@@ -1,42 +1,34 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Bot, User, Sparkles, ArrowDown, Star, X, MessageSquare } from "lucide-react";
+import { Send, Bot, Sparkles, ArrowDown, Star, X, MessageSquare, Mic, MicOff, Volume2, VolumeX, Trash2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
+import { getAuthHeaders } from "@/lib/queryClient";
 
 const TMDB_GENRE_MAP: Record<number, string> = {
   28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
   99: 'Documentary', 18: 'Drama', 10751: 'Family', 14: 'Fantasy', 36: 'History',
   27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance',
   878: 'Sci-Fi', 10770: 'TV Movie', 53: 'Thriller', 10752: 'War', 37: 'Western',
-  10759: 'Action & Adventure', 10762: 'Kids', 10763: 'News', 10764: 'Reality',
-  10765: 'Sci-Fi & Fantasy', 10766: 'Soap', 10767: 'Talk', 10768: 'War & Politics',
+  10759: 'Action & Adventure', 10762: 'Kids', 10765: 'Sci-Fi & Fantasy',
 };
 
 interface ChatMessage {
   id: string;
   type: "user" | "ai";
   content: string;
-  recommendations?: Array<{ title: string; rating: number; reason: string }>;
   movies?: any[];
-  queryInsights?: {
-    detectedMood?: string;
-    detectedGenres: string[];
-    detectedKeywords: string[];
-    yearPreference?: number;
-    decadePreference?: string;
-  };
-  suggestions?: string[];
   source?: string;
   timestamp: Date;
   isStreaming?: boolean;
   statusMessage?: string;
   moviesLoading?: number;
   moviesDone?: boolean;
+  isVoice?: boolean;
+  fromCache?: boolean;
 }
 
 interface AIChatProps {
@@ -45,59 +37,84 @@ interface AIChatProps {
   onToggle?: () => void;
 }
 
-const quickSuggestions = [
-  { label: "😂 Something Funny", query: "I want something funny to laugh at" },
-  { label: "🔥 Exciting Action", query: "show me thrilling action movies" },
-  { label: "💕 Romantic Tonight", query: "romantic movies for date night" },
+const ALL_SUGGESTIONS = [
+  { label: "😂 Something Funny", query: "I want something funny to laugh at tonight" },
+  { label: "🔥 Thrilling Action", query: "show me thrilling action movies" },
+  { label: "💕 Date Night", query: "romantic movies for a cozy date night" },
   { label: "😱 Scary Films", query: "I'm in the mood for something scary" },
-  { label: "🆕 What's New", query: "what movies are in theaters right now?" },
-  { label: "😊 Feel-Good Movies", query: "uplifting feel-good movies" },
-  { label: "🤯 Mind-Bending", query: "thought-provoking intellectual films" },
-  { label: "💎 Hidden Gems", query: "underrated movies I should watch" },
+  { label: "🆕 In Theaters", query: "what movies are in theaters right now?" },
+  { label: "😊 Feel-Good", query: "uplifting feel-good movies that make you smile" },
+  { label: "🤯 Mind-Bending", query: "thought-provoking mind-bending films" },
+  { label: "💎 Hidden Gems", query: "underrated movies I probably haven't seen" },
+  { label: "🚀 Sci-Fi", query: "best science fiction movies" },
+  { label: "🎭 Oscar Winners", query: "critically acclaimed award-winning dramas" },
+  { label: "👨‍👩‍👧 Family Fun", query: "great family movies everyone will enjoy" },
+  { label: "🕵️ Mystery", query: "gripping mystery and thriller movies" },
 ];
 
-import { getAuthHeaders } from "@/lib/queryClient";
-
-const typingMessages = [
-  "Thinking...",
-  "Analyzing your request...",
-  "Searching for movies...",
-  "Browsing the catalog...",
-  "Finding the best picks...",
-  "Almost there...",
-];
+const WELCOME_MSG: ChatMessage = {
+  id: "welcome",
+  type: "ai",
+  content: "Hi! I'm CineBot, your AI movie companion. Ask me for recommendations, ask about any movie, or just tap the mic and speak — I'm listening! 🎬",
+  timestamp: new Date(),
+  moviesDone: true,
+};
 
 function TypingIndicator() {
-  const [messageIndex, setMessageIndex] = useState(0);
-  const [displayedText, setDisplayedText] = useState("");
-  const [charIndex, setCharIndex] = useState(0);
-
-  const currentMessage = typingMessages[messageIndex];
-
+  const [dots, setDots] = useState(0);
   useEffect(() => {
-    if (charIndex < currentMessage.length) {
-      const timer = setTimeout(() => {
-        setDisplayedText(currentMessage.slice(0, charIndex + 1));
-        setCharIndex(charIndex + 1);
-      }, 40);
-      return () => clearTimeout(timer);
-    } else {
-      const timer = setTimeout(() => {
-        setMessageIndex((messageIndex + 1) % typingMessages.length);
-        setCharIndex(0);
-        setDisplayedText("");
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [charIndex, currentMessage, messageIndex]);
-
+    const t = setInterval(() => setDots(d => (d + 1) % 4), 400);
+    return () => clearInterval(t);
+  }, []);
   return (
-    <div className="flex items-center space-x-2 text-sm text-muted-foreground" data-testid="typing-indicator">
-      <Sparkles className="h-3.5 w-3.5 text-accent animate-pulse flex-shrink-0" />
-      <span>{displayedText}</span>
-      <span className="inline-block w-0.5 h-4 bg-accent animate-[blink_1s_steps(2)_infinite]" />
+    <div className="flex items-center gap-1.5 py-0.5">
+      {[0, 1, 2].map(i => (
+        <span
+          key={i}
+          className="w-1.5 h-1.5 rounded-full bg-primary/60"
+          style={{ animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }}
+        />
+      ))}
     </div>
   );
+}
+
+function WaveformBars({ active }: { active: boolean }) {
+  return (
+    <div className="flex items-center gap-0.5 h-5">
+      {Array.from({ length: 7 }).map((_, i) => (
+        <span
+          key={i}
+          className="w-0.5 rounded-full bg-red-400"
+          style={{
+            height: active ? `${8 + Math.sin(i * 1.3) * 6}px` : '3px',
+            animation: active ? `waveBar 0.6s ease-in-out ${i * 0.08}s infinite alternate` : 'none',
+            transition: 'height 0.3s',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function buildFollowUps(msg: ChatMessage): string[] {
+  const chips: string[] = [];
+  const movies = msg.movies || [];
+  if (movies.length > 0) {
+    const t1 = movies[0]?.title || movies[0]?.name;
+    if (t1) {
+      chips.push(`More movies like "${t1}"`);
+      chips.push(`Tell me about "${t1}"`);
+    }
+  }
+  if (movies.length > 1) {
+    const t2 = movies[1]?.title || movies[1]?.name;
+    if (t2) chips.push(`Who directed "${t2}"?`);
+  }
+  chips.push("Show me something different");
+  chips.push("Any hidden gems in this genre?");
+  chips.push("What's trending this week?");
+  return chips.slice(0, 3);
 }
 
 export default function AIChat({ className, isOpen: controlledOpen, onToggle }: AIChatProps) {
@@ -106,41 +123,38 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   const stableToggle = useCallback(() => setInternalOpen(prev => !prev), []);
   const toggleOpen = onToggle || stableToggle;
   const { user } = useAuth();
+
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const saved = sessionStorage.getItem('aiChat_messages');
+    const saved = sessionStorage.getItem('aiChat_messages_v2');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return parsed.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp),
-          isStreaming: false,
-        }));
-      } catch {
-      }
+        return parsed.map((msg: any) => ({ ...msg, timestamp: new Date(msg.timestamp), isStreaming: false }));
+      } catch {}
     }
-    return [
-      {
-        id: "1",
-        type: "ai",
-        content: "👋 Hi! I'm your MovieVanders AI assistant! 🎬✨ I know what's currently in theaters, trending this week, and coming soon. Ask me things like 'what's new in theaters?', 'something scary to watch', or 'movies similar to Inception'. I remember our conversation, so feel free to follow up! 🍿",
-        timestamp: new Date(),
-      },
-    ];
+    return [WELCOME_MSG];
   });
+
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [suggestionPage, setSuggestionPage] = useState(0);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  /** Prevents double submit before React re-renders isLoading (double-click / Enter quirks). */
   const sendInFlightRef = useRef(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
     const saved = localStorage.getItem('aiChat_fabPos');
-    if (saved) {
-      try { return JSON.parse(saved); } catch {}
-    }
+    if (saved) { try { return JSON.parse(saved); } catch {} }
     return { x: -1, y: -1 };
   });
   const fabRef = useRef<HTMLButtonElement>(null);
@@ -148,24 +162,17 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   const dragStart = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
 
   const clampPos = useCallback((x: number, y: number) => {
-    const size = 56;
-    const pad = 4;
-    return {
-      x: Math.max(pad, Math.min(x, window.innerWidth - size - pad)),
-      y: Math.max(pad, Math.min(y, window.innerHeight - size - pad)),
-    };
+    const size = 56, pad = 4;
+    return { x: Math.max(pad, Math.min(x, window.innerWidth - size - pad)), y: Math.max(pad, Math.min(y, window.innerHeight - size - pad)) };
   }, []);
 
   useEffect(() => {
-    if (fabPos.x === -1 && fabPos.y === -1) {
+    if (fabPos.x === -1 && fabPos.y === -1)
       setFabPos({ x: window.innerWidth - 56 - 16, y: window.innerHeight - 56 - 80 });
-    }
   }, [fabPos]);
 
   useEffect(() => {
-    if (fabPos.x >= 0 && fabPos.y >= 0) {
-      localStorage.setItem('aiChat_fabPos', JSON.stringify(fabPos));
-    }
+    if (fabPos.x >= 0) localStorage.setItem('aiChat_fabPos', JSON.stringify(fabPos));
   }, [fabPos]);
 
   useEffect(() => {
@@ -175,12 +182,9 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   }, [clampPos]);
 
   const handleFabClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (wasDragged.current) {
-      wasDragged.current = false;
-      return;
-    }
+    e.preventDefault(); e.stopPropagation();
+    if (wasDragged.current) { wasDragged.current = false; return; }
+    setUnreadCount(0);
     toggleOpen();
   }, [toggleOpen]);
 
@@ -193,668 +197,561 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
-    const dx = e.clientX - dragStart.current.x;
-    const dy = e.clientY - dragStart.current.y;
+    const dx = e.clientX - dragStart.current.x, dy = e.clientY - dragStart.current.y;
     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) wasDragged.current = true;
     if (wasDragged.current) setFabPos(clampPos(dragStart.current.posX + dx, dragStart.current.posY + dy));
   }, [clampPos]);
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     if (wasDragged.current) {
       const size = 56;
-      setFabPos(prev => {
-        const snappedX = (prev.x + size / 2) < window.innerWidth / 2 ? 4 : window.innerWidth - size - 4;
-        return clampPos(snappedX, prev.y);
-      });
+      setFabPos(prev => { const sx = (prev.x + size / 2) < window.innerWidth / 2 ? 4 : window.innerWidth - size - 4; return clampPos(sx, prev.y); });
     }
   }, [clampPos]);
 
   useEffect(() => {
-    const toSave = messages.map(m => ({
-      ...m,
-      isStreaming: false,
-      statusMessage: undefined,
-      moviesLoading: undefined,
-      moviesDone: true,
-    }));
-    sessionStorage.setItem('aiChat_messages', JSON.stringify(toSave));
+    const toSave = messages.map(m => ({ ...m, isStreaming: false, statusMessage: undefined, moviesLoading: undefined, moviesDone: true }));
+    sessionStorage.setItem('aiChat_messages_v2', JSON.stringify(toSave));
   }, [messages]);
 
   const scrollToBottom = useCallback((smooth = false) => {
-    if (scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        scrollContainer.scrollTo({
-          top: scrollContainer.scrollHeight,
-          behavior: smooth ? 'smooth' : 'auto'
-        });
-      }
-    }
+    const sc = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (sc) sc.scrollTo({ top: sc.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
   }, []);
 
   const handleScroll = useCallback(() => {
-    if (scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-        const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
-        setShowScrollButton(!isNearBottom && scrollHeight > clientHeight);
-      }
+    const sc = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (sc) {
+      const { scrollTop, scrollHeight, clientHeight } = sc;
+      setShowScrollButton(scrollHeight - scrollTop - clientHeight > 150 && scrollHeight > clientHeight);
     }
   }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+  useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
   useEffect(() => {
-    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
-    if (scrollContainer) {
-      scrollContainer.addEventListener('scroll', handleScroll);
-      handleScroll();
-      return () => scrollContainer.removeEventListener('scroll', handleScroll);
-    }
+    const sc = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (sc) { sc.addEventListener('scroll', handleScroll); handleScroll(); return () => sc.removeEventListener('scroll', handleScroll); }
   }, [handleScroll]);
 
   useEffect(() => {
     if (messages.length > 1) {
-      const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-        const wasNearBottom = scrollHeight - scrollTop - clientHeight < 150;
-        if (wasNearBottom) {
-          setTimeout(() => scrollToBottom(), 100);
-        }
-      }
+      const sc = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+      if (sc) { const { scrollTop, scrollHeight, clientHeight } = sc; if (scrollHeight - scrollTop - clientHeight < 150) setTimeout(() => scrollToBottom(), 100); }
     }
   }, [messages.length, scrollToBottom]);
 
-  const getConversationHistory = useCallback(() => {
-    return messages
-      .filter(m => m.type === 'user' || (m.type === 'ai' && m.id !== '1'))
-      .slice(-6)
-      .map(m => ({
-        type: m.type,
-        content: m.content,
-      }));
-  }, [messages]);
+  const getConversationHistory = useCallback(() =>
+    messages.filter(m => m.type === 'user' || (m.type === 'ai' && m.id !== 'welcome')).slice(-6).map(m => ({ type: m.type, content: m.content }))
+  , [messages]);
+
+  const speakText = useCallback((text: string) => {
+    if (!voiceEnabled || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const plainText = text.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/[#*_`]/g, '').slice(0, 600);
+    const utt = new SpeechSynthesisUtterance(plainText);
+    utt.rate = 1.0; utt.pitch = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.name.includes('Google') && v.lang.startsWith('en')) || voices.find(v => v.lang.startsWith('en-'));
+    if (preferred) utt.voice = preferred;
+    utt.onstart = () => setIsSpeaking(true);
+    utt.onend = () => setIsSpeaking(false);
+    utt.onerror = () => setIsSpeaking(false);
+    speechRef.current = utt;
+    window.speechSynthesis.speak(utt);
+  }, [voiceEnabled]);
+
+  const stopSpeaking = useCallback(() => {
+    window.speechSynthesis?.cancel();
+    setIsSpeaking(false);
+  }, []);
 
   const handleStreamingResponse = useCallback(async (userInput: string) => {
     const history = getConversationHistory();
     const streamingMsgId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     let streamingReceivedContent = false;
 
-    setMessages(prev => [...prev, {
-      id: streamingMsgId,
-      type: "ai",
-      content: "",
-      movies: [],
-      timestamp: new Date(),
-      isStreaming: true,
-    }]);
+    setMessages(prev => [...prev, { id: streamingMsgId, type: "ai", content: "", movies: [], timestamp: new Date(), isStreaming: true }]);
 
     try {
       const response = await fetch('/api/ai/chat/stream', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-
-        body: JSON.stringify({
-          message: userInput,
-          userId: user?.id ? String(user.id) : undefined,
-          history,
-        }),
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ message: userInput, userId: user?.id ? String(user.id) : undefined, history }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const contentType = response.headers.get('content-type') || '';
 
       const applySseEvent = (event: Record<string, unknown>) => {
         const t = event.type as string;
         if (t === 'status') {
-          setMessages(prev => prev.map(m =>
-            m.id === streamingMsgId
-              ? { ...m, statusMessage: event.message as string }
-              : m
-          ));
+          setMessages(prev => prev.map(m => m.id === streamingMsgId ? { ...m, statusMessage: event.message as string } : m));
         } else if (t === 'chunk' && typeof event.content === 'string') {
           streamingReceivedContent = true;
-          setMessages(prev => prev.map(m =>
-            m.id === streamingMsgId
-              ? { ...m, content: m.content + event.content, statusMessage: undefined }
-              : m
-          ));
+          setMessages(prev => prev.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.content, statusMessage: undefined } : m));
           scrollToBottom();
         } else if (t === 'movies_loading') {
-          setMessages(prev => prev.map(m =>
-            m.id === streamingMsgId
-              ? { ...m, moviesLoading: event.count as number, moviesDone: false, movies: [] }
-              : m
-          ));
-          scrollToBottom();
+          setMessages(prev => prev.map(m => m.id === streamingMsgId ? { ...m, moviesLoading: event.count as number, moviesDone: false, movies: [] } : m));
         } else if (t === 'movie' && event.movie) {
           streamingReceivedContent = true;
-          setMessages(prev => prev.map(m =>
-            m.id === streamingMsgId
-              ? { ...m, movies: [...(m.movies || []), event.movie] }
-              : m
-          ));
+          setMessages(prev => prev.map(m => m.id === streamingMsgId ? { ...m, movies: [...(m.movies || []), event.movie] } : m));
           scrollToBottom();
         } else if (t === 'done') {
           streamingReceivedContent = true;
-          setMessages(prev => prev.map(m =>
-            m.id === streamingMsgId
-              ? {
-                  ...m,
-                  // Only replace movies when the server sent a non-empty list ([] is truthy in JS)
-                  movies: Array.isArray(event.movies) && (event.movies as unknown[]).length > 0
-                    ? (event.movies as typeof m.movies)
-                    : (m.movies || []),
-                  isStreaming: false,
-                  moviesDone: true,
-                  moviesLoading: undefined,
-                }
-              : m
-          ));
+          setMessages(prev => prev.map(m => {
+            if (m.id !== streamingMsgId) return m;
+            const finalMsg = {
+              ...m,
+              movies: Array.isArray(event.movies) && (event.movies as unknown[]).length > 0 ? (event.movies as typeof m.movies) : (m.movies || []),
+              isStreaming: false, moviesDone: true, moviesLoading: undefined,
+              fromCache: !!(event as any).fromCache,
+            };
+            if (voiceEnabled && finalMsg.content) setTimeout(() => speakText(finalMsg.content), 300);
+            return finalMsg;
+          }));
+          if (!isOpen) setUnreadCount(c => c + 1);
         } else if (t === 'fallback') {
           streamingReceivedContent = true;
-          setMessages(prev => prev.map(m =>
-            m.id === streamingMsgId
-              ? {
-                  ...m,
-                  content: (event.response as string) || m.content,
-                  movies:
-                    Array.isArray(event.movies) && (event.movies as unknown[]).length > 0
-                      ? (event.movies as typeof m.movies)
-                      : (m.movies || []),
-                  source: 'fallback',
-                  isStreaming: false,
-                  moviesDone: true,
-                }
-              : m
-          ));
+          setMessages(prev => prev.map(m => m.id === streamingMsgId ? {
+            ...m, content: (event.response as string) || m.content,
+            movies: Array.isArray(event.movies) && (event.movies as unknown[]).length > 0 ? (event.movies as typeof m.movies) : (m.movies || []),
+            source: 'fallback', isStreaming: false, moviesDone: true,
+          } : m));
         } else if (t === 'error') {
-          setMessages(prev => prev.map(m =>
-            m.id === streamingMsgId
-              ? {
-                  ...m,
-                  content: (event.message as string) || 'Something went wrong. Please try again.',
-                  isStreaming: false,
-                  moviesDone: true,
-                  moviesLoading: undefined,
-                  statusMessage: undefined,
-                }
-              : m
-          ));
+          setMessages(prev => prev.map(m => m.id === streamingMsgId ? {
+            ...m, content: (event.message as string) || 'Something went wrong. Please try again.',
+            isStreaming: false, moviesDone: true, moviesLoading: undefined, statusMessage: undefined,
+          } : m));
         }
       };
 
-      const parseSseDataLine = (line: string) => {
+      const parseSseLine = (line: string) => {
         const trimmed = line.replace(/\r$/, '').trim();
         if (!trimmed.startsWith('data:')) return;
         const payload = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed.slice(5).trimStart();
         if (payload === '[DONE]') return;
-        try {
-          applySseEvent(JSON.parse(payload) as Record<string, unknown>);
-        } catch {
-          // Malformed chunk; skip so the stream can continue
-        }
+        try { applySseEvent(JSON.parse(payload)); } catch {}
       };
 
       if (contentType.includes('text/event-stream')) {
         const reader = response.body?.getReader();
         if (!reader) throw new Error('No reader');
-
         const decoder = new TextDecoder();
         let buffer = '';
-
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split(/\r?\n/);
           buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            parseSseDataLine(line);
-          }
+          for (const line of lines) parseSseLine(line);
         }
-
-        if (buffer.trim()) {
-          for (const line of buffer.split(/\r?\n/)) {
-            parseSseDataLine(line);
-          }
-        }
-
+        if (buffer.trim()) for (const line of buffer.split(/\r?\n/)) parseSseLine(line);
         setMessages(prev => prev.map(m => {
           if (m.id !== streamingMsgId) return m;
-          const hasText = Boolean(m.content?.trim());
-          const hasMovies = Boolean(m.movies?.length);
-          return {
-            ...m,
-            isStreaming: false,
-            moviesDone: true,
-            moviesLoading: undefined,
-            statusMessage: undefined,
-            ...(!hasText && !hasMovies
-              ? { content: "I didn't get a complete reply. Please try again in a moment." }
-              : {}),
-          };
+          const hasText = Boolean(m.content?.trim()), hasMovies = Boolean(m.movies?.length);
+          return { ...m, isStreaming: false, moviesDone: true, moviesLoading: undefined, statusMessage: undefined, ...(!hasText && !hasMovies ? { content: "I didn't get a complete reply. Please try again in a moment." } : {}) };
         }));
-
       } else {
         const data = await response.json();
-
-        if (data.type === 'fallback') {
-          setMessages(prev => prev.map(m =>
-            m.id === streamingMsgId
-              ? {
-                  ...m,
-                  content: data.response,
-                  movies: data.movies || [],
-                  source: 'fallback',
-                  isStreaming: false,
-                  moviesDone: true,
-                }
-              : m
-          ));
-        } else {
-          setMessages(prev => prev.map(m =>
-            m.id === streamingMsgId
-              ? {
-                  ...m,
-                  content: data.response || data.error || 'No response received.',
-                  movies: data.movies || [],
-                  isStreaming: false,
-                  moviesDone: true,
-                }
-              : m
-          ));
-        }
+        setMessages(prev => prev.map(m => m.id === streamingMsgId ? {
+          ...m, content: data.response || data.error || 'No response received.',
+          movies: data.movies || [], source: data.source, isStreaming: false, moviesDone: true,
+        } : m));
       }
-
     } catch (error) {
       if (!streamingReceivedContent) {
-        await handleFallbackResponse(userInput, streamingMsgId);
+        try {
+          const resp = await fetch('/api/ai/chat', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+            body: JSON.stringify({ message: userInput, userId: user?.id ? String(user.id) : undefined, history: getConversationHistory() }),
+          });
+          const data = await resp.json();
+          setMessages(prev => prev.map(m => m.id === streamingMsgId ? {
+            ...m, content: data.response || "I'd love to help! Tell me what kind of movies you're in the mood for.",
+            movies: data.movies || [], source: data.source, isStreaming: false, moviesDone: true, moviesLoading: undefined, statusMessage: undefined,
+          } : m));
+        } catch {
+          setMessages(prev => prev.map(m => m.id === streamingMsgId ? {
+            ...m, content: "I'm having trouble connecting right now. Please try again in a moment!",
+            isStreaming: false, moviesDone: true, moviesLoading: undefined, statusMessage: undefined,
+          } : m));
+        }
       } else {
-        setMessages(prev => prev.map(m =>
-          m.id === streamingMsgId
-            ? {
-                ...m,
-                isStreaming: false,
-                moviesDone: true,
-                moviesLoading: undefined,
-                statusMessage: undefined,
-              }
-            : m
-        ));
+        setMessages(prev => prev.map(m => m.id === streamingMsgId ? { ...m, isStreaming: false, moviesDone: true, moviesLoading: undefined, statusMessage: undefined } : m));
       }
     }
-  }, [user, getConversationHistory, scrollToBottom]);
+  }, [user, getConversationHistory, scrollToBottom, voiceEnabled, speakText, isOpen]);
 
-  const handleFallbackResponse = useCallback(async (userInput: string, existingMsgId?: string) => {
-    const history = getConversationHistory();
-
-    try {
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-
-        body: JSON.stringify({
-          message: userInput,
-          userId: user?.id ? String(user.id) : undefined,
-          history,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (existingMsgId) {
-        setMessages(prev => prev.map(m =>
-          m.id === existingMsgId
-            ? {
-                ...m,
-                content: data.response || data.error || "I'd love to help! Tell me what kind of movies you're in the mood for.",
-                movies: data.movies || [],
-                source: data.source,
-                isStreaming: false,
-                moviesDone: true,
-                moviesLoading: undefined,
-                statusMessage: undefined,
-              }
-            : m
-        ));
-      } else {
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          type: "ai",
-          content: data.response || data.error || "I'd love to help! Tell me what kind of movies you're in the mood for.",
-          movies: data.movies || [],
-          source: data.source,
-          timestamp: new Date(),
-          moviesDone: true,
-        }]);
-      }
-    } catch {
-      const fallbackContent = "I'm having trouble connecting right now. Please try asking again in a moment!";
-      if (existingMsgId) {
-        setMessages(prev => prev.map(m =>
-          m.id === existingMsgId
-            ? {
-                ...m,
-                content: fallbackContent,
-                isStreaming: false,
-                moviesDone: true,
-                moviesLoading: undefined,
-                statusMessage: undefined,
-              }
-            : m
-        ));
-      } else {
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          type: "ai",
-          content: fallbackContent,
-          timestamp: new Date(),
-        }]);
-      }
-    }
-  }, [user, getConversationHistory]);
-
-  const handleSendMessage = useCallback(async () => {
-    const text = inputValue.trim();
+  const handleSendMessage = useCallback(async (textOverride?: string) => {
+    const text = (textOverride ?? inputValue).trim();
     if (!text || isLoading || sendInFlightRef.current) return;
-
     sendInFlightRef.current = true;
-
-    const userMessage: ChatMessage = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      type: "user",
-      content: text,
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => [...prev, userMessage]);
+    stopSpeaking();
+    setMessages(prev => [...prev, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, type: "user", content: text, timestamp: new Date() }]);
     setInputValue("");
     setIsLoading(true);
+    try { await handleStreamingResponse(text); } catch {} finally { sendInFlightRef.current = false; setIsLoading(false); }
+  }, [inputValue, isLoading, handleStreamingResponse, stopSpeaking]);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    e.preventDefault(); void handleSendMessage();
+  }, [handleSendMessage]);
+
+  const startRecording = useCallback(async () => {
+    if (isRecording || isProcessingVoice) return;
     try {
-      await handleStreamingResponse(text);
-    } catch {
-    } finally {
-      sendInFlightRef.current = false;
-      setIsLoading(false);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+      const mr = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        if (blob.size < 1000) { setIsRecording(false); return; }
+        setIsProcessingVoice(true);
+        setIsRecording(false);
+        try {
+          const reader = new FileReader();
+          const b64: string = await new Promise(res => { reader.onloadend = () => res((reader.result as string).split(',')[1]); reader.readAsDataURL(blob); });
+          const resp = await fetch('/api/ai/voice-chat', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+            body: JSON.stringify({ audio: b64, mimeType: mimeType.split(';')[0], history: getConversationHistory() }),
+          });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+          const transcript = data.transcript || 'Voice message';
+          const aiResponse = data.response || '';
+          const voiceUserMsg: ChatMessage = { id: `${Date.now()}-u`, type: "user", content: transcript, timestamp: new Date(), isVoice: true };
+          const voiceAiMsg: ChatMessage = { id: `${Date.now()}-a`, type: "ai", content: aiResponse, movies: data.movies || [], timestamp: new Date(), moviesDone: true, isVoice: true };
+          setMessages(prev => [...prev, voiceUserMsg, voiceAiMsg]);
+          if (voiceEnabled && aiResponse) setTimeout(() => speakText(aiResponse), 300);
+        } catch (e) {
+          console.error('Voice chat error:', e);
+          setMessages(prev => [...prev, { id: `${Date.now()}-err`, type: "ai", content: "I couldn't process your voice message. Please try again or type your message.", timestamp: new Date(), moviesDone: true }]);
+        } finally {
+          setIsProcessingVoice(false);
+        }
+      };
+      mr.start();
+      mediaRecorderRef.current = mr;
+      setIsRecording(true);
+    } catch (e) {
+      console.error('Mic access error:', e);
     }
-  }, [inputValue, isLoading, handleStreamingResponse]);
+  }, [isRecording, isProcessingVoice, getConversationHistory, voiceEnabled, speakText]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key !== "Enter" || e.shiftKey) return;
-      if (e.nativeEvent.isComposing) return;
-      e.preventDefault();
-      void handleSendMessage();
-    },
-    [handleSendMessage]
-  );
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+  }, []);
 
-  if (!user) {
-    return null;
-  }
+  const clearChat = useCallback(() => {
+    stopSpeaking();
+    setMessages([WELCOME_MSG]);
+    setSuggestionPage(0);
+  }, [stopSpeaking]);
 
-  if (!user) {
-    return null;
-  }
+  const currentSuggestions = ALL_SUGGESTIONS.slice(suggestionPage * 4, suggestionPage * 4 + 4).concat(
+    ALL_SUGGESTIONS.slice(0, Math.max(0, (suggestionPage * 4 + 4) - ALL_SUGGESTIONS.length))
+  ).slice(0, 4);
+
+  const rotateSuggestions = useCallback(() => {
+    setSuggestionPage(p => (p + 1) % Math.ceil(ALL_SUGGESTIONS.length / 4));
+  }, []);
+
+  if (!user) return null;
+
+  const canRecord = !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined';
 
   return (
     <>
+      <style>{`
+        @keyframes bounce { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(-4px); opacity: 1; } }
+        @keyframes waveBar { from { transform: scaleY(0.4); opacity: 0.7; } to { transform: scaleY(1.4); opacity: 1; } }
+        @keyframes msgSlide { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulseRing { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.8); opacity: 0; } }
+        .msg-enter { animation: msgSlide 0.25s ease-out forwards; }
+      `}</style>
+
       {isOpen && (
-        <div className={cn("fixed z-[60] inset-0 md:inset-auto md:bottom-4 md:right-4 md:flex md:flex-col md:items-end", className)} data-testid="ai-chat-widget">
-        <div className="w-full h-full md:mb-3 md:w-[480px] md:h-[600px] bg-background md:border md:border-border md:rounded-2xl md:shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 md:slide-in-from-bottom-5 fade-in duration-300">
-          <div className="flex items-center justify-between px-4 py-3 md:py-2.5 border-b border-border bg-card shrink-0 safe-area-top">
-            <div className="flex items-center gap-2.5">
-              <div className="h-9 w-9 md:h-8 md:w-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-                <Bot className="h-5 w-5 md:h-4 md:w-4 text-primary-foreground" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-base md:text-sm font-semibold text-foreground">AI Movie Assistant</h3>
-                <p className="text-xs md:text-[10px] text-muted-foreground">Ask me for recommendations</p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleOpen}
-              className="h-9 w-9 md:h-8 md:w-8 p-0 rounded-full hover:bg-muted shrink-0"
-              data-testid="button-close-chat"
-            >
-              <X className="h-5 w-5 md:h-4 md:w-4" />
-            </Button>
-          </div>
+        <div className={cn("fixed z-[60] inset-0 md:inset-auto md:bottom-4 md:right-4 md:flex md:flex-col md:items-end", className)}>
+          <div className="w-full h-full md:mb-3 md:w-[520px] md:h-[680px] bg-background md:border md:border-border/50 md:rounded-2xl md:shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-300">
 
-          <div className="flex-1 relative min-h-0 overflow-hidden">
-            <ScrollArea ref={scrollAreaRef} className="h-full px-3 md:px-3 py-2">
-              <div className="space-y-3 pb-2">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      "chat-message flex items-start gap-2",
-                      message.type === "user" ? "justify-end" : "justify-start"
-                    )}
-                  >
-                    {message.type === "ai" && (
-                      <div className="flex h-6 w-6 shrink-0 select-none items-center justify-center rounded-full bg-primary/10 mt-0.5">
-                        <Bot className="h-3 w-3 text-primary" />
-                      </div>
-                    )}
-
-                    <div
-                      className={cn(
-                        "rounded-2xl px-3 py-2",
-                        message.type === "user"
-                          ? "bg-primary text-primary-foreground max-w-[80%] rounded-br-md"
-                          : "bg-muted text-foreground max-w-[95%] rounded-bl-md"
-                      )}
-                    >
-                      {message.isStreaming && !message.content && !message.statusMessage && (
-                        <TypingIndicator />
-                      )}
-
-                      {message.statusMessage && !message.content && (
-                        <div className="flex items-center space-x-2 text-xs text-muted-foreground" data-testid={`status-message-${message.id}`}>
-                          <Sparkles className="h-3 w-3 animate-pulse text-primary" />
-                          <span className="animate-pulse">{message.statusMessage}</span>
-                        </div>
-                      )}
-
-                      {(() => {
-                        if (!message.content) return null;
-                        const hasMovieCards = message.movies && message.movies.length > 0;
-                        let displayText = message.content;
-                        if (hasMovieCards && !message.isStreaming) {
-                          const lines = message.content.split('\n');
-                          const introLines: string[] = [];
-                          for (const line of lines) {
-                            if (/^\s*(\d+[\.\)\-:]|\*\*\d+|[-•*]\s)/.test(line)) break;
-                            introLines.push(line);
-                          }
-                          displayText = introLines.join('\n').trim();
-                        }
-                        if (!displayText && !message.isStreaming) return null;
-                        return (
-                          <p className="text-sm md:text-[13px] leading-relaxed whitespace-pre-line">
-                            {displayText}
-                            {message.isStreaming && (
-                              <span className="inline-block w-1 h-3.5 bg-primary ml-0.5 animate-pulse align-middle rounded-full" />
-                            )}
-                          </p>
-                        );
-                      })()}
-
-                      {((message.movies && message.movies.length > 0) || (message.moviesLoading && !message.moviesDone)) && (
-                        <div className="mt-2 pt-2 border-t border-border/30" data-testid={`movie-cards-${message.id}`}>
-                          {message.movies && message.movies.length > 0 && !message.moviesDone === false && (
-                            <div className="flex items-center gap-1.5 mb-2">
-                              <Sparkles className="h-3 w-3 text-yellow-500" />
-                              <span className="text-[11px] font-medium text-foreground">
-                                {Math.min(message.movies.length, 4)} picks for you
-                              </span>
-                            </div>
-                          )}
-
-                          <div className="grid grid-cols-2 gap-2.5 md:gap-2">
-                            {message.movies && message.movies.slice(0, 4).map((movie: any) => {
-                              const mediaType = movie.media_type === 'tv' ? 'tv' : 'movie';
-                              const title = movie.title || movie.name || 'Untitled';
-                              const posterUrl = movie.poster_path
-                                ? `https://image.tmdb.org/t/p/w342${movie.poster_path}`
-                                : null;
-                              const rating = movie.vote_average || 0;
-                              const year = movie.release_date
-                                ? new Date(movie.release_date).getFullYear()
-                                : movie.first_air_date
-                                  ? new Date(movie.first_air_date).getFullYear()
-                                  : '';
-                              const genre = movie.genre_ids?.length
-                                ? TMDB_GENRE_MAP[movie.genre_ids[0]] || ''
-                                : '';
-                              const detailPath = mediaType === 'tv' ? `/tv/${movie.id}` : `/movie/${movie.id}`;
-
-                              return (
-                                <Link key={movie.id} href={detailPath} onClick={toggleOpen}>
-                                  <div
-                                    className="group rounded-lg overflow-hidden border border-border/40 bg-card hover:border-primary/50 transition-all duration-200 cursor-pointer"
-                                    data-testid={`movie-card-${movie.id}`}
-                                  >
-                                    <div className="relative aspect-[2/3] overflow-hidden bg-muted">
-                                      {posterUrl ? (
-                                        <img
-                                          src={posterUrl}
-                                          alt={title}
-                                          loading="lazy"
-                                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                                        />
-                                      ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                                          No Poster
-                                        </div>
-                                      )}
-                                      <div className="absolute top-1 right-1 flex items-center gap-0.5 bg-black/70 text-yellow-400 text-[11px] md:text-[10px] font-semibold px-1.5 py-0.5 rounded">
-                                        <Star className="h-3 w-3 md:h-2.5 md:w-2.5 fill-yellow-400" />
-                                        {rating.toFixed(1)}
-                                      </div>
-                                    </div>
-                                    <div className="px-2 py-1.5 md:px-1.5 md:py-1">
-                                      <p className="font-medium text-xs md:text-[11px] leading-tight text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-                                        {title}
-                                      </p>
-                                      <p className="text-[11px] md:text-[10px] text-muted-foreground mt-0.5 truncate">
-                                        {[year, genre].filter(Boolean).join(' \u2022 ')}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </Link>
-                              );
-                            })}
-                            {message.moviesLoading && !message.moviesDone && (
-                              <>
-                                {Array.from({ length: Math.max(0, (message.moviesLoading || 4) - (message.movies?.length || 0)) }).map((_, i) => (
-                                  <div key={`skeleton-${i}`} data-testid={`movie-skeleton-${i}`}>
-                                    <div className="rounded-lg overflow-hidden border border-border/40 bg-card animate-pulse">
-                                      <div className="aspect-[2/3] bg-muted" />
-                                      <div className="px-1 py-0.5">
-                                        <div className="h-2 bg-muted rounded w-3/4" />
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 shrink-0 relative overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #1e3a5f 50%, #14274e 100%)' }}>
+              <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #7c3aed 0%, transparent 50%), radial-gradient(circle at 80% 20%, #2563eb 0%, transparent 40%)' }} />
+              <div className="relative flex items-center gap-2.5">
+                <div className="relative">
+                  <div className="h-9 w-9 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center">
+                    <Bot className="h-5 w-5 text-white" />
                   </div>
-                ))}
-
-                {isLoading && !messages.some(m => m.isStreaming) && (
-                  <div className="flex items-start gap-2" data-testid="loading-indicator">
-                    <div className="flex h-6 w-6 shrink-0 select-none items-center justify-center rounded-full bg-primary/10">
-                      <Bot className="h-3 w-3 text-primary" />
-                    </div>
-                    <div className="bg-muted rounded-2xl rounded-bl-md px-3 py-2">
-                      <TypingIndicator />
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#1e1b4b]" style={{ animation: isLoading || isRecording || isProcessingVoice ? 'pulse 1s ease-in-out infinite' : 'none' }} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
+                    CineBot
+                    {isSpeaking && <Volume2 className="h-3 w-3 text-emerald-400 animate-pulse" />}
+                  </h3>
+                  <p className="text-[10px] text-white/60">
+                    {isRecording ? "Listening..." : isProcessingVoice ? "Processing voice..." : isLoading ? "Thinking..." : "AI Movie Assistant"}
+                  </p>
+                </div>
               </div>
-            </ScrollArea>
-
-            {showScrollButton && (
-              <Button
-                onClick={() => scrollToBottom(true)}
-                size="sm"
-                className="absolute bottom-2 right-3 h-7 w-7 rounded-full shadow-md z-10"
-                variant="secondary"
-                title="Scroll to bottom"
-              >
-                <ArrowDown className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-
-          <div className="border-t border-border bg-card px-3 md:px-3 py-2.5 md:py-2 space-y-2 shrink-0 safe-area-bottom">
-            <div className="flex flex-wrap gap-1.5 md:gap-1">
-              {quickSuggestions.slice(0, 4).map((suggestion, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setInputValue(suggestion.query)}
-                  className="text-xs md:text-[10px] h-7 md:h-5 px-2.5 md:px-1.5 rounded-full"
-                  disabled={isLoading}
-                  data-testid={`button-suggestion-${index}`}
-                >
-                  {suggestion.label}
+              <div className="relative flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={clearChat} className="h-8 w-8 p-0 rounded-full hover:bg-white/10 text-white/60 hover:text-white" title="Clear chat">
+                  <Trash2 className="h-3.5 w-3.5" />
                 </Button>
-              ))}
+                <Button variant="ghost" size="sm"
+                  onClick={() => { setVoiceEnabled(v => !v); if (isSpeaking) stopSpeaking(); }}
+                  className="h-8 w-8 p-0 rounded-full hover:bg-white/10 text-white/60 hover:text-white"
+                  title={voiceEnabled ? "Mute AI voice" : "Enable AI voice"}
+                >
+                  {voiceEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={toggleOpen} className="h-8 w-8 p-0 rounded-full hover:bg-white/10 text-white/60 hover:text-white">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
-            <div className="flex gap-2">
-              <Input
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask for movie recommendations..."
-                disabled={isLoading}
-                className="flex-1 h-11 md:h-9 text-base md:text-sm rounded-full bg-muted border-0 focus-visible:ring-1"
-                data-testid="input-chat-message"
-              />
-              <Button
-                onClick={handleSendMessage}
-                disabled={!inputValue.trim() || isLoading}
-                size="sm"
-                className="h-11 w-11 md:h-9 md:w-9 rounded-full p-0"
-                data-testid="button-send-message"
-              >
-                <Send className="h-5 w-5 md:h-4 md:w-4" />
-              </Button>
+            {/* Messages */}
+            <div className="flex-1 relative min-h-0 overflow-hidden">
+              <ScrollArea ref={scrollAreaRef} className="h-full px-3 py-2">
+                <div className="space-y-2.5 pb-2">
+                  {messages.map((message, idx) => (
+                    <div key={message.id} className={cn("msg-enter flex items-end gap-2", message.type === "user" ? "justify-end" : "justify-start")} style={{ animationDelay: `${idx * 20}ms` }}>
+                      {message.type === "ai" && (
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-600 mb-0.5">
+                          <Bot className="h-3.5 w-3.5 text-white" />
+                        </div>
+                      )}
+
+                      <div className={cn(
+                        "rounded-2xl px-3.5 py-2.5 shadow-sm max-w-[85%]",
+                        message.type === "user"
+                          ? "bg-gradient-to-br from-violet-600 to-blue-600 text-white rounded-br-sm"
+                          : "bg-muted/80 text-foreground rounded-bl-sm border border-border/30"
+                      )}>
+                        {message.type === "user" && message.isVoice && (
+                          <div className="flex items-center gap-1 mb-1 opacity-70">
+                            <Mic className="h-2.5 w-2.5" />
+                            <span className="text-[9px] uppercase tracking-wider">Voice</span>
+                          </div>
+                        )}
+
+                        {message.isStreaming && !message.content && !message.statusMessage && <TypingIndicator />}
+
+                        {message.statusMessage && !message.content && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Sparkles className="h-3 w-3 animate-pulse text-violet-400" />
+                            <span className="animate-pulse">{message.statusMessage}</span>
+                          </div>
+                        )}
+
+                        {(() => {
+                          if (!message.content) return null;
+                          const hasMovieCards = message.movies && message.movies.length > 0;
+                          let displayText = message.content;
+                          if (hasMovieCards && !message.isStreaming) {
+                            const lines = message.content.split('\n');
+                            const intro: string[] = [];
+                            for (const line of lines) {
+                              if (/^\s*(\d+[\.\)\-:]|\*\*\d+|[-•*]\s)/.test(line)) break;
+                              intro.push(line);
+                            }
+                            displayText = intro.join('\n').trim();
+                          }
+                          if (!displayText && !message.isStreaming) return null;
+                          return (
+                            <p className="text-sm leading-relaxed whitespace-pre-line">
+                              {displayText.replace(/\*\*([^*]+)\*\*/g, '$1')}
+                              {message.isStreaming && <span className="inline-block w-0.5 h-3.5 bg-current ml-0.5 animate-pulse align-middle rounded-full" />}
+                            </p>
+                          );
+                        })()}
+
+                        {message.fromCache && !message.isStreaming && (
+                          <div className="flex items-center gap-1 mt-1 opacity-50">
+                            <Zap className="h-2.5 w-2.5 text-yellow-400" />
+                            <span className="text-[9px] text-yellow-400">From cache</span>
+                          </div>
+                        )}
+
+                        {((message.movies && message.movies.length > 0) || (message.moviesLoading && !message.moviesDone)) && (
+                          <div className="mt-2.5 pt-2 border-t border-border/20">
+                            {message.movies && message.movies.length > 0 && (
+                              <div className="flex items-center gap-1 mb-2">
+                                <Sparkles className="h-3 w-3 text-yellow-400" />
+                                <span className="text-[11px] font-medium text-muted-foreground">{message.movies.length} picks for you</span>
+                              </div>
+                            )}
+                            <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+                              {message.movies && message.movies.map((movie: any) => {
+                                const mediaType = movie.media_type === 'tv' ? 'tv' : 'movie';
+                                const title = movie.title || movie.name || 'Untitled';
+                                const posterUrl = movie.poster_path ? `https://image.tmdb.org/t/p/w185${movie.poster_path}` : null;
+                                const rating = movie.vote_average || 0;
+                                const year = movie.release_date ? new Date(movie.release_date).getFullYear() : movie.first_air_date ? new Date(movie.first_air_date).getFullYear() : '';
+                                const genre = movie.genre_ids?.length ? TMDB_GENRE_MAP[movie.genre_ids[0]] || '' : '';
+                                const detailPath = mediaType === 'tv' ? `/tv/${movie.id}` : `/movie/${movie.id}`;
+                                return (
+                                  <Link key={movie.id} href={detailPath} onClick={toggleOpen}>
+                                    <div className="group snap-start rounded-xl overflow-hidden border border-border/30 bg-card/80 hover:border-violet-500/50 hover:shadow-md transition-all duration-200 cursor-pointer flex-shrink-0 w-[100px]">
+                                      <div className="relative w-[100px] h-[150px] overflow-hidden bg-muted">
+                                        {posterUrl ? (
+                                          <img src={posterUrl} alt={title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                        ) : (
+                                          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">No Image</div>
+                                        )}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                                        <div className="absolute bottom-1 left-1 flex items-center gap-0.5 bg-black/60 text-yellow-400 text-[10px] font-semibold px-1 py-0.5 rounded">
+                                          <Star className="h-2.5 w-2.5 fill-yellow-400" />{rating.toFixed(1)}
+                                        </div>
+                                      </div>
+                                      <div className="px-1.5 py-1">
+                                        <p className="font-medium text-[10px] leading-tight line-clamp-2 group-hover:text-violet-400 transition-colors">{title}</p>
+                                        <p className="text-[9px] text-muted-foreground mt-0.5 truncate">{[year, genre].filter(Boolean).join(' · ')}</p>
+                                      </div>
+                                    </div>
+                                  </Link>
+                                );
+                              })}
+                              {message.moviesLoading && !message.moviesDone && Array.from({ length: Math.max(0, (message.moviesLoading || 4) - (message.movies?.length || 0)) }).map((_, i) => (
+                                <div key={`sk-${i}`} className="snap-start rounded-xl overflow-hidden border border-border/30 bg-card animate-pulse flex-shrink-0 w-[100px]">
+                                  <div className="w-[100px] h-[150px] bg-muted" />
+                                  <div className="px-1.5 py-1"><div className="h-2 bg-muted rounded w-3/4" /></div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {message.type === "ai" && message.moviesDone && !message.isStreaming && message.id !== 'welcome' && (message.movies?.length || 0) > 0 && (
+                          <div className="mt-2 pt-1.5 border-t border-border/20 flex flex-wrap gap-1">
+                            {buildFollowUps(message).map((chip, i) => (
+                              <button key={i} onClick={() => handleSendMessage(chip)} disabled={isLoading}
+                                className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                {chip}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {isLoading && !messages.some(m => m.isStreaming) && (
+                    <div className="flex items-end gap-2">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-600 mb-0.5">
+                        <Bot className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div className="bg-muted/80 rounded-2xl rounded-bl-sm border border-border/30 px-3.5 py-2.5">
+                        <TypingIndicator />
+                      </div>
+                    </div>
+                  )}
+
+                  {isProcessingVoice && (
+                    <div className="flex items-end gap-2">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-600 mb-0.5">
+                        <Bot className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div className="bg-muted/80 rounded-2xl rounded-bl-sm border border-border/30 px-3.5 py-2.5">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Sparkles className="h-3 w-3 animate-spin text-violet-400" />
+                          <span>Processing your voice message...</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div ref={messagesEndRef} />
+                </div>
+              </ScrollArea>
+
+              {showScrollButton && (
+                <Button onClick={() => scrollToBottom(true)} size="sm" variant="secondary"
+                  className="absolute bottom-2 right-3 h-7 w-7 rounded-full shadow-md z-10 p-0">
+                  <ArrowDown className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+
+            {/* Quick suggestions */}
+            <div className="px-3 pt-2 pb-0 shrink-0">
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                {currentSuggestions.map((s, i) => (
+                  <Button key={`${suggestionPage}-${i}`} variant="outline" size="sm"
+                    onClick={() => handleSendMessage(s.query)}
+                    disabled={isLoading || isRecording || isProcessingVoice}
+                    className="text-[10px] h-6 px-2 rounded-full shrink-0 border-border/50 hover:border-violet-500/50 hover:text-violet-400 transition-colors">
+                    {s.label}
+                  </Button>
+                ))}
+                <Button variant="ghost" size="sm" onClick={rotateSuggestions}
+                  className="text-[10px] h-6 px-2 rounded-full shrink-0 text-muted-foreground hover:text-foreground" title="More suggestions">
+                  ↻
+                </Button>
+              </div>
+            </div>
+
+            {/* Input row */}
+            <div className="px-3 py-2.5 shrink-0 safe-area-bottom">
+              {isRecording && (
+                <div className="flex items-center gap-3 mb-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20">
+                  <div className="relative">
+                    <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-40" />
+                    <span className="relative w-2 h-2 rounded-full bg-red-500 block" />
+                  </div>
+                  <WaveformBars active={true} />
+                  <span className="text-xs text-red-400 flex-1">Recording… release to send</span>
+                  <button onClick={stopRecording} className="text-[10px] text-red-400 hover:text-red-300">stop</button>
+                </div>
+              )}
+              <div className="flex gap-2 items-center">
+                {canRecord && (
+                  <button
+                    onPointerDown={e => { e.preventDefault(); startRecording(); }}
+                    onPointerUp={e => { e.preventDefault(); if (isRecording) stopRecording(); }}
+                    onPointerLeave={() => { if (isRecording) stopRecording(); }}
+                    disabled={isLoading || isProcessingVoice}
+                    className={cn(
+                      "h-11 w-11 md:h-9 md:w-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 select-none touch-none",
+                      isRecording
+                        ? "bg-red-500 text-white scale-110 shadow-lg shadow-red-500/30"
+                        : isProcessingVoice
+                        ? "bg-violet-500/20 text-violet-400 animate-pulse"
+                        : "bg-muted hover:bg-violet-500/20 hover:text-violet-400 text-muted-foreground",
+                      (isLoading || isProcessingVoice) && "opacity-50 cursor-not-allowed"
+                    )}
+                    title="Hold to record voice"
+                  >
+                    {isProcessingVoice ? <Sparkles className="h-4 w-4 md:h-3.5 md:w-3.5 animate-spin" /> : isRecording ? <MicOff className="h-4 w-4 md:h-3.5 md:w-3.5" /> : <Mic className="h-4 w-4 md:h-3.5 md:w-3.5" />}
+                  </button>
+                )}
+                <Input
+                  value={inputValue}
+                  onChange={e => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={isRecording ? "Recording..." : "Ask about any movie..."}
+                  disabled={isLoading || isRecording || isProcessingVoice}
+                  className="flex-1 h-11 md:h-9 text-base md:text-sm rounded-full bg-muted border-0 focus-visible:ring-1 focus-visible:ring-violet-500/50"
+                />
+                <Button onClick={() => handleSendMessage()} disabled={!inputValue.trim() || isLoading || isRecording}
+                  size="sm" className="h-11 w-11 md:h-9 md:w-9 rounded-full p-0 bg-gradient-to-br from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 shrink-0">
+                  <Send className="h-4 w-4 md:h-3.5 md:w-3.5" />
+                </Button>
+              </div>
             </div>
           </div>
-         </div>
         </div>
       )}
 
@@ -866,11 +763,15 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
-          className="fixed h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300 p-0 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center select-none cursor-grab active:cursor-grabbing z-[60]"
-          style={{ left: fabPos.x, top: fabPos.y, touchAction: 'none' }}
-          data-testid="button-toggle-chat"
+          className="fixed h-14 w-14 rounded-full shadow-xl transition-all duration-300 p-0 flex items-center justify-center select-none cursor-grab active:cursor-grabbing z-[60]"
+          style={{ left: fabPos.x, top: fabPos.y, touchAction: 'none', background: 'linear-gradient(135deg, #7c3aed 0%, #2563eb 100%)', boxShadow: '0 4px 20px rgba(124,58,237,0.4)' }}
         >
-          <MessageSquare className="h-6 w-6 pointer-events-none" />
+          <MessageSquare className="h-6 w-6 text-white pointer-events-none" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-background">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </button>
       )}
     </>
