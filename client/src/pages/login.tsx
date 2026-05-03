@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useSearch, Link } from "wouter";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { useTranslation } from "react-i18next";
+import { useEffect } from "react";
 
 export default function Login() {
   const { t } = useTranslation();
@@ -30,13 +31,24 @@ export default function Login() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const search = useSearch();
-  const { refetchUser } = useAuth();
+  const { refetchUser, isAuthenticated } = useAuth();
 
   const redirectTo = (() => {
     const params = new URLSearchParams(search);
     const r = params.get('redirect');
     return r && r.startsWith('/') && r !== '/login' ? r : '/';
   })();
+  
+  // Auto-redirect if already authenticated or after successful login
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Small delay to ensure state has propagated across the app
+      const timer = setTimeout(() => {
+        setLocation(redirectTo);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, redirectTo, setLocation]);
 
 
 
@@ -55,7 +67,7 @@ export default function Login() {
             description: t("login.welcomePlatform"),
           });
           await refetchUser();
-          setLocation(redirectTo);
+          // Redirection is handled by the auto-redirect useEffect
         } else {
           throw new Error(result.error || 'Registration failed');
         }
@@ -69,7 +81,7 @@ export default function Login() {
             description: t("login.loginSuccessMsg"),
           });
           await refetchUser();
-          setLocation(redirectTo);
+          // Redirection is handled by the auto-redirect useEffect
         } else {
           throw new Error(result.error || 'Login failed');
         }

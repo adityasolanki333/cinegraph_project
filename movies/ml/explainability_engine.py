@@ -549,7 +549,7 @@ class ExplainabilityEngine:
 
             client = genai.Client(api_key=gemini_key)
 
-            MODELS = ['gemma-3-12b-it', 'gemini-2.0-flash']
+            MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash']
             for model in MODELS:
                 try:
                     response = client.models.generate_content(model=model, contents=prompt)

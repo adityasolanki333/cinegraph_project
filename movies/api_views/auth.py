@@ -112,6 +112,8 @@ class LoginView(APIView):
         )
         if user is not None:
             tokens = _get_tokens_for_user(user)
+            from django.core.cache import cache
+            cache.delete(f"user:{user.id}:me")
             return Response({'success': True, 'user': _user_dict(user), 'tokens': tokens})
         return Response({'error': 'Invalid email or password', 'code': 'AUTH_REQUIRED'}, status=401)
 

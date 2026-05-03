@@ -89,7 +89,8 @@ Thumbs.db
 # =========================
 datasets/
 attached_assets/
-pyproject.toml
+# pyproject.toml removed from ignore
+
 reportprevious.md
 Interview/
 testsprite_tests/

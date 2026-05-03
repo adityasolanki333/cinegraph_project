@@ -126,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const contextValue: AuthContextType = {
     ...authState,
-    refetchUser: fetchUser,
+    refetchUser: () => fetchUser(true),
   };
 
   return (
