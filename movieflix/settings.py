@@ -25,9 +25,6 @@ DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    '.replit.dev',
-    '.repl.co',
-    '.replit.app',
 ]
 
 INSTALLED_APPS = [
@@ -122,14 +119,10 @@ FRONTEND_BUILD_DIR = BASE_DIR / 'dist' / 'public'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-_replit_domain = os.environ.get('REPLIT_DEV_DOMAIN', '')
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5000',
     'http://127.0.0.1:5000',
-    'https://*.replit.dev',
-    'https://*.repl.co',
-    'https://*.replit.app',
-] + ([f'https://{_replit_domain}'] if _replit_domain else [])
+]
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
 SESSION_COOKIE_SAMESITE = 'Lax'
@@ -140,11 +133,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:5000',
     'http://127.0.0.1:5000',
 ]
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r'^https://.*\.replit\.dev$',
-    r'^https://.*\.repl\.co$',
-    r'^https://.*\.replit\.app$',
-]
+CORS_ALLOWED_ORIGIN_REGEXES = []
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 
@@ -267,7 +256,7 @@ else:
 # Production security settings (only when DEBUG=False)
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_SSL_REDIRECT = False   # Replit terminates SSL at proxy — don't double-redirect
+    SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True

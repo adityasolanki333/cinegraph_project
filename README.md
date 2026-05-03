@@ -137,12 +137,6 @@ npm run dev
 
 The frontend proxies all `/api` requests to the Django backend automatically.
 
-### Running on Replit
-
-On Replit, API keys are stored as Secrets (environment variables) instead of a `.env` file. Both servers are configured as workflows and start automatically:
-- **MovieFlix Server** - runs `python manage.py runserver 0.0.0.0:8000`
-- **React Frontend** - runs `npm run dev`
-
 ## Project Structure
 
 ```
