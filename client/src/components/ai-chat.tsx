@@ -180,15 +180,16 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
   const [unreadCount, setUnreadCount] = useState(0);
   const [suggestionPage, setSuggestionPage] = useState(0);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sendInFlightRef = useRef(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<any>(null);
+  const finalTranscriptRef = useRef("");
+  const handleSendRef = useRef<(text: string) => void>(() => {});
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
@@ -436,60 +437,85 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
     try { await handleStreamingResponse(text); } catch {} finally { sendInFlightRef.current = false; setIsLoading(false); }
   }, [inputValue, isLoading, handleStreamingResponse, stopSpeaking]);
 
+  // Keep a ref so speech recognition onend can call it without stale closure
+  useEffect(() => { handleSendRef.current = (t: string) => handleSendMessage(t); }, [handleSendMessage]);
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
     e.preventDefault(); void handleSendMessage();
   }, [handleSendMessage]);
 
-  const startRecording = useCallback(async () => {
-    if (isRecording || isProcessingVoice) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
-      const mr = new MediaRecorder(stream, { mimeType });
-      audioChunksRef.current = [];
-      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      mr.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        if (blob.size < 1000) { setIsRecording(false); return; }
-        setIsProcessingVoice(true);
-        setIsRecording(false);
-        try {
-          const reader = new FileReader();
-          const b64: string = await new Promise(res => { reader.onloadend = () => res((reader.result as string).split(',')[1]); reader.readAsDataURL(blob); });
-          const resp = await fetch('/api/ai/voice-chat', {
-            method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-            body: JSON.stringify({ audio: b64, mimeType: mimeType.split(';')[0], history: getConversationHistory() }),
-          });
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const data = await resp.json();
-          const transcript = data.transcript || 'Voice message';
-          const aiResponse = data.response || '';
-          const voiceUserMsg: ChatMessage = { id: `${Date.now()}-u`, type: "user", content: transcript, timestamp: new Date(), isVoice: true };
-          const voiceAiMsg: ChatMessage = { id: `${Date.now()}-a`, type: "ai", content: aiResponse, movies: data.movies || [], timestamp: new Date(), moviesDone: true, isVoice: true };
-          setMessages(prev => [...prev, voiceUserMsg, voiceAiMsg]);
-          if (voiceEnabled && aiResponse) setTimeout(() => speakText(aiResponse), 300);
-        } catch (e) {
-          console.error('Voice chat error:', e);
-          setMessages(prev => [...prev, { id: `${Date.now()}-err`, type: "ai", content: "I couldn't process your voice message. Please try again or type your message.", timestamp: new Date(), moviesDone: true }]);
-        } finally {
-          setIsProcessingVoice(false);
-        }
-      };
-      mr.start();
-      mediaRecorderRef.current = mr;
-      setIsRecording(true);
-    } catch (e) {
-      console.error('Mic access error:', e);
+  const toggleVoice = useCallback(() => {
+    if (isListening) {
+      // Stop — commit whatever was said
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      const text = finalTranscriptRef.current.trim() || liveTranscript.trim();
+      if (text) {
+        setLiveTranscript("");
+        finalTranscriptRef.current = "";
+        setInputValue("");
+        setTimeout(() => handleSendRef.current(text), 100);
+      } else {
+        setLiveTranscript("");
+        finalTranscriptRef.current = "";
+      }
+      return;
     }
-  }, [isRecording, isProcessingVoice, getConversationHistory, voiceEnabled, speakText]);
 
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-  }, []);
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+
+    const recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    recognition.maxAlternatives = 1;
+
+    finalTranscriptRef.current = "";
+    setLiveTranscript("");
+    setIsListening(true);
+
+    recognition.onresult = (e: any) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          finalTranscriptRef.current += t + " ";
+        } else {
+          interim += t;
+        }
+      }
+      const full = (finalTranscriptRef.current + interim).trim();
+      setLiveTranscript(full);
+      setInputValue(full);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      const text = finalTranscriptRef.current.trim();
+      if (text) {
+        setLiveTranscript("");
+        finalTranscriptRef.current = "";
+        setInputValue("");
+        setTimeout(() => handleSendRef.current(text), 150);
+      } else {
+        setLiveTranscript("");
+        finalTranscriptRef.current = "";
+      }
+    };
+
+    recognition.onerror = (e: any) => {
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      console.error('Speech recognition error:', e.error);
+      setIsListening(false);
+      setLiveTranscript("");
+      finalTranscriptRef.current = "";
+    };
+
+    recognition.start();
+    recognitionRef.current = recognition;
+  }, [isListening, liveTranscript]);
 
   const clearChat = useCallback(() => {
     stopSpeaking();
@@ -507,7 +533,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
 
   if (!user) return null;
 
-  const canRecord = !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined';
+  const canVoice = !!(window as any).SpeechRecognition || !!(window as any).webkitSpeechRecognition;
 
   return (
     <>
@@ -535,7 +561,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                   <div className="h-9 w-9 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center">
                     <Bot className="h-5 w-5 text-white" />
                   </div>
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#1e1b4b]" style={{ animation: isLoading || isRecording || isProcessingVoice ? 'pulse 1s ease-in-out infinite' : 'none' }} />
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#1e1b4b]" style={{ animation: isLoading || isListening ? 'pulse 1s ease-in-out infinite' : 'none' }} />
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
@@ -543,7 +569,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                     {isSpeaking && <Volume2 className="h-3 w-3 text-emerald-400 animate-pulse" />}
                   </h3>
                   <p className="text-[10px] text-white/60">
-                    {isRecording ? "Listening..." : isProcessingVoice ? "Processing voice..." : isLoading ? "Thinking..." : "AI Movie Assistant"}
+                    {isListening ? "Listening…" : isLoading ? "Thinking..." : "AI Movie Assistant"}
                   </p>
                 </div>
               </div>
@@ -743,19 +769,6 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                     </div>
                   )}
 
-                  {isProcessingVoice && (
-                    <div className="flex items-end gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-600 mb-0.5">
-                        <Bot className="h-3.5 w-3.5 text-white" />
-                      </div>
-                      <div className="bg-muted/80 rounded-2xl rounded-bl-sm border border-border/30 px-3.5 py-2.5">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Sparkles className="h-3 w-3 animate-spin text-violet-400" />
-                          <span>Processing your voice message...</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
                   <div ref={messagesEndRef} />
                 </div>
@@ -775,7 +788,7 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                 {currentSuggestions.map((s, i) => (
                   <Button key={`${suggestionPage}-${i}`} variant="outline" size="sm"
                     onClick={() => handleSendMessage(s.query)}
-                    disabled={isLoading || isRecording || isProcessingVoice}
+                    disabled={isLoading}
                     className="text-[10px] h-6 px-2 rounded-full shrink-0 border-border/50 hover:border-violet-500/50 hover:text-violet-400 transition-colors">
                     {s.label}
                   </Button>
@@ -789,47 +802,45 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
 
             {/* Input row */}
             <div className="px-3 py-2.5 shrink-0 safe-area-bottom">
-              {isRecording && (
-                <div className="flex items-center gap-3 mb-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20">
-                  <div className="relative">
-                    <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-40" />
-                    <span className="relative w-2 h-2 rounded-full bg-red-500 block" />
+              {isListening && (
+                <div className="flex items-center gap-3 mb-2 px-3 py-1.5 rounded-xl bg-violet-500/10 border border-violet-500/30">
+                  <div className="relative shrink-0">
+                    <span className="absolute inset-0 rounded-full bg-violet-500 animate-ping opacity-30" />
+                    <span className="relative w-2 h-2 rounded-full bg-violet-400 block" />
                   </div>
                   <WaveformBars active={true} />
-                  <span className="text-xs text-red-400 flex-1">Recording… release to send</span>
-                  <button onClick={stopRecording} className="text-[10px] text-red-400 hover:text-red-300">stop</button>
+                  <span className="text-xs text-violet-300 flex-1 truncate">
+                    {liveTranscript || "Listening… speak now"}
+                  </span>
+                  <button onClick={toggleVoice} className="text-[10px] text-violet-400 hover:text-violet-200 shrink-0 font-medium">done</button>
                 </div>
               )}
               <div className="flex gap-2 items-center">
-                {canRecord && (
+                {canVoice && (
                   <button
-                    onPointerDown={e => { e.preventDefault(); startRecording(); }}
-                    onPointerUp={e => { e.preventDefault(); if (isRecording) stopRecording(); }}
-                    onPointerLeave={() => { if (isRecording) stopRecording(); }}
-                    disabled={isLoading || isProcessingVoice}
+                    onClick={toggleVoice}
+                    disabled={isLoading}
                     className={cn(
-                      "h-11 w-11 md:h-9 md:w-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 select-none touch-none",
-                      isRecording
-                        ? "bg-red-500 text-white scale-110 shadow-lg shadow-red-500/30"
-                        : isProcessingVoice
-                        ? "bg-violet-500/20 text-violet-400 animate-pulse"
+                      "h-11 w-11 md:h-9 md:w-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-200",
+                      isListening
+                        ? "bg-violet-500 text-white scale-110 shadow-lg shadow-violet-500/40"
                         : "bg-muted hover:bg-violet-500/20 hover:text-violet-400 text-muted-foreground",
-                      (isLoading || isProcessingVoice) && "opacity-50 cursor-not-allowed"
+                      isLoading && "opacity-50 cursor-not-allowed"
                     )}
-                    title="Hold to record voice"
+                    title={isListening ? "Stop listening" : "Click to speak"}
                   >
-                    {isProcessingVoice ? <Sparkles className="h-4 w-4 md:h-3.5 md:w-3.5 animate-spin" /> : isRecording ? <MicOff className="h-4 w-4 md:h-3.5 md:w-3.5" /> : <Mic className="h-4 w-4 md:h-3.5 md:w-3.5" />}
+                    {isListening ? <MicOff className="h-4 w-4 md:h-3.5 md:w-3.5" /> : <Mic className="h-4 w-4 md:h-3.5 md:w-3.5" />}
                   </button>
                 )}
                 <Input
                   value={inputValue}
                   onChange={e => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={isRecording ? "Recording..." : "Ask about any movie..."}
-                  disabled={isLoading || isRecording || isProcessingVoice}
+                  placeholder={isListening ? "Listening… speak now" : "Ask about any movie..."}
+                  disabled={isLoading || isListening}
                   className="flex-1 h-11 md:h-9 text-base md:text-sm rounded-full bg-muted border-0 focus-visible:ring-1 focus-visible:ring-violet-500/50"
                 />
-                <Button onClick={() => handleSendMessage()} disabled={!inputValue.trim() || isLoading || isRecording}
+                <Button onClick={() => handleSendMessage()} disabled={!inputValue.trim() || isLoading}
                   size="sm" className="h-11 w-11 md:h-9 md:w-9 rounded-full p-0 bg-gradient-to-br from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 shrink-0">
                   <Send className="h-4 w-4 md:h-3.5 md:w-3.5" />
                 </Button>
