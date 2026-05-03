@@ -697,14 +697,17 @@ def voice_chat(request):
                 'recent_ratings': [], 'watchlist': [], 'favorites': [],
                 'recently_watched': [], 'preferred_genres': [], 'disliked_genres': []
             }
-        current_movies = fetch_current_movies()
-        current_titles = [m.get('title', '') for m in current_movies[:6] if m.get('title')]
+        # fetch_current_movies() returns a list of formatted strings e.g.
+        # "Inception (2010) - Rating: 8.8/10 - Genres: Action, Sci-Fi"
+        raw_current = fetch_current_movies()
+        current_titles = raw_current[:6] if isinstance(raw_current, list) else []
         genre_prefs = user_context.get('preferred_genres', [])
-        fav_titles = [f.get('title', '') for f in user_context.get('favorites', [])[:3]]
+        fav_titles = [f.get('title', '') for f in user_context.get('favorites', [])[:3]
+                      if isinstance(f, dict) and f.get('title')]
 
         ctx_lines = []
         if current_titles:
-            ctx_lines.append(f"Currently trending/in theaters: {', '.join(current_titles)}")
+            ctx_lines.append(f"Currently trending/in theaters: {'; '.join(current_titles[:4])}")
         if genre_prefs:
             ctx_lines.append(f"User's preferred genres: {', '.join(genre_prefs[:5])}")
         if fav_titles:

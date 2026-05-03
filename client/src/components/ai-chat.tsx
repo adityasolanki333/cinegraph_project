@@ -60,21 +60,60 @@ const WELCOME_MSG: ChatMessage = {
   moviesDone: true,
 };
 
+const THINKING_STEPS = [
+  { icon: "🎬", text: "Searching the catalog…" },
+  { icon: "🧠", text: "Thinking it through…" },
+  { icon: "✨", text: "Finding your picks…" },
+  { icon: "🍿", text: "Almost ready…" },
+  { icon: "🎥", text: "Curating results…" },
+  { icon: "⭐", text: "Personalizing for you…" },
+];
+
 function TypingIndicator() {
-  const [dots, setDots] = useState(0);
+  const [step, setStep] = useState(0);
+  const [visible, setVisible] = useState(true);
+
   useEffect(() => {
-    const t = setInterval(() => setDots(d => (d + 1) % 4), 400);
-    return () => clearInterval(t);
+    const fade = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setStep(s => (s + 1) % THINKING_STEPS.length);
+        setVisible(true);
+      }, 300);
+    }, 2200);
+    return () => clearInterval(fade);
   }, []);
+
+  const { icon, text } = THINKING_STEPS[step];
+
   return (
-    <div className="flex items-center gap-1.5 py-0.5">
-      {[0, 1, 2].map(i => (
-        <span
-          key={i}
-          className="w-1.5 h-1.5 rounded-full bg-primary/60"
-          style={{ animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }}
-        />
-      ))}
+    <div className="flex flex-col gap-2 py-0.5 min-w-[160px]">
+      {/* Animated orb row */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex items-center justify-center w-7 h-7">
+          {/* pulsing rings */}
+          <span className="absolute inset-0 rounded-full bg-violet-500/20" style={{ animation: 'orbRing 1.4s ease-in-out infinite' }} />
+          <span className="absolute inset-1 rounded-full bg-violet-500/30" style={{ animation: 'orbRing 1.4s ease-in-out 0.3s infinite' }} />
+          {/* bars */}
+          <span className="relative flex items-end gap-[2px] h-3.5">
+            {[0,1,2,3].map(i => (
+              <span key={i} className="w-[3px] rounded-full bg-gradient-to-t from-violet-500 to-blue-400"
+                style={{ animation: `thinkBar 0.8s ease-in-out ${i * 0.15}s infinite alternate`, height: '6px' }} />
+            ))}
+          </span>
+        </div>
+        <div
+          className="text-xs text-muted-foreground font-medium transition-all duration-300"
+          style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(4px)' }}
+        >
+          {icon} {text}
+        </div>
+      </div>
+      {/* Progress shimmer */}
+      <div className="h-0.5 w-full rounded-full bg-border/40 overflow-hidden">
+        <div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-blue-400 to-violet-500"
+          style={{ animation: 'shimmerBar 1.8s ease-in-out infinite', backgroundSize: '200% 100%' }} />
+      </div>
     </div>
   );
 }
@@ -477,6 +516,9 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
         @keyframes waveBar { from { transform: scaleY(0.4); opacity: 0.7; } to { transform: scaleY(1.4); opacity: 1; } }
         @keyframes msgSlide { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulseRing { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.8); opacity: 0; } }
+        @keyframes orbRing { 0%, 100% { transform: scale(1); opacity: 0.4; } 50% { transform: scale(1.5); opacity: 0.1; } }
+        @keyframes thinkBar { from { transform: scaleY(0.4); opacity: 0.6; } to { transform: scaleY(2.2); opacity: 1; } }
+        @keyframes shimmerBar { 0% { background-position: 200% center; } 100% { background-position: -200% center; } }
         .msg-enter { animation: msgSlide 0.25s ease-out forwards; }
       `}</style>
 
@@ -570,11 +612,49 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                             displayText = intro.join('\n').trim();
                           }
                           if (!displayText && !message.isStreaming) return null;
+
+                          // Render with markdown formatting
+                          const renderLine = (line: string, key: number) => {
+                            // Numbered list
+                            const numMatch = line.match(/^\s*(\d+)[.)]\s+(.+)/);
+                            if (numMatch) return (
+                              <div key={key} className="flex gap-1.5 items-start text-sm leading-relaxed">
+                                <span className="shrink-0 w-4 h-4 rounded-full bg-violet-500/20 text-violet-400 text-[10px] font-bold flex items-center justify-center mt-0.5">{numMatch[1]}</span>
+                                <span>{renderInline(numMatch[2])}</span>
+                              </div>
+                            );
+                            // Bullet list
+                            const bulletMatch = line.match(/^\s*[-•*]\s+(.+)/);
+                            if (bulletMatch) return (
+                              <div key={key} className="flex gap-1.5 items-start text-sm leading-relaxed">
+                                <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-violet-400 mt-2" />
+                                <span>{renderInline(bulletMatch[1])}</span>
+                              </div>
+                            );
+                            // Empty line
+                            if (!line.trim()) return <div key={key} className="h-1" />;
+                            // Normal line
+                            return <p key={key} className="text-sm leading-relaxed">{renderInline(line)}</p>;
+                          };
+
+                          const renderInline = (text: string): React.ReactNode => {
+                            // Split on **bold** and *italic*
+                            const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+                            return parts.map((part, i) => {
+                              if (part.startsWith('**') && part.endsWith('**'))
+                                return <strong key={i} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>;
+                              if (part.startsWith('*') && part.endsWith('*'))
+                                return <em key={i} className="italic text-muted-foreground">{part.slice(1, -1)}</em>;
+                              return part;
+                            });
+                          };
+
+                          const lines = displayText.split('\n');
                           return (
-                            <p className="text-sm leading-relaxed whitespace-pre-line">
-                              {displayText.replace(/\*\*([^*]+)\*\*/g, '$1')}
-                              {message.isStreaming && <span className="inline-block w-0.5 h-3.5 bg-current ml-0.5 animate-pulse align-middle rounded-full" />}
-                            </p>
+                            <div className="space-y-0.5">
+                              {lines.map((line, i) => renderLine(line, i))}
+                              {message.isStreaming && <span className="inline-block w-0.5 h-3.5 bg-violet-400 ml-0.5 animate-pulse align-middle rounded-full" />}
+                            </div>
                           );
                         })()}
 
@@ -593,41 +673,45 @@ export default function AIChat({ className, isOpen: controlledOpen, onToggle }: 
                                 <span className="text-[11px] font-medium text-muted-foreground">{message.movies.length} picks for you</span>
                               </div>
                             )}
-                            <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory scrollbar-none" style={{ scrollbarWidth: 'none' }}>
-                              {message.movies && message.movies.map((movie: any) => {
+                            <div className="grid grid-cols-2 gap-2">
+                              {message.movies && message.movies.slice(0, 4).map((movie: any) => {
                                 const mediaType = movie.media_type === 'tv' ? 'tv' : 'movie';
                                 const title = movie.title || movie.name || 'Untitled';
-                                const posterUrl = movie.poster_path ? `https://image.tmdb.org/t/p/w185${movie.poster_path}` : null;
+                                const posterUrl = movie.poster_path ? `https://image.tmdb.org/t/p/w342${movie.poster_path}` : null;
                                 const rating = movie.vote_average || 0;
                                 const year = movie.release_date ? new Date(movie.release_date).getFullYear() : movie.first_air_date ? new Date(movie.first_air_date).getFullYear() : '';
                                 const genre = movie.genre_ids?.length ? TMDB_GENRE_MAP[movie.genre_ids[0]] || '' : '';
                                 const detailPath = mediaType === 'tv' ? `/tv/${movie.id}` : `/movie/${movie.id}`;
                                 return (
                                   <Link key={movie.id} href={detailPath} onClick={toggleOpen}>
-                                    <div className="group snap-start rounded-xl overflow-hidden border border-border/30 bg-card/80 hover:border-violet-500/50 hover:shadow-md transition-all duration-200 cursor-pointer flex-shrink-0 w-[100px]">
-                                      <div className="relative w-[100px] h-[150px] overflow-hidden bg-muted">
+                                    <div className="group rounded-xl overflow-hidden border border-border/30 bg-card/80 hover:border-violet-500/60 hover:shadow-lg transition-all duration-200 cursor-pointer">
+                                      <div className="relative aspect-[2/3] overflow-hidden bg-muted">
                                         {posterUrl ? (
                                           <img src={posterUrl} alt={title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                         ) : (
-                                          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">No Image</div>
+                                          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted-foreground">
+                                            <span className="text-2xl">🎬</span>
+                                            <span className="text-[9px]">No Poster</span>
+                                          </div>
                                         )}
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                                        <div className="absolute bottom-1 left-1 flex items-center gap-0.5 bg-black/60 text-yellow-400 text-[10px] font-semibold px-1 py-0.5 rounded">
-                                          <Star className="h-2.5 w-2.5 fill-yellow-400" />{rating.toFixed(1)}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
+                                        <div className="absolute bottom-0 inset-x-0 p-1.5">
+                                          <p className="font-semibold text-[11px] leading-tight text-white line-clamp-2 group-hover:text-violet-300 transition-colors">{title}</p>
+                                          <div className="flex items-center justify-between mt-0.5">
+                                            <span className="text-[9px] text-white/60">{[year, genre].filter(Boolean).join(' · ')}</span>
+                                            <div className="flex items-center gap-0.5 bg-black/50 text-yellow-400 text-[9px] font-bold px-1 py-0.5 rounded">
+                                              <Star className="h-2 w-2 fill-yellow-400" />{rating.toFixed(1)}
+                                            </div>
+                                          </div>
                                         </div>
-                                      </div>
-                                      <div className="px-1.5 py-1">
-                                        <p className="font-medium text-[10px] leading-tight line-clamp-2 group-hover:text-violet-400 transition-colors">{title}</p>
-                                        <p className="text-[9px] text-muted-foreground mt-0.5 truncate">{[year, genre].filter(Boolean).join(' · ')}</p>
                                       </div>
                                     </div>
                                   </Link>
                                 );
                               })}
-                              {message.moviesLoading && !message.moviesDone && Array.from({ length: Math.max(0, (message.moviesLoading || 4) - (message.movies?.length || 0)) }).map((_, i) => (
-                                <div key={`sk-${i}`} className="snap-start rounded-xl overflow-hidden border border-border/30 bg-card animate-pulse flex-shrink-0 w-[100px]">
-                                  <div className="w-[100px] h-[150px] bg-muted" />
-                                  <div className="px-1.5 py-1"><div className="h-2 bg-muted rounded w-3/4" /></div>
+                              {message.moviesLoading && !message.moviesDone && Array.from({ length: Math.max(0, Math.min(4, (message.moviesLoading || 4)) - (message.movies?.length || 0)) }).map((_, i) => (
+                                <div key={`sk-${i}`} className="rounded-xl overflow-hidden border border-border/30 bg-card animate-pulse">
+                                  <div className="aspect-[2/3] bg-muted" />
                                 </div>
                               ))}
                             </div>
