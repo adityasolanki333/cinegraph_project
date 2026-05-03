@@ -77,9 +77,13 @@ WSGI_APPLICATION = 'movieflix.wsgi.application'
 
 _db_url = os.environ.get('DATABASE_URL')
 if _db_url:
-    DATABASES = {
-        'default': dj_database_url.parse(_db_url, conn_max_age=600)
-    }
+    _db_config = dj_database_url.parse(_db_url, conn_max_age=600)
+    # Ensure SSL for Neon (and other managed Postgres providers)
+    if 'OPTIONS' not in _db_config:
+        _db_config['OPTIONS'] = {}
+    if 'neon.tech' in _db_url or 'sslmode=require' in _db_url:
+        _db_config['OPTIONS']['sslmode'] = 'require'
+    DATABASES = {'default': _db_config}
 else:
     DATABASES = {
         'default': {
