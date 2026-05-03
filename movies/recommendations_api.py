@@ -2,11 +2,23 @@ import json
 import os
 import re
 import time
+import hashlib
 import requests
 import concurrent.futures
 import logging
 from datetime import datetime, date
 from django.core.cache import cache
+
+# ── Cache constants ────────────────────────────────────────────────────────
+AI_CHAT_CACHE_TTL = 30 * 60   # 30 min — includes current movies which change daily
+
+def _chat_cache_key(user_id, message: str) -> str:
+    """Per-user cache key for chat responses (personalized per user)."""
+    uid = str(user_id) if user_id else "anon"
+    normalized = " ".join(message.lower().strip().split())
+    key_data = f"chat:v2:{uid}:{normalized}"
+    return "aichat_" + hashlib.md5(key_data.encode("utf-8")).hexdigest()
+
 from django.http import StreamingHttpResponse
 from .models import UserPreferences, UserReview, UserWatchlist, UserFavorites, ViewingHistory
 from .api import tmdb_request
@@ -356,7 +368,7 @@ def parse_movie_recommendations_from_json(text):
             if title and len(title) > 2 and title not in movies:
                 movies.append(title)
         if movies:
-            return movies[:10]
+            return movies[:30]
     except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
         logger.debug(f"JSON movie extraction parse failed, will use regex fallback: {e}")
     return None
@@ -387,7 +399,7 @@ def parse_movie_recommendations_regex(text):
             if title and len(title) > 2 and title not in movies:
                 movies.append(title)
 
-    return movies[:10]
+    return movies[:30]
 
 
 def parse_movie_recommendations(text):
@@ -567,7 +579,15 @@ def ai_chat(request):
 
         if not user_message:
             return error_response('Message is required', 'VALIDATION_ERROR', 400)
-        
+
+        # ── Cache check ────────────────────────────────────────────────────
+        _chat_key = _chat_cache_key(user.id if user else None, user_message)
+        _cached_chat = cache.get(_chat_key)
+        if _cached_chat is not None:
+            logger.info(f"AI chat cache HIT for user={user.id if user else 'anon'}")
+            _cached_chat["fromCache"] = True
+            return _cached_chat
+
         if user:
             user_context = get_user_context(user)
         else:
@@ -633,10 +653,17 @@ def ai_chat(request):
                 except Exception as e:
                     logger.warning(f"Movie search thread error: {e}")
 
-        return {
+        _chat_result = {
             'response': response_text,
             'movies': movies,
         }
+        # ── Cache store ────────────────────────────────────────────────────
+        try:
+            if response_text:
+                cache.set(_chat_key, _chat_result, AI_CHAT_CACHE_TTL)
+        except Exception as _ce:
+            logger.warning(f"AI chat cache store failed: {_ce}")
+        return _chat_result
 
     except json.JSONDecodeError:
         return error_response('Invalid JSON', 'VALIDATION_ERROR', 400)
@@ -677,7 +704,24 @@ def ai_chat_stream(request):
             return None
 
         def event_stream():
-            yield f"data: {json.dumps({'type': 'status', 'message': 'Searching for movies...'})}\n\n"
+            # ── Cache check: replay instantly without hitting Gemini ────────
+            _stream_key = _chat_cache_key(user.id if user else None, user_message)
+            _cached_stream = cache.get(_stream_key)
+            if _cached_stream is not None:
+                logger.info(f"AI chat stream cache HIT for user={user.id if user else 'anon'}")
+                yield f"data: {json.dumps({'type': 'status', 'message': 'Loading response...'})}\n\n"
+                cached_text = _cached_stream.get('response', '')
+                # Stream cached text in small chunks to keep the streaming UX
+                chunk_size = 45
+                for _i in range(0, len(cached_text), chunk_size):
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': cached_text[_i:_i + chunk_size]})}\n\n"
+                cached_movies = _cached_stream.get('movies', [])
+                if cached_movies:
+                    yield f"data: {json.dumps({'type': 'movies_loading', 'count': len(cached_movies)})}\n\n"
+                    for _m in cached_movies:
+                        yield f"data: {json.dumps({'type': 'movie', 'movie': _m})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'fromCache': True})}\n\n"
+                return
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as prep_executor:
                 if user:
@@ -714,6 +758,7 @@ def ai_chat_stream(request):
                 return
 
             full_text = ""
+            collected_movies = []   # track for caching
             try:
                 for chunk in stream:
                     if chunk.text:
@@ -742,9 +787,17 @@ def ai_chat_stream(request):
                             try:
                                 result = future.result()
                                 if result:
+                                    collected_movies.append(result)
                                     yield f"data: {json.dumps({'type': 'movie', 'movie': result})}\n\n"
                             except Exception as e:
                                 logger.warning(f"Movie search thread error: {e}")
+
+                # ── Cache store ────────────────────────────────────────────
+                try:
+                    if full_text:
+                        cache.set(_stream_key, {'response': full_text, 'movies': collected_movies}, AI_CHAT_CACHE_TTL)
+                except Exception as _ce:
+                    logger.warning(f"AI chat stream cache store failed: {_ce}")
 
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
 

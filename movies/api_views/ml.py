@@ -70,7 +70,8 @@ class RecommendationExplanationView(APIView):
 
 
 class SemanticSearchView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = []
+    authentication_classes = []
 
     def get(self, request):
         from movies.ml_api import semantic_search

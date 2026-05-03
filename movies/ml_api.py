@@ -5,10 +5,22 @@ Provides Python-based ML recommendation services
 
 import json
 import logging
+import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.core.cache import cache
 from .validation import error_response
+
+# ── Cache constants ────────────────────────────────────────────────────────
+SEMANTIC_SEARCH_CACHE_TTL = 2 * 60 * 60   # 2 hours — movie data is stable
+
+def _semantic_cache_key(query: str, filters: dict, limit: int, sort_by: str) -> str:
+    """Build a deterministic cache key for semantic search results."""
+    normalized = " ".join(query.lower().strip().split())
+    key_data = f"sem:v2:{normalized}:{json.dumps(filters or {}, sort_keys=True)}:{limit}:{sort_by}"
+    return "semantic_" + hashlib.md5(key_data.encode("utf-8")).hexdigest()
+
 from .models import (
     UserReview, ViewingHistory, UserWatchlist, UserFavorites,
     Recommendation, RecommendationMetrics, FeatureContribution
@@ -633,93 +645,18 @@ def semantic_search(request):
         
         if not query:
             return error_response("query is required", "VALIDATION_ERROR", 400)
-        from .ml.pinecone_service import pinecone_service
-        search_method = "pinecone_semantic"
 
-        if pinecone_service and pinecone_service.is_initialized():
-            pinecone_filters = None
-            if filters:
-                pinecone_filters = {}
-                if filters.get('yearRange'):
-                    yr = filters['yearRange']
-                    if isinstance(yr, list) and len(yr) == 2:
-                        pinecone_filters["release_year"] = {
-                            "$gte": str(yr[0]),
-                            "$lte": str(yr[1]),
-                        }
-                if filters.get('minRating') and filters['minRating'] > 0:
-                    pinecone_filters["vote_average"] = {"$gte": float(filters['minRating'])}
-                if filters.get('languages') and len(filters['languages']) > 0:
-                    pinecone_filters["original_language"] = {"$in": filters['languages']}
-                if not pinecone_filters:
-                    pinecone_filters = None
+        # ── Cache check ────────────────────────────────────────────────────
+        _s_cache_key = _semantic_cache_key(query, filters, limit, sort_by)
+        _cached_result = cache.get(_s_cache_key)
+        if _cached_result is not None:
+            logger.info(f"Semantic search cache HIT for query='{query[:60]}'")
+            _cached_result["fromCache"] = True
+            return _cached_result
 
-            pinecone_results = pinecone_service.search(query, k=limit, filters=pinecone_filters)
-            if pinecone_results:
-                formatted_results = []
-                for item in pinecone_results:
-                    formatted_results.append({
-                        'tmdbId': item.get('id'),
-                        'title': item.get('title'),
-                        'overview': item.get('overview'),
-                        'posterPath': item.get('poster_path'),
-                        'releaseDate': item.get('release_date'),
-                        'voteAverage': item.get('vote_average'),
-                        'popularity': item.get('popularity', 0),
-                        'genres': item.get('genres', '').split(', ') if item.get('genres') else [],
-                        'mediaType': 'movie',
-                        'similarity': item.get('composite_score', item.get('similarity', 0)),
-                        'rawSimilarity': item.get('similarity', 0),
-                        'explanation': item.get('explanation', ''),
-                        'matchQuality': item.get('match_quality', ''),
-                        'recencyBoost': item.get('recency_boost', 0),
-                        'popularityBoost': item.get('popularity_boost', 0),
-                    })
-
-                from . import api as tmdb_api
-                import concurrent.futures
-
-                def fetch_tmdb_full(idx):
-                    tmdb_id = formatted_results[idx].get('tmdbId')
-                    if not tmdb_id:
-                        return idx, {}
-                    try:
-                        detail = tmdb_api.tmdb_request(f'/movie/{tmdb_id}')
-                        return idx, detail
-                    except Exception:
-                        return idx, {}
-
-                needs_enrich = [i for i, r in enumerate(formatted_results)
-                                if not r.get('posterPath') or r.get('voteAverage', 0) == 0]
-                with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                    for idx, detail in executor.map(fetch_tmdb_full, needs_enrich):
-                        if detail:
-                            formatted_results[idx]['posterPath'] = detail.get('poster_path') or formatted_results[idx].get('posterPath', '')
-                            formatted_results[idx]['voteAverage'] = detail.get('vote_average') or 0
-                            formatted_results[idx]['overview'] = detail.get('overview') or formatted_results[idx].get('overview', '')
-                            formatted_results[idx]['releaseDate'] = detail.get('release_date') or formatted_results[idx].get('releaseDate', '')
-                            if not formatted_results[idx].get('genres') or formatted_results[idx]['genres'] == []:
-                                formatted_results[idx]['genres'] = [g['name'] for g in detail.get('genres', [])]
-                            formatted_results[idx]['popularity'] = detail.get('popularity') or formatted_results[idx].get('popularity', 0)
-
-                formatted_results = [r for r in formatted_results if r.get('posterPath')]
-
-                if sort_by == 'release_date':
-                    formatted_results.sort(key=lambda x: x.get('releaseDate') or '', reverse=True)
-                elif sort_by == 'rating':
-                    formatted_results.sort(key=lambda x: x.get('voteAverage') or 0, reverse=True)
-
-                search_time = time.time() - start_time
-
-                return {
-                    'results': formatted_results,
-                    'query': query,
-                    'count': len(formatted_results),
-                    'totalMatches': len(formatted_results),
-                    'searchTime': round(search_time, 3),
-                    'searchMethod': search_method,
-                }
-
+        # Gemini is always the primary path — it understands meaning and intent.
+        # Pinecone (raw vector search) is a fallback only; it does not understand
+        # queries like "action comedy" or "movies about redemption" reliably.
         search_method = "gemini_semantic"
         from . import api
         from .ml.embedding_service import semantic_embedding_service
@@ -748,42 +685,92 @@ def semantic_search(request):
 
         filter_context = "\n".join(filter_hints) if filter_hints else "No specific filters"
 
-        gemini_prompt = f"""You are a movie and TV show expert. A user is searching for content matching this description:
+        gemini_prompt = f"""You are a cinematic expert AI with encyclopedic knowledge of movies, TV shows, documentaries, and streaming content across all eras and cultures.
 
+A user wants to discover content using this natural language description:
 "{query}"
 
-User filters:
-{filter_context}
+{f'User preferences: {filter_context}' if filter_context != 'No specific filters' else ''}
 
-Recommend exactly {min(limit, 20)} movies and/or TV shows that best match this description semantically. Focus on:
-- Thematic relevance to the query
-- Quality and critical acclaim
-- Variety (mix of well-known and hidden gems)
-- Match the mood, genre, and style implied by the query
+Instructions:
+- Deeply analyze the description for: themes, emotions, mood, tone, narrative style, genre cues, setting, time period, character dynamics, and cultural context
+- Recommend exactly {min(limit, 20)} titles that match SEMANTICALLY — based on meaning and feel, NOT just keyword overlap
+- Include a mix of well-known classics and hidden gems that truly fit the description
+- Think beyond obvious choices; include international cinema if relevant
 
-Return ONLY a numbered list of titles, one per line. No descriptions or explanations.
-Example format:
-1. The Shawshank Redemption
-2. Inception
-3. Breaking Bad"""
+Return ONLY in this exact format (no other text):
+INTENT: [a concise phrase, max 12 words, capturing what the user is really looking for]
+1. Title Name
+2. Title Name
+3. Title Name
+...
 
+Example for "a mind-bending film where nothing is what it seems":
+INTENT: Psychological films with unreliable reality and shocking twists
+1. Inception
+2. Shutter Island
+3. Mulholland Drive
+4. The Prestige
+5. Memento"""
+
+        import re as _re
+
+        def _fast_parse_gemini_titles(text):
+            """Fast regex parser for Gemini's numbered-list format.
+            Handles *Title* (year), **Title**, plain Title — no extra API call needed."""
+            titles = []
+            for line in text.strip().split('\n'):
+                line = line.strip()
+                m = _re.match(r'^\d+[\.\)]\s+(.+?)$', line)
+                if not m:
+                    continue
+                raw = m.group(1).strip()
+                raw = _re.sub(r'\*+', '', raw)            # strip asterisks
+                raw = _re.sub(r'\s*\(\d{4}[^)]*\).*$', '', raw)  # strip (year) and anything after
+                raw = _re.sub(r'\s*[-–—].*$', '', raw)   # strip – note
+                raw = raw.strip().strip('"\'').strip()
+                if raw and 2 <= len(raw) <= 100 and raw not in titles:
+                    titles.append(raw)
+            return titles
+
+        search_intent = ""
         try:
             response_text, error = call_gemini_api(gemini_prompt, max_retries=1)
             if response_text:
-                gemini_titles = extract_movie_titles_structured(response_text)
+                lines = response_text.strip().split('\n')
+                clean_lines = []
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped.upper().startswith('INTENT:'):
+                        search_intent = stripped[7:].strip()
+                    else:
+                        clean_lines.append(stripped)
+                titles_text = '\n'.join(clean_lines)
+                # Use fast inline parser first — avoids a slow second Gemini API call
+                gemini_titles = _fast_parse_gemini_titles(titles_text)
                 if not gemini_titles:
-                    gemini_titles = parse_movie_recommendations(response_text)
+                    gemini_titles = parse_movie_recommendations(titles_text)
         except Exception as e:
             logger.warning(f"Gemini semantic search failed: {e}")
 
+        def _clean_title(title):
+            """Strip Gemini formatting artefacts before searching TMDB."""
+            t = _re.sub(r'\*+', '', title)
+            t = _re.sub(r'\s*\(\d{4}[^)]*\).*$', '', t)
+            t = _re.sub(r'\s*[-–—].*$', '', t)
+            return t.strip().strip('"\'').strip()
+
         def search_tmdb_movie(title):
+            clean = _clean_title(title)
+            if not clean:
+                return None
             try:
-                result = api.tmdb_request('/search/multi', {'query': title, 'page': 1})
+                result = api.tmdb_request('/search/multi', {'query': clean, 'page': 1})
                 if result and 'results' in result:
-                    for item in result['results'][:3]:
+                    for item in result['results'][:5]:
                         if item.get('media_type') == 'person':
                             continue
-                        if item.get('poster_path') and item.get('overview'):
+                        if item.get('poster_path'):   # overview is optional
                             return item
             except Exception:
                 pass
@@ -799,6 +786,42 @@ Example format:
                             ai_items.append(result)
                     except Exception:
                         pass
+
+        # Pinecone fallback — only reached when Gemini returned no results
+        if not ai_items:
+            try:
+                from .ml.pinecone_service import pinecone_service
+                if pinecone_service and pinecone_service.is_initialized():
+                    search_method = "pinecone_fallback"
+                    pinecone_filters = None
+                    if filters:
+                        pf = {}
+                        if filters.get('yearRange'):
+                            yr = filters['yearRange']
+                            if isinstance(yr, list) and len(yr) == 2:
+                                pf["release_year"] = {"$gte": str(yr[0]), "$lte": str(yr[1])}
+                        if filters.get('minRating') and filters['minRating'] > 0:
+                            pf["vote_average"] = {"$gte": float(filters['minRating'])}
+                        if filters.get('languages') and len(filters['languages']) > 0:
+                            pf["original_language"] = {"$in": filters['languages']}
+                        if pf:
+                            pinecone_filters = pf
+                    pinecone_results = pinecone_service.search(query, k=limit * 2, filters=pinecone_filters)
+                    if pinecone_results:
+                        for item in pinecone_results:
+                            ai_items.append({
+                                'id': item.get('id'),
+                                'title': item.get('title'),
+                                'overview': item.get('overview'),
+                                'poster_path': item.get('poster_path'),
+                                'release_date': item.get('release_date'),
+                                'vote_average': item.get('vote_average'),
+                                'popularity': item.get('popularity', 0),
+                                'genres': item.get('genres', ''),
+                                'media_type': 'movie',
+                            })
+            except Exception as e:
+                logger.warning(f"Pinecone fallback failed: {e}")
 
         if not ai_items:
             search_method = "tfidf_local"
@@ -897,6 +920,19 @@ Example format:
                     'matchQuality': match_quality,
                 })
 
+            # Filter out results with no rating data or extremely low quality
+            # (e.g., obscure shorts or mismatched TMDB hits from title lookup)
+            if search_method == "gemini_semantic":
+                formatted_results = [
+                    r for r in formatted_results
+                    if r.get('voteAverage', 0) >= 4.0 or r.get('voteAverage', 0) == 0
+                ]
+                # If we still have items with 0 rating, only keep if popularity > 5
+                formatted_results = [
+                    r for r in formatted_results
+                    if not (r.get('voteAverage', 0) == 0 and (r.get('popularity') or 0) < 5)
+                ]
+
             if sort_by == 'release_date':
                 formatted_results.sort(key=lambda x: x.get('releaseDate') or '', reverse=True)
             elif sort_by == 'rating':
@@ -904,18 +940,27 @@ Example format:
 
             search_time = time.time() - start_time
 
-            return {
+            _main_result = {
                 "query": query,
                 "results": formatted_results,
                 "totalMatches": len(formatted_results),
                 "searchTime": round(search_time, 3),
                 "searchMethod": search_method,
+                "searchIntent": search_intent,
                 "queryAnalysis": {
                     "originalQuery": query,
                     "filters": filters,
                     "aiTitlesFound": len(gemini_titles) if gemini_titles else 0,
                 }
             }
+            # ── Cache store ────────────────────────────────────────────────
+            try:
+                if formatted_results:
+                    cache.set(_s_cache_key, _main_result, SEMANTIC_SEARCH_CACHE_TTL)
+                    logger.info(f"Semantic search cached {len(formatted_results)} results for query='{query[:60]}'")
+            except Exception as _ce:
+                logger.warning(f"Semantic search cache store failed: {_ce}")
+            return _main_result
 
         return {
             "query": query,
