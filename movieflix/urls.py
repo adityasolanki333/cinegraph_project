@@ -21,6 +21,7 @@ def serve_static_file(request, path):
     return serve_react_app(request)
 
 urlpatterns = [
+    path('', lambda r: HttpResponse('CineGraph Backend is running', content_type='text/plain')),
     path('admin/', admin.site.urls),
     path('api/', include('movies.api_urls')),
 ]
