@@ -130,7 +130,7 @@ def fetch_current_movies():
 
 
 GEMINI_MODELS = [
-    "gemini-2.0-flash",
+    "gemma-3-27b-it",
 ]
 
 _model_blacklist = {}
