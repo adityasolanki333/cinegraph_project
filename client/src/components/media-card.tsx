@@ -135,6 +135,7 @@ export function MediaCard({
   const [hoveredRating, setHoveredRating] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [isTrailerOpen, setIsTrailerOpen] = useState(false);
+  const [posterImgError, setPosterImgError] = useState(false);
   const [shouldFetchTrailer, setShouldFetchTrailer] = useState(false);
   const [isExplanationOpen, setIsExplanationOpen] = useState(false);
   const [feedbackGiven, setFeedbackGiven] = useState<'positive' | 'negative' | null>(null);
@@ -334,13 +335,21 @@ export function MediaCard({
           onMouseLeave={() => setIsHovered(false)}
         >
           <div className="relative aspect-[2/3] overflow-hidden">
-            <img
-              src={movie.posterUrl || `https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?ixlib=rb-4.0.3&w=400&h=600&fit=crop`}
-              alt={movie.title}
-              loading={priority ? "eager" : "lazy"}
-              fetchpriority={priority ? "high" : "auto"}
-              className="w-full h-full object-cover transition-all duration-500 ease-out group-hover:scale-110 group-hover:brightness-75"
-            />
+            {posterImgError ? (
+              <div className="w-full h-full bg-gradient-to-b from-muted to-muted/60 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" /></svg>
+                <span className="text-xs text-center px-2 line-clamp-2 font-medium opacity-60">{movie.title}</span>
+              </div>
+            ) : (
+              <img
+                src={movie.posterUrl || `https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?ixlib=rb-4.0.3&w=400&h=600&fit=crop`}
+                alt={movie.title}
+                loading={priority ? "eager" : "lazy"}
+                fetchpriority={priority ? "high" : "auto"}
+                onError={() => setPosterImgError(true)}
+                className="w-full h-full object-cover transition-all duration-500 ease-out group-hover:scale-110 group-hover:brightness-75"
+              />
+            )}
 
             {/* Hover overlay - desktop */}
             {isHovered && (

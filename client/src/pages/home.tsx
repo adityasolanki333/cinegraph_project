@@ -479,6 +479,7 @@ export default function Home() {
                     className="w-full h-full object-cover blur-2xl scale-110 opacity-50"
                     draggable={false}
                     aria-hidden="true"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
                   <img
                     src={movie.posterUrl || "https://images.unsplash.com/photo-1489599558473-7636b88d6e6a?w=800&fit=crop"}
@@ -486,6 +487,7 @@ export default function Home() {
                     className="absolute inset-0 w-full h-full object-contain"
                     draggable={false}
                     loading={index === 0 ? "eager" : "lazy"}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
                 </div>
 
@@ -497,6 +499,7 @@ export default function Home() {
                   draggable={false}
                   fetchpriority={index === 0 ? "high" : "auto"}
                   loading={index === 0 ? "eager" : "lazy"}
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
 
                 {/* Gradients */}

@@ -209,12 +209,15 @@ export default function ClubsList() {
                                         src={club.cover_image_url}
                                         alt={club.title}
                                         className="w-full h-full object-cover transition-transform hover:scale-105"
+                                        onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                            e.currentTarget.nextElementSibling?.removeAttribute('hidden');
+                                        }}
                                     />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-secondary">
-                                        <Users className="h-12 w-12 text-muted-foreground opacity-50" />
-                                    </div>
-                                )}
+                                ) : null}
+                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-secondary/40" hidden={!!club.cover_image_url}>
+                                    <Users className="h-12 w-12 text-muted-foreground opacity-50" />
+                                </div>
                                 {club.is_member && (
                                     <div className="absolute top-2 right-2 bg-primary text-primary-foreground px-2 py-1 rounded-full text-xs font-medium">
                                         Member

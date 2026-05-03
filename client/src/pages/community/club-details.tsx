@@ -211,10 +211,13 @@ export default function ClubDetails() {
                         src={club.cover_image_url}
                         alt={club.title}
                         className="w-full h-56 sm:h-72 object-cover"
+                        onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            (e.currentTarget.nextElementSibling as HTMLElement)?.removeAttribute('hidden');
+                        }}
                     />
-                ) : (
-                    <div className="w-full h-56 sm:h-72 bg-gradient-to-r from-primary/20 to-primary/10" />
-                )}
+                ) : null}
+                <div className="w-full h-56 sm:h-72 bg-gradient-to-r from-primary/20 to-primary/10" hidden={!!club.cover_image_url} />
 
                 <div className="absolute bottom-0 left-0 right-0 p-6 z-20 text-white">
                     <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
