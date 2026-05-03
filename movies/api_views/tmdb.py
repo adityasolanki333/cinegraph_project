@@ -1,10 +1,12 @@
 import json
 import random
+import hashlib
 from datetime import date, timedelta
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+from django.core.cache import cache
 
 from movies.api import tmdb_request, tmdb_request_post, tmdb_request_delete
 
@@ -28,7 +30,12 @@ class TMDBProxyView(APIView):
     def get(self, request, **kwargs):
         endpoint = self.get_endpoint(**kwargs)
         params = self.get_params(request, **kwargs)
-        data = tmdb_request(endpoint, params or None)
+        cache_key = f"tmdb:{endpoint}:{hashlib.md5(str(sorted((params or {}).items())).encode()).hexdigest()}"
+        data = cache.get(cache_key)
+        if data is None:
+            data = tmdb_request(endpoint, params or None)
+            if data:
+                cache.set(cache_key, data, 600)  # 10 minutes
         return Response(data)
 
 

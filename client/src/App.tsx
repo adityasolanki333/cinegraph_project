@@ -1,7 +1,7 @@
 import { useEffect, lazy, Suspense, ComponentType } from "react";
 import { Switch, Route, useLocation, Redirect } from "wouter";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient, localStoragePersister } from "./lib/queryClient";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -95,11 +95,11 @@ function Router() {
             <Route path="/tv-shows" component={TVShows} />
             <Route path="/recommendations">{() => <ProtectedRoute component={Recommendations} />}</Route>
             <Route path="/my-list">{() => <ProtectedRoute component={MyList} />}</Route>
-            <Route path="/community">{() => <ProtectedRoute component={Community} />}</Route>
-            <Route path="/community/clubs">{() => <ProtectedRoute component={ClubsList} />}</Route>
-            <Route path="/community/clubs/:id">{(params) => <ProtectedRoute component={ClubDetails} {...params} />}</Route>
-            <Route path="/community/clubs/threads/:id">{(params) => <ProtectedRoute component={DiscussionThread} {...params} />}</Route>
-            <Route path="/community/lists">{() => <ProtectedRoute component={CommunityLists} />}</Route>
+            <Route path="/community" component={Community} />
+            <Route path="/community/clubs" component={ClubsList} />
+            <Route path="/community/clubs/:id" component={ClubDetails} />
+            <Route path="/community/clubs/threads/:id" component={DiscussionThread} />
+            <Route path="/community/lists" component={CommunityLists} />
             <Route path="/lists/:id" component={ListDetail} />
             <Route path="/notifications">{() => <ProtectedRoute component={Notifications} />}</Route>
             <Route path="/profile/:userId" component={Profile} />
@@ -151,14 +151,35 @@ function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister: localStoragePersister,
+        maxAge: 1000 * 60 * 60 * 24,
+        dehydrateOptions: {
+          shouldDehydrateQuery: (query) => {
+            const key = query.queryKey[0] as string;
+            if (typeof key !== "string") return false;
+            // Only persist public, non-auth-sensitive queries
+            return (
+              key.startsWith("/api/tmdb/") ||
+              key.startsWith("/api/community/community-feed") ||
+              key.startsWith("/api/community/leaderboards") ||
+              key.startsWith("/api/community/trending") ||
+              key === "/api/clubs" ||
+              key.startsWith("/api/clubs/")
+            );
+          },
+        },
+      }}
+    >
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
           <Router />
         </TooltipProvider>
       </AuthProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
 

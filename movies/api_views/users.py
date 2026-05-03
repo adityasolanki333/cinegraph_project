@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
 from django.db.models import Avg
+from django.core.cache import cache
 from movies.models import (
     UserProfile, UserWatchlist, UserFavorites, ViewingHistory,
     UserReview, UserFollow, UserList, UserPreferences,
@@ -17,6 +18,9 @@ from movies.serializers.user import (
 from movies.serializers.social import UserReviewSerializer, CreateReviewSerializer
 
 logger = logging.getLogger(__name__)
+
+USER_CACHE_TTL = 120
+PROFILE_CACHE_TTL = 300
 
 
 def _get_user_or_none(user_id):
@@ -31,6 +35,11 @@ class UserByUsernameView(RetrieveAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         identifier = self.kwargs['username']
+        cache_key = f"user:username:{identifier}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
+
         try:
             user = User.objects.get(username=identifier)
         except User.DoesNotExist:
@@ -45,7 +54,7 @@ class UserByUsernameView(RetrieveAPIView):
         profile, _ = UserProfile.objects.get_or_create(user=user)
         is_own = request.user.is_authenticated and request.user.id == user.id
 
-        return Response({
+        data = {
             'id': str(user.id),
             'username': user.username,
             'firstName': user.first_name,
@@ -57,21 +66,32 @@ class UserByUsernameView(RetrieveAPIView):
             'followingCount': UserFollow.objects.filter(follower=user).count(),
             'reviewsCount': UserReview.objects.filter(user=user).count(),
             'createdAt': user.date_joined.isoformat(),
-        })
+        }
+        if not is_own:
+            cache.set(cache_key, data, PROFILE_CACHE_TTL)
+        return Response(data)
 
 
 class UserProfileView(RetrieveAPIView):
     permission_classes = [AllowAny]
 
     def retrieve(self, request, *args, **kwargs):
-        user = _get_user_or_none(self.kwargs['user_id'])
+        user_id = self.kwargs['user_id']
+        is_own = request.user.is_authenticated and str(request.user.id) == str(user_id)
+        cache_key = f"user:{user_id}:profile"
+
+        if not is_own:
+            cached = cache.get(cache_key)
+            if cached:
+                return Response(cached)
+
+        user = _get_user_or_none(user_id)
         if not user:
             return Response({'error': 'User not found', 'code': 'NOT_FOUND'}, status=404)
 
         profile, _ = UserProfile.objects.get_or_create(user=user)
-        is_own = request.user.is_authenticated and request.user.id == user.id
 
-        return Response({
+        data = {
             'user': {
                 'id': str(user.id),
                 'email': user.email if is_own else '',
@@ -91,7 +111,10 @@ class UserProfileView(RetrieveAPIView):
                 'listsCount': UserList.objects.filter(user=user).count(),
                 'avgRating': round(UserReview.objects.filter(user=user).aggregate(avg=Avg('rating'))['avg'] or 0, 1),
             }
-        })
+        }
+        if not is_own:
+            cache.set(cache_key, data, PROFILE_CACHE_TTL)
+        return Response(data)
 
 
 class UpdateProfileView(APIView):
@@ -120,6 +143,10 @@ class UpdateProfileView(APIView):
         profile.save()
         request.user.save()
 
+        # Invalidate profile caches
+        cache.delete(f"user:{user_id}:profile")
+        cache.delete(f"user:{request.user.id}:me")
+
         return Response({
             'success': True,
             'user': {
@@ -141,9 +168,17 @@ class WatchlistView(ListAPIView):
         user_id = self.kwargs['user_id']
         if str(request.user.id) != str(user_id):
             return Response({'error': 'Not authorized to view this watchlist', 'code': 'FORBIDDEN'}, status=403)
+
+        cache_key = f"user:{user_id}:watchlist"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         items = UserWatchlist.objects.filter(user=request.user)
         serializer = self.get_serializer(items, many=True)
-        return Response({'items': serializer.data})
+        data = {'items': serializer.data}
+        cache.set(cache_key, data, USER_CACHE_TTL)
+        return Response(data)
 
 
 class WatchlistAddView(CreateAPIView):
@@ -162,6 +197,7 @@ class WatchlistAddView(CreateAPIView):
             user=request.user, tmdb_id=data['tmdbId'], media_type=data['mediaType'],
             defaults={'title': data.get('title', ''), 'poster_path': data.get('posterPath', '')}
         )
+        cache.delete(f"user:{user_id}:watchlist")
         return Response({
             'success': True, 'created': created,
             'item': UserWatchlistSerializer(item).data,
@@ -175,6 +211,7 @@ class WatchlistRemoveView(APIView):
         if str(request.user.id) != str(user_id):
             return Response({'error': 'Not authorized', 'code': 'FORBIDDEN'}, status=403)
         deleted, _ = UserWatchlist.objects.filter(user=request.user, tmdb_id=tmdb_id).delete()
+        cache.delete(f"user:{user_id}:watchlist")
         return Response({'success': True, 'deleted': deleted > 0})
 
 
@@ -196,9 +233,17 @@ class FavoritesView(ListAPIView):
         user_id = self.kwargs['user_id']
         if str(request.user.id) != str(user_id):
             return Response({'error': 'Not authorized to view favorites', 'code': 'FORBIDDEN'}, status=403)
+
+        cache_key = f"user:{user_id}:favorites"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         items = UserFavorites.objects.filter(user=request.user)
         serializer = self.get_serializer(items, many=True)
-        return Response({'items': serializer.data})
+        data = {'items': serializer.data}
+        cache.set(cache_key, data, USER_CACHE_TTL)
+        return Response(data)
 
 
 class FavoritesAddView(CreateAPIView):
@@ -217,6 +262,7 @@ class FavoritesAddView(CreateAPIView):
             user=request.user, tmdb_id=data['tmdbId'], media_type=data['mediaType'],
             defaults={'title': data.get('title', ''), 'poster_path': data.get('posterPath', '')}
         )
+        cache.delete(f"user:{user_id}:favorites")
         return Response({
             'success': True, 'created': created,
             'item': UserFavoritesSerializer(item).data,
@@ -230,6 +276,7 @@ class FavoritesRemoveView(APIView):
         if str(request.user.id) != str(user_id):
             return Response({'error': 'Not authorized', 'code': 'FORBIDDEN'}, status=403)
         deleted, _ = UserFavorites.objects.filter(user=request.user, tmdb_id=tmdb_id).delete()
+        cache.delete(f"user:{user_id}:favorites")
         return Response({'success': True, 'deleted': deleted > 0})
 
 
@@ -251,9 +298,17 @@ class ViewingHistoryView(ListAPIView):
         user_id = self.kwargs['user_id']
         if str(request.user.id) != str(user_id):
             return Response({'error': 'Not authorized to view history', 'code': 'FORBIDDEN'}, status=403)
+
+        cache_key = f"user:{user_id}:watched"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         items = ViewingHistory.objects.filter(user=request.user)[:50]
         serializer = self.get_serializer(items, many=True)
-        return Response({'items': serializer.data})
+        data = {'items': serializer.data}
+        cache.set(cache_key, data, USER_CACHE_TTL)
+        return Response(data)
 
 
 class ViewingHistoryAddView(CreateAPIView):
@@ -272,6 +327,7 @@ class ViewingHistoryAddView(CreateAPIView):
             user=request.user, tmdb_id=data['tmdbId'], media_type=data['mediaType'],
             title=data.get('title', ''), poster_path=data.get('posterPath', '')
         )
+        cache.delete(f"user:{user_id}:watched")
         return Response({
             'success': True,
             'item': ViewingHistorySerializer(item).data,
@@ -285,6 +341,7 @@ class ViewingHistoryRemoveView(APIView):
         if str(request.user.id) != str(user_id):
             return Response({'error': 'Not authorized', 'code': 'FORBIDDEN'}, status=403)
         deleted, _ = ViewingHistory.objects.filter(user=request.user, tmdb_id=tmdb_id).delete()
+        cache.delete(f"user:{user_id}:watched")
         return Response({'success': True, 'deleted': deleted > 0})
 
 
@@ -293,14 +350,27 @@ class UserReviewsView(ListAPIView):
     serializer_class = UserReviewSerializer
 
     def list(self, request, *args, **kwargs):
-        user = _get_user_or_none(self.kwargs['user_id'])
+        user_id = self.kwargs['user_id']
+        is_own = request.user.is_authenticated and str(request.user.id) == str(user_id)
+        cache_key = f"user:{user_id}:reviews"
+
+        if not is_own:
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return Response(cached)
+
+        user = _get_user_or_none(user_id)
         if not user:
             return Response({'error': 'User not found', 'code': 'NOT_FOUND'}, status=404)
+
         reviews = UserReview.objects.filter(user=user).select_related('user')
-        if not request.user.is_authenticated or request.user.id != user.id:
+        if not is_own:
             reviews = reviews.filter(is_public=True)
         serializer = self.get_serializer(reviews, many=True)
-        return Response({'reviews': serializer.data})
+        data = {'reviews': serializer.data}
+        if not is_own:
+            cache.set(cache_key, data, USER_CACHE_TTL)
+        return Response(data)
 
 
 class CreateReviewView(CreateAPIView):
@@ -323,6 +393,7 @@ class CreateReviewView(CreateAPIView):
                 'is_public': data.get('isPublic', True),
             }
         )
+        cache.delete(f"user:{user_id}:reviews")
         return Response({
             'success': True, 'created': created,
             'review': UserReviewSerializer(review).data,
@@ -336,6 +407,7 @@ class DeleteReviewView(APIView):
         if str(request.user.id) != str(user_id):
             return Response({'error': 'Not authorized', 'code': 'FORBIDDEN'}, status=403)
         deleted, _ = UserReview.objects.filter(user=request.user, id=review_id).delete()
+        cache.delete(f"user:{user_id}:reviews")
         return Response({'success': True, 'deleted': deleted > 0})
 
 
@@ -346,8 +418,15 @@ class ContentReviewsView(ListAPIView):
     def list(self, request, *args, **kwargs):
         tmdb_id = self.kwargs['tmdb_id']
         media_type = request.query_params.get('mediaType', 'movie')
+        cache_key = f"content:reviews:{tmdb_id}:{media_type}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         reviews = UserReview.objects.filter(
             tmdb_id=tmdb_id, media_type=media_type, is_public=True
         ).select_related('user')
         serializer = self.get_serializer(reviews, many=True)
-        return Response({'reviews': serializer.data})
+        data = {'reviews': serializer.data}
+        cache.set(cache_key, data, USER_CACHE_TTL)
+        return Response(data)

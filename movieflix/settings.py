@@ -161,15 +161,15 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'movies.authentication.CachedJWTAuthentication',
     ],
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '20/minute',
-        'user': '100/minute',
+        'anon': '120/minute',
+        'user': '600/minute',
     },
     'DEFAULT_PAGINATION_CLASS': 'movies.pagination.StandardPagePagination',
     'PAGE_SIZE': 20,

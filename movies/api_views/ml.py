@@ -21,8 +21,20 @@ class HybridRecommendationsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, user_id):
+        from django.core.cache import cache
         from movies.ml_api import get_hybrid_recommendations
-        return _to_response(get_hybrid_recommendations(request, user_id))
+        limit = request.query_params.get('limit', '20')
+        cache_key = f"ml:hybrid:{user_id}:{limit}"
+        cached = cache.get(cache_key)
+        if cached:
+            from django.http import JsonResponse
+            import json
+            return _to_response(cached)
+        result = get_hybrid_recommendations(request, user_id)
+        # Cache the serialisable dict form (not the Response object)
+        if isinstance(result, dict):
+            cache.set(cache_key, result, 300)
+        return _to_response(result)
 
 
 class CollaborativeRecommendationsView(APIView):

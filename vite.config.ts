@@ -13,6 +13,16 @@ export default defineConfig({
     // Skipping pre-bundle avoids that; icons load as native ESM in dev.
     optimizeDeps: {
         exclude: ["lucide-react"],
+        include: [
+            "react",
+            "react-dom",
+            "react-dom/client",
+            "wouter",
+            "@tanstack/react-query",
+            "date-fns",
+            "i18next",
+            "react-i18next",
+        ],
     },
     resolve: {
         alias: {
@@ -29,17 +39,6 @@ export default defineConfig({
                 target: "http://127.0.0.1:8000",
                 changeOrigin: true,
                 secure: false,
-                configure: (proxy, _options) => {
-                    proxy.on('error', (err, _req, _res) => {
-                        console.log('proxy error', err);
-                    });
-                    proxy.on('proxyReq', (proxyReq, req, _res) => {
-                        console.log('Sending Request to the Target:', req.method, req.url);
-                    });
-                    proxy.on('proxyRes', (proxyRes, req, _res) => {
-                        console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
-                    });
-                },
             },
         },
     },
@@ -49,16 +48,16 @@ export default defineConfig({
         rollupOptions: {
             output: {
                 manualChunks: (id) => {
-                    if (id.includes('node_modules')) {
-                        if (id.includes('react') || id.includes('react-dom')) {
-                            return 'react-vendor';
-                        }
-                        if (id.includes('@radix-ui')) {
-                            return 'radix-ui-vendor';
-                        }
-                    }
+                    if (!id.includes('node_modules')) return undefined;
+                    if (id.includes('react-dom') || id.includes('/react/')) return 'react-vendor';
+                    if (id.includes('@radix-ui') || id.includes('cmdk')) return 'radix-ui-vendor';
+                    if (id.includes('@tanstack')) return 'query-vendor';
+                    if (id.includes('date-fns')) return 'date-vendor';
+                    if (id.includes('i18next') || id.includes('react-i18next')) return 'i18n-vendor';
+                    if (id.includes('lucide-react')) return 'icons-vendor';
                 }
             }
-        }
+        },
+        chunkSizeWarningLimit: 1000
     },
 });

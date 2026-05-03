@@ -428,7 +428,7 @@ export default function ClubDetails() {
                             {clubLists.length > 0 ? (
                                 <div className="space-y-3">
                                     {clubLists.map((lst: any) => (
-                                        <Link key={lst.id} href={`/community/lists/${lst.id}`}>
+                                        <Link key={lst.id} href={`/lists/${lst.id}`}>
                                             <Card className="hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-transparent hover:border-l-primary">
                                                 <CardHeader className="pb-1">
                                                     <CardTitle className="text-base group-hover:text-primary transition-colors">{lst.title}</CardTitle>

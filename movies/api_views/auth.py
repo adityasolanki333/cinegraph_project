@@ -140,7 +140,12 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # One query with profile join instead of user + separate profile query
+        from django.core.cache import cache
+        cache_key = f"user:{request.user.id}:me"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
+
         user = User.objects.select_related('profile').get(pk=request.user.pk)
         profile_image_url = None
         bio = ''
@@ -152,8 +157,7 @@ class MeView(APIView):
             pass
 
         display_name = user.first_name or user.username or user.email.split('@')[0]
-
-        return Response({
+        data = {
             'user': {
                 'id': str(user.id),
                 'email': user.email,
@@ -164,7 +168,9 @@ class MeView(APIView):
                 'profileImageUrl': profile_image_url,
                 'createdAt': user.date_joined.isoformat(),
             }
-        })
+        }
+        cache.set(cache_key, data, 300)
+        return Response(data)
 
 
 class ForgetPasswordView(APIView):

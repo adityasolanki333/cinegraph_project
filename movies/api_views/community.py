@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
 from django.db import models
 from django.db.models import Count, Avg
+from django.core.cache import cache
 from movies.models import (
     UserBadge, UserActivityStats, UserReview, UserList,
     UserFollow, ReviewAward, ReviewComment, ListItem,
@@ -126,23 +127,23 @@ class ActivityStatsView(APIView):
             return Response({'error': 'User not found', 'code': 'NOT_FOUND'}, status=404)
 
         stats, _ = UserActivityStats.objects.get_or_create(user=user)
-        stats.total_reviews = UserReview.objects.filter(user=user).count()
-        stats.total_lists = UserList.objects.filter(user=user).count()
-        stats.total_followers = user.followers.count()
-        stats.total_following = user.following.count()
-        stats.total_awards_received = ReviewAward.objects.filter(review__user=user).count()
-        stats.total_comments = ReviewComment.objects.filter(user=user).count()
-        stats.save()
+        # Compute live counts without writing on every GET request
+        total_reviews = UserReview.objects.filter(user=user).count()
+        total_lists = UserList.objects.filter(user=user).count()
+        total_followers = user.followers.count()
+        total_following = user.following.count()
+        total_awards_received = ReviewAward.objects.filter(review__user=user).count()
+        total_comments = ReviewComment.objects.filter(user=user).count()
 
         return Response({
             'stats': {
-                'totalReviews': stats.total_reviews,
-                'totalLists': stats.total_lists,
-                'totalFollowers': stats.total_followers,
-                'totalFollowing': stats.total_following,
+                'totalReviews': total_reviews,
+                'totalLists': total_lists,
+                'totalFollowers': total_followers,
+                'totalFollowing': total_following,
                 'totalAwardsGiven': stats.total_awards_given,
-                'totalAwardsReceived': stats.total_awards_received,
-                'totalComments': stats.total_comments,
+                'totalAwardsReceived': total_awards_received,
+                'totalComments': total_comments,
                 'userLevel': stats.user_level,
                 'experiencePoints': stats.experience_points,
                 'lastActivityAt': stats.last_activity_at.isoformat(),
@@ -210,6 +211,13 @@ class CommunityFeedView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        time_filter = request.query_params.get('timeFilter', '')
+        offset = request.query_params.get('offset', '0')
+        cache_key = f"community:feed:{time_filter}:{offset}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         qs = UserReview.objects.filter(is_public=True).select_related('user', 'user__profile').order_by('-created_at')
         reviews, pagination = paginate_queryset(request, qs)
 
@@ -232,13 +240,19 @@ class CommunityFeedView(APIView):
             },
         } for r in reviews]
 
-        return Response({'activities': activities, **pagination})
+        result = {'activities': activities, **pagination}
+        cache.set(cache_key, result, 60)  # 1 minute
+        return Response(result)
 
 
 class LeaderboardsView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        cached = cache.get("community:leaderboards")
+        if cached is not None:
+            return Response(cached)
+
         top_reviewers = UserActivityStats.objects.select_related('user', 'user__profile').order_by('-total_reviews')[:10]
         top_followers = UserActivityStats.objects.select_related('user', 'user__profile').order_by('-total_followers')[:10]
         top_lists = UserActivityStats.objects.select_related('user', 'user__profile').order_by('-total_lists')[:10]
@@ -256,18 +270,27 @@ class LeaderboardsView(APIView):
                 }
             }
 
-        return Response({
+        result = {
             'topReviewers': [format_user(s, 'totalReviews', s.total_reviews) for s in top_reviewers],
             'topListCreators': [format_user(s, 'totalLists', s.total_lists) for s in top_lists],
             'mostFollowed': [format_user(s, 'totalFollowers', s.total_followers) for s in top_followers],
             'mostAwarded': [format_user(s, 'totalAwardsReceived', s.total_awards_received) for s in top_awards],
-        })
+        }
+        cache.set("community:leaderboards", result, 300)  # 5 minutes
+        return Response(result)
 
 
 class TrendingContentView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        time_filter = request.query_params.get('timeFilter', '')
+        offset = request.query_params.get('offset', '0')
+        cache_key = f"community:trending:{time_filter}:{offset}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         trending = UserReview.objects.values('tmdb_id', 'media_type', 'title', 'poster_path').annotate(
             review_count=Count('id'),
             avg_rating=Avg('rating'),
@@ -275,7 +298,7 @@ class TrendingContentView(APIView):
 
         paginated_trending, pagination = paginate_queryset(request, trending)
 
-        return Response({
+        result = {
             'data': [{
                 'tmdbId': t['tmdb_id'],
                 'mediaType': t['media_type'],
@@ -285,7 +308,9 @@ class TrendingContentView(APIView):
                 'avgRating': round(t['avg_rating'], 1) if t['avg_rating'] else None,
             } for t in paginated_trending],
             **pagination
-        })
+        }
+        cache.set(cache_key, result, 300)  # 5 minutes
+        return Response(result)
 
 
 class ActivityPromptsView(APIView):
