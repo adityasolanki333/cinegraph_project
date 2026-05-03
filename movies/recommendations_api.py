@@ -354,40 +354,56 @@ def call_gemini_streaming(prompt):
 MOOD_GENRE_MAP = {
     # horror / thriller
     'scary': [27], 'horror': [27], 'spooky': [27], 'creepy': [27], 'frightening': [27],
-    'thriller': [53], 'suspense': [53], 'suspenseful': [53], 'tense': [53],
+    'thriller': [53], 'thrilling': [53], 'suspense': [53], 'suspenseful': [53], 'tense': [53],
     # comedy
     'funny': [35], 'comedy': [35], 'laugh': [35], 'hilarious': [35], 'lighthearted': [35],
+    'fun': [35], 'humorous': [35], 'humour': [35], 'humor': [35],
     # romance
-    'romantic': [10749], 'romance': [10749], 'love': [10749], 'date night': [10749],
+    'romantic': [10749], 'romance': [10749], 'love story': [10749],
+    'date night': [10749], 'date': [10749], 'couple': [10749], 'valentines': [10749],
     # action / adventure
     'action': [28], 'adventure': [12], 'exciting': [28, 12], 'explosive': [28],
-    'superhero': [28, 878], 'epic': [28, 12],
+    'superhero': [28, 878], 'epic': [28, 12], 'adrenaline': [28], 'intense': [28, 53],
+    'fight': [28], 'combat': [28, 10752], 'chase': [28],
     # drama
     'drama': [18], 'emotional': [18], 'cry': [18], 'tearjerker': [18], 'moving': [18],
+    'touching': [18], 'heartfelt': [18],
     # sci-fi / fantasy
-    'sci-fi': [878], 'science fiction': [878], 'fantasy': [14], 'mind-bending': [878, 9648],
-    'futuristic': [878], 'space': [878],
+    'sci-fi': [878], 'scifi': [878], 'science fiction': [878], 'fantasy': [14],
+    'mind-bending': [878, 9648], 'mind bending': [878, 9648], 'futuristic': [878],
+    'space': [878], 'alien': [878], 'robot': [878],
     # mystery / crime
     'mystery': [9648], 'detective': [9648, 80], 'crime': [80], 'heist': [80],
-    'whodunit': [9648],
+    'whodunit': [9648], 'murder': [9648, 80], 'noir': [80, 9648],
     # family / animation
     'animated': [16], 'animation': [16], 'family': [10751], 'kids': [16, 10751],
-    'pixar': [16], 'disney': [16, 10751],
+    'cartoon': [16], 'pixar': [16], 'disney': [16, 10751], 'children': [10751],
     # other moods
-    'feel-good': [35, 10749], 'uplifting': [35, 18], 'inspirational': [18, 36],
-    'historical': [36], 'war': [10752], 'western': [37],
-    'documentary': [99], 'true story': [99, 36], 'musical': [10402],
+    'feel-good': [35, 10749], 'feel good': [35, 10749], 'uplifting': [35, 18],
+    'inspirational': [18, 36], 'motivational': [18, 36],
+    'historical': [36], 'history': [36], 'war': [10752], 'western': [37],
+    'documentary': [99], 'true story': [99, 36], 'based on true': [99, 36],
+    'musical': [10402], 'music': [10402],
 }
 
 _MOOD_INDICATORS = [
     'in the mood', 'feel like', 'feeling', 'i want', 'i need', 'want to watch',
     'something', 'recommend', 'suggest', 'show me', 'give me', 'looking for',
+    'watch', 'movie night', 'tonight', 'for me', 'any good',
 ]
+
+# Any of these keywords alone is enough to trigger mood-based search
+_STRONG_MOOD_KEYWORDS = [
+    'horror', 'comedy', 'thriller', 'romance', 'romantic', 'action', 'sci-fi', 'scifi',
+    'mystery', 'animated', 'documentary', 'drama', 'fantasy', 'date night', 'date',
+    'funny', 'scary', 'thrilling', 'feel-good', 'feel good', 'adventure', 'crime',
+    'superhero', 'musical', 'war', 'western', 'family', 'animation',
+]
+
 
 def detect_mood_genres(message: str):
     """Return list of TMDB genre IDs if the message looks like a mood/vibe query."""
-    msg = message.lower()
-    # Must contain at least one mood phrase + a genre keyword
+    msg = message.lower().strip()
     has_indicator = any(ind in msg for ind in _MOOD_INDICATORS)
     genre_ids = []
     for keyword, ids in MOOD_GENRE_MAP.items():
@@ -395,48 +411,71 @@ def detect_mood_genres(message: str):
             for g in ids:
                 if g not in genre_ids:
                     genre_ids.append(g)
-    # Accept if there's a mood indicator + genre keyword, OR just a strong genre keyword alone
-    strong_genres = ['horror', 'comedy', 'thriller', 'romance', 'action', 'sci-fi',
-                     'mystery', 'animated', 'documentary', 'drama', 'fantasy']
-    is_strong = any(kw in msg for kw in strong_genres)
-    if genre_ids and (has_indicator or is_strong):
+    is_strong = any(kw in msg for kw in _STRONG_MOOD_KEYWORDS)
+    # Trigger if: genre detected AND (there's a mood indicator OR a strong standalone keyword)
+    # Also trigger for very short messages that are almost certainly just a genre name
+    is_short_genre_query = len(msg.split()) <= 4 and bool(genre_ids)
+    if genre_ids and (has_indicator or is_strong or is_short_genre_query):
         return genre_ids
     return []
 
 
+def _build_movie_card(item: dict) -> dict:
+    return {
+        'id': item.get('id'),
+        'tmdbId': item.get('id'),
+        'title': item.get('title') or item.get('name'),
+        'media_type': item.get('media_type', 'movie'),
+        'poster_path': item.get('poster_path'),
+        'overview': item.get('overview', ''),
+        'vote_average': item.get('vote_average'),
+        'release_date': item.get('release_date') or item.get('first_air_date'),
+        'genre_ids': item.get('genre_ids', []),
+    }
+
+
 def fetch_trending_by_genre(genre_ids: list, limit: int = 4):
-    """Fetch popular movies for the given TMDB genre IDs with randomised page so results vary."""
-    genre_str = ','.join(str(g) for g in genre_ids[:2])
-    # Randomly pick from first 4 pages so every call can return a different set
-    page = random.randint(1, 4)
+    """Pull from TMDB weekly trending filtered by genre, supplement with discover if needed."""
+    # ── Step 1: Try actual trending/week endpoint, filter by genre ─────────
+    pool = []
     try:
-        data = tmdb_request("/discover/movie", {
+        page = random.randint(1, 3)
+        trending_data = tmdb_request("/trending/movie/week", {"page": page})
+        for item in trending_data.get('results', []):
+            if not item.get('poster_path'):
+                continue
+            item_genres = item.get('genre_ids', [])
+            if any(g in item_genres for g in genre_ids):
+                pool.append(_build_movie_card(item))
+    except Exception as e:
+        logger.warning(f"Trending fetch failed: {e}")
+
+    random.shuffle(pool)
+    if len(pool) >= limit:
+        return pool[:limit]
+
+    # ── Step 2: Supplement with discover/popular in the same genre ─────────
+    try:
+        genre_str = ','.join(str(g) for g in genre_ids[:2])
+        disc_page = random.randint(1, 5)
+        disc_data = tmdb_request("/discover/movie", {
             "with_genres": genre_str,
             "sort_by": "popularity.desc",
-            "vote_count.gte": 200,
-            "page": page,
+            "vote_count.gte": 100,
+            "page": disc_page,
         })
-        pool = [
-            {
-                'id': item.get('id'),
-                'tmdbId': item.get('id'),
-                'title': item.get('title') or item.get('name'),
-                'media_type': 'movie',
-                'poster_path': item.get('poster_path'),
-                'overview': item.get('overview', ''),
-                'vote_average': item.get('vote_average'),
-                'release_date': item.get('release_date'),
-                'genre_ids': item.get('genre_ids', []),
-            }
-            for item in data.get('results', [])
-            if item.get('poster_path')
+        seen_ids = {m['id'] for m in pool}
+        extras = [
+            _build_movie_card(item)
+            for item in disc_data.get('results', [])
+            if item.get('poster_path') and item.get('id') not in seen_ids
         ]
-        # Shuffle so repeated calls to the same genre feel fresh
-        random.shuffle(pool)
-        return pool[:limit]
+        random.shuffle(extras)
+        pool += extras
     except Exception as e:
-        logger.warning(f"fetch_trending_by_genre failed (page={page}): {e}")
-        return []
+        logger.warning(f"Discover supplement failed: {e}")
+
+    return pool[:limit]
 
 
 def parse_movie_recommendations_from_json(text):
