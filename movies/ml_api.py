@@ -662,9 +662,71 @@ def semantic_search(request):
         from .ml.embedding_service import semantic_embedding_service
         from .recommendations_api import call_gemini_api, parse_movie_recommendations, extract_movie_titles_structured
         import concurrent.futures
+        import re as _re
 
         ai_items = []
         gemini_titles = []
+
+        # ── Reference title detection: "movies like X" / "similar to X" ────
+        def _extract_reference_title(q: str):
+            """Extract reference movie/show title from similarity queries."""
+            patterns = [
+                r'\bmore\s+like\s+(.+?)(?:\s+but\b|\s+with\b|\s+except\b|\s*$)',
+                r'\blike\s+(.+?)(?:\s+but\b|\s+with\b|\s+except\b|\s*$)',
+                r'\bsimilar\s+to\s+(.+?)(?:\s+but\b|\s+with\b|\s*$)',
+                r'\breminds?\s+me\s+of\s+(.+?)(?:\s+but\b|\s*$)',
+            ]
+            for pat in patterns:
+                m = _re.search(pat, q.strip(), _re.IGNORECASE)
+                if m:
+                    ref = m.group(1).strip().strip('"\'')
+                    # strip trailing genre/type words
+                    ref = _re.sub(r'\s+(movies?|films?|shows?|series|content)\s*$', '', ref, flags=_re.IGNORECASE).strip()
+                    if ref and 1 <= len(ref.split()) <= 6:
+                        return ref
+            return None
+
+        ref_title = _extract_reference_title(query)
+        ref_context = ""
+        ref_tmdb_items = []
+
+        if ref_title:
+            try:
+                from .ml.utils import GENRE_MAP as _GENRE_ID_TO_NAME
+                ref_search = api.tmdb_request('/search/multi', {'query': ref_title, 'page': 1})
+                if ref_search and ref_search.get('results'):
+                    for item in ref_search['results'][:3]:
+                        if item.get('media_type') == 'person':
+                            continue
+                        title_name = item.get('title') or item.get('name', '')
+                        genre_ids = item.get('genre_ids', [])
+                        genres = [_GENRE_ID_TO_NAME.get(gid, '') for gid in genre_ids]
+                        genres = [g for g in genres if g]
+                        overview = (item.get('overview', '') or '')[:180]
+                        if title_name:
+                            ref_context = (
+                                f'\nIMPORTANT CONTEXT: "{ref_title}" refers to "{title_name}"'
+                                + (f', a {", ".join(genres)} film/show' if genres else '')
+                                + (f'. Synopsis: {overview}' if overview else '')
+                                + '\nRecommend titles that match its genre, tone, themes and feel.'
+                            )
+                            # Fetch TMDB similar movies directly
+                            item_id = item.get('id')
+                            media_type = item.get('media_type', 'movie')
+                            if item_id:
+                                try:
+                                    similar = api.tmdb_request(f'/{media_type}/{item_id}/similar', {'page': 1})
+                                    if similar and similar.get('results'):
+                                        ref_tmdb_items = [
+                                            {**r, 'media_type': media_type}
+                                            for r in similar['results'][:10]
+                                            if r.get('poster_path')
+                                        ]
+                                except Exception:
+                                    pass
+                            break
+            except Exception as e:
+                logger.warning(f"Reference title lookup failed: {e}")
 
         filter_hints = []
         media_types = filters.get('mediaType', [])
@@ -685,17 +747,24 @@ def semantic_search(request):
 
         filter_context = "\n".join(filter_hints) if filter_hints else "No specific filters"
 
+        _rec_count = min(limit, 20)
+        _similarity_line = (
+            f'- The user is asking for movies SIMILAR TO "{ref_title}" — stay true to that title\'s genre, style and feel'
+            if ref_title
+            else f'- Recommend exactly {_rec_count} titles that match SEMANTICALLY — based on meaning and feel, NOT just keyword overlap'
+        )
+
         gemini_prompt = f"""You are a cinematic expert AI with encyclopedic knowledge of movies, TV shows, documentaries, and streaming content across all eras and cultures.
 
 A user wants to discover content using this natural language description:
 "{query}"
-
+{ref_context}
 {f'User preferences: {filter_context}' if filter_context != 'No specific filters' else ''}
 
 Instructions:
 - Deeply analyze the description for: themes, emotions, mood, tone, narrative style, genre cues, setting, time period, character dynamics, and cultural context
-- Recommend exactly {min(limit, 20)} titles that match SEMANTICALLY — based on meaning and feel, NOT just keyword overlap
-- Include a mix of well-known classics and hidden gems that truly fit the description
+{_similarity_line}
+- Include a mix of well-known hits and hidden gems that truly fit
 - Think beyond obvious choices; include international cinema if relevant
 
 Return ONLY in this exact format (no other text):
@@ -712,8 +781,6 @@ INTENT: Psychological films with unreliable reality and shocking twists
 3. Mulholland Drive
 4. The Prestige
 5. Memento"""
-
-        import re as _re
 
         def _fast_parse_gemini_titles(text):
             """Fast regex parser for Gemini's numbered-list format.
@@ -786,6 +853,16 @@ INTENT: Psychological films with unreliable reality and shocking twists
                             ai_items.append(result)
                     except Exception:
                         pass
+
+        # Merge TMDB "similar movies" for reference-title queries — these are
+        # authoritative genre matches (e.g. "movies like Thor" → MCU/superhero movies).
+        # Add them after Gemini results, deduplicating by id.
+        if ref_tmdb_items:
+            existing_ids = {str(item.get('id')) for item in ai_items}
+            for item in ref_tmdb_items:
+                if str(item.get('id')) not in existing_ids:
+                    ai_items.append(item)
+                    existing_ids.add(str(item.get('id')))
 
         # Pinecone fallback — only reached when Gemini returned no results
         if not ai_items:
