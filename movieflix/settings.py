@@ -122,6 +122,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5000',
     'http://127.0.0.1:5000',
+    'https://cinegraph-platform.netlify.app',
+    'https://cinegraph-project-3wgq.onrender.com',
 ]
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
@@ -132,6 +134,8 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5000',
     'http://127.0.0.1:5000',
+    'https://cinegraph-platform.netlify.app',
+    'https://cinegraph-project-3wgq.onrender.com',
 ]
 CORS_ALLOWED_ORIGIN_REGEXES = []
 CORS_ALLOW_ALL_ORIGINS = False
