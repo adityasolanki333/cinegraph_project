@@ -10,7 +10,7 @@ services:
       uv sync
       python manage.py collectstatic --no-input
       python manage.py migrate
-    startCommand: gunicorn movieflix.wsgi
+    startCommand: gunicorn movieflix.wsgi:application
     envVars:
       - key: DEBUG
         value: "False"
