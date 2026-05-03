@@ -8,7 +8,7 @@ import { login, register } from "@/hooks/useAuth";
 import { LogIn, UserPlus, CheckCircle2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { motion, AnimatePresence } from "framer-motion";
-import { useLocation, Link } from "wouter";
+import { useLocation, useSearch, Link } from "wouter";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { useTranslation } from "react-i18next";
 
@@ -29,6 +29,13 @@ export default function Login() {
   const [showSuccess, setShowSuccess] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const search = useSearch();
+
+  const redirectTo = (() => {
+    const params = new URLSearchParams(search);
+    const r = params.get('redirect');
+    return r && r.startsWith('/') ? r : '/';
+  })();
 
 
 
@@ -49,7 +56,7 @@ export default function Login() {
           });
 
           setTimeout(() => {
-            setLocation('/');
+            setLocation(redirectTo);
           }, 1500);
         } else {
           throw new Error(result.error || 'Registration failed');
@@ -66,7 +73,7 @@ export default function Login() {
           });
 
           setTimeout(() => {
-            setLocation('/');
+            setLocation(redirectTo);
           }, 1500);
         } else {
           throw new Error(result.error || 'Login failed');

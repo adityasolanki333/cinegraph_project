@@ -41,6 +41,7 @@ const Notifications = lazy(() => import("@/pages/notifications"));
 
 function ProtectedRoute({ component: Component, ...rest }: { component: ComponentType<any>; [key: string]: any }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -49,7 +50,7 @@ function ProtectedRoute({ component: Component, ...rest }: { component: Componen
     );
   }
   if (!isAuthenticated) {
-    return <Redirect to="/login" />;
+    return <Redirect to={`/login?redirect=${encodeURIComponent(location)}`} />;
   }
   return <Component {...rest} />;
 }
