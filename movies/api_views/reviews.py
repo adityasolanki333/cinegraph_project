@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.db.models import Count, Q, Avg
+from django.core.cache import cache
 from movies.models import (
     UserReview, UserRecommendation, RecommendationVote, RecommendationComment,
     ReviewComment, ReviewAward, ReviewInteraction, Notification, UserActivityStats,
@@ -18,6 +19,11 @@ class SentimentView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, tmdb_id, media_type):
+        cache_key = f"sentiment:{tmdb_id}:{media_type}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         from movies.api import tmdb_request
         from movies.ml.sentiment_analyzer import sentiment_analyzer
 
@@ -106,7 +112,7 @@ class SentimentView(APIView):
             except Exception:
                 pass
 
-        return Response({
+        payload = {
             "tmdbId": tmdb_id,
             "mediaType": media_type,
             "summary": {
@@ -118,7 +124,9 @@ class SentimentView(APIView):
             "reviews": analyzed_reviews,
             "insights": insights,
             "aiSummary": ai_summary,
-        })
+        }
+        cache.set(cache_key, payload, 3600)
+        return Response(payload)
 
 
 class RatingsView(APIView):
@@ -129,10 +137,14 @@ class RatingsView(APIView):
         media_type = request.query_params.get('mediaType', 'movie')
         if not tmdb_id:
             return Response({'error': 'tmdbId required', 'code': 'VALIDATION_ERROR'}, status=400)
+        cache_key = f"ratings:{tmdb_id}:{media_type}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
         reviews = UserReview.objects.filter(
             tmdb_id=tmdb_id, media_type=media_type, is_public=True
         ).select_related('user', 'user__profile').order_by('-created_at')
-        return Response([{
+        data = [{
             'id': r.id, 'userId': r.user.id,
             'username': r.user.first_name or r.user.username or r.user.email.split('@')[0],
             'tmdbId': r.tmdb_id, 'mediaType': r.media_type, 'title': r.title,
@@ -143,7 +155,9 @@ class RatingsView(APIView):
                 'lastName': r.user.last_name or '',
                 'profileImageUrl': r.user.profile.profile_image_url if hasattr(r.user, 'profile') else None,
             }
-        } for r in reviews])
+        } for r in reviews]
+        cache.set(cache_key, data, 300)
+        return Response(data)
 
     def post(self, request):
         if not request.user.is_authenticated:
@@ -173,6 +187,8 @@ class RatingsView(APIView):
                 'is_public': True
             }
         )
+        cache.delete(f"ratings:{tmdb_id}:{media_type}")
+        cache.delete(f"sentiment:{tmdb_id}:{media_type}")
         return Response({
             'id': review.id, 'tmdbId': review.tmdb_id, 'mediaType': review.media_type,
             'rating': review.rating, 'review': review.review_text, 'title': review.title,

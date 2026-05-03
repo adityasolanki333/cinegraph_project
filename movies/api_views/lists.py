@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.db.models import Count, Q
 from movies.models import UserList, ListItem, ListFollow, ListCollaborator, Notification
 from movies.serializers.social import (
@@ -197,12 +198,18 @@ class ListsContainingView(ListAPIView):
     def list(self, request, *args, **kwargs):
         tmdb_id = self.kwargs['tmdb_id']
         media_type = self.kwargs['media_type']
+        cache_key = f"lists:containing:{tmdb_id}:{media_type}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
         items = ListItem.objects.filter(
             tmdb_id=tmdb_id, media_type=media_type, list__is_public=True
         ).select_related('list', 'list__user', 'list__user__profile')[:10]
         lists = [item.list for item in items]
         serializer = self.get_serializer(lists, many=True)
-        return Response({'lists': serializer.data})
+        payload = {'lists': serializer.data}
+        cache.set(cache_key, payload, 300)
+        return Response(payload)
 
 
 class ListFollowView(APIView):
