@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UserRating } from "@shared/schema";
 import { AWARD_TYPES } from "@shared/helpers";
+import { useTranslation } from "react-i18next";
 
 interface ReviewCardEnhancedProps {
   review: UserRating & {
@@ -50,6 +51,7 @@ export function ReviewCardEnhanced({
   title,
   mediaType
 }: ReviewCardEnhancedProps) {
+  const { t } = useTranslation();
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [animatingAward, setAnimatingAward] = useState<string | null>(null);
@@ -315,7 +317,7 @@ export function ReviewCardEnhanced({
               <div className="min-w-0">
                 <p className="font-semibold text-sm line-clamp-1">{displayTitle}</p>
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5">
-                  {displayMediaType === 'tv' ? 'TV Show' : 'Movie'}
+                  {displayMediaType === 'tv' ? t('reviewCard.tvShow') : t('mediaDetails.movie', 'Movie')}
                 </Badge>
               </div>
             </div>
@@ -336,10 +338,10 @@ export function ReviewCardEnhanced({
                     ? `${review.user.firstName} ${review.user.lastName || ''}`.trim()
                     : review.userName
                     ? review.userName
-                    : String(review.userId) === String(currentUserId) ? "Your Review" : "Anonymous User"}
+                    : String(review.userId) === String(currentUserId) ? t('reviewCard.yourReview') : t('reviewCard.anonymousUser')}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {review.createdAt ? formatDistanceToNow(new Date(review.createdAt)) + " ago" : ""}
+                  {review.createdAt ? formatDistanceToNow(new Date(review.createdAt)) + ' ' + t('reviewCard.ago') : ""}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -436,7 +438,7 @@ export function ReviewCardEnhanced({
             >
               <MessageSquare className="h-4 w-4 mr-1" />
               <span className="text-sm">
-                {totalComments} {totalComments === 1 ? 'comment' : 'comments'}
+                {totalComments} {totalComments === 1 ? t('reviewCard.comment') : t('reviewCard.comments')}
               </span>
               {showComments ? (
                 <ChevronUp className="h-4 w-4 ml-1" />
@@ -463,7 +465,7 @@ export function ReviewCardEnhanced({
                         name="comment"
                         value={commentText}
                         onChange={(e) => setCommentText(e.target.value)}
-                        placeholder="Add a comment..."
+                        placeholder={t('reviewCard.commentPlaceholder')}
                         className="resize-none min-h-[60px]"
                         disabled={addCommentMutation.isPending}
                         data-testid={`textarea-comment-${review.id}`}
@@ -528,7 +530,7 @@ export function ReviewCardEnhanced({
                             </p>
                           </div>
                           <p className="text-xs text-muted-foreground mt-1 ml-3">
-                            {formatDistanceToNow(new Date(comment.createdAt))} ago
+                            {formatDistanceToNow(new Date(comment.createdAt))} {t('reviewCard.ago')}
                           </p>
                         </div>
                       </div>
@@ -536,7 +538,7 @@ export function ReviewCardEnhanced({
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    {isAuthenticated ? "No comments yet. Be the first to comment!" : "No comments yet. Log in to be the first to comment!"}
+                    {isAuthenticated ? t('reviewCard.noCommentsLoggedIn') : t('reviewCard.noCommentsLoggedOut')}
                   </p>
                 )}
               </div>
@@ -556,7 +558,7 @@ export function ReviewCardEnhanced({
                 <Separator className="mb-3" />
                 <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                   <List className="h-4 w-4" />
-                  Featured in Lists
+                  {t('reviewCard.featuredInLists')}
                 </h4>
                 <div className="space-y-2">
                   {relatedLists.slice(0, 5).map((list: any) => (

@@ -508,7 +508,7 @@ export default function Home() {
                   <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="max-w-2xl">
                       <Badge variant="secondary" className="mb-2 sm:mb-4" data-testid={`badge-featured-type-${index}`}>
-                        {movie.type === "tv" ? (movie.seasons ? `${movie.seasons} Season${movie.seasons !== 1 ? 's' : ''}` : "TV Series") : "Movie"}
+                        {movie.type === "tv" ? (movie.seasons ? `${movie.seasons} ${movie.seasons !== 1 ? t('common.seasons') : t('common.season')}` : t('common.tvSeries')) : t('common.movie')}
                       </Badge>
                       <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-2 sm:mb-4 line-clamp-2" data-testid={`text-featured-title-${index}`}>
                         {movie.title}
@@ -759,7 +759,7 @@ export default function Home() {
                 <Card className="genre-card cursor-pointer hover:bg-accent/50 transition-colors" data-testid={`card-genre-${genre.toLowerCase().replace(/\s+/g, '-')}`}>
                   <CardContent className="p-4 sm:p-6 text-center">
                     <div className="text-2xl sm:text-3xl mb-1 sm:mb-2" data-testid={`emoji-genre-${genre.toLowerCase().replace(/\s+/g, '-')}`}>{emoji}</div>
-                    <h3 className="font-semibold text-sm sm:text-base text-foreground" data-testid={`text-genre-name-${genre.toLowerCase().replace(/\s+/g, '-')}`}>{genre}</h3>
+                    <h3 className="font-semibold text-sm sm:text-base text-foreground" data-testid={`text-genre-name-${genre.toLowerCase().replace(/\s+/g, '-')}`}>{t(`genres.${{'Action':'action','Comedy':'comedy','Drama':'drama','Horror':'horror','Romance':'romance','Science Fiction':'scienceFiction','Thriller':'thriller','Adventure':'adventure','Animation':'animation','Fantasy':'fantasy','Crime':'crime','Mystery':'mystery'}[genre] || genre.toLowerCase()}`, genre)}</h3>
                   </CardContent>
                 </Card>
               </Link>

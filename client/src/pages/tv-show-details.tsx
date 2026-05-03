@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { Star, Play, ArrowLeft } from "lucide-react";
@@ -215,51 +216,52 @@ export default function TVShowDetailsPage() {
 }
 
 function TVDetailsTab({ tvShow, tvId }: { tvShow: TVShowDetailsData; tvId: string }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4 sm:space-y-6 md:space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Show Information</CardTitle>
+            <CardTitle>{t('mediaDetails.showInformation')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <h4 className="font-semibold">Status</h4>
+              <h4 className="font-semibold">{t('mediaDetails.status')}</h4>
               <p className="text-muted-foreground">{tvShow.status}</p>
             </div>
 
             <div>
-              <h4 className="font-semibold">Type</h4>
+              <h4 className="font-semibold">{t('mediaDetails.showType')}</h4>
               <p className="text-muted-foreground">{tvShow.type}</p>
             </div>
 
             <div>
-              <h4 className="font-semibold">First Air Date</h4>
+              <h4 className="font-semibold">{t('mediaDetails.firstAirDate')}</h4>
               <p className="text-muted-foreground">{tvShow.first_air_date}</p>
             </div>
 
             {tvShow.last_air_date && (
               <div>
-                <h4 className="font-semibold">Last Air Date</h4>
+                <h4 className="font-semibold">{t('mediaDetails.lastAirDate')}</h4>
                 <p className="text-muted-foreground">{tvShow.last_air_date}</p>
               </div>
             )}
 
             <div>
-              <h4 className="font-semibold">Seasons</h4>
+              <h4 className="font-semibold">{t('mediaDetails.numSeasons')}</h4>
               <p className="text-muted-foreground">{tvShow.number_of_seasons}</p>
             </div>
 
             <div>
-              <h4 className="font-semibold">Episodes</h4>
+              <h4 className="font-semibold">{t('mediaDetails.numEpisodes')}</h4>
               <p className="text-muted-foreground">{tvShow.number_of_episodes}</p>
             </div>
 
             {tvShow.episode_run_time.length > 0 && (
               <div>
-                <h4 className="font-semibold">Episode Runtime</h4>
+                <h4 className="font-semibold">{t('mediaDetails.episodeRuntime')}</h4>
                 <p className="text-muted-foreground">
-                  {tvShow.episode_run_time.join(', ')} minutes
+                  {tvShow.episode_run_time.join(', ')} {t('mediaDetails.minutes')}
                 </p>
               </div>
             )}
@@ -268,12 +270,12 @@ function TVDetailsTab({ tvShow, tvId }: { tvShow: TVShowDetailsData; tvId: strin
 
         <Card>
           <CardHeader>
-            <CardTitle>Production</CardTitle>
+            <CardTitle>{t('mediaDetails.production')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {tvShow.created_by.length > 0 && (
               <div>
-                <h4 className="font-semibold">Created By</h4>
+                <h4 className="font-semibold">{t('mediaDetails.createdBy')}</h4>
                 <p className="text-muted-foreground">
                   {tvShow.created_by.map(creator => creator.name).join(', ')}
                 </p>
@@ -282,7 +284,7 @@ function TVDetailsTab({ tvShow, tvId }: { tvShow: TVShowDetailsData; tvId: strin
 
             {tvShow.networks.length > 0 && (
               <div>
-                <h4 className="font-semibold">Networks</h4>
+                <h4 className="font-semibold">{t('mediaDetails.networks')}</h4>
                 <p className="text-muted-foreground">
                   {tvShow.networks.map(network => network.name).join(', ')}
                 </p>
@@ -291,7 +293,7 @@ function TVDetailsTab({ tvShow, tvId }: { tvShow: TVShowDetailsData; tvId: strin
 
             {tvShow.production_companies.length > 0 && (
               <div>
-                <h4 className="font-semibold">Production Companies</h4>
+                <h4 className="font-semibold">{t('mediaDetails.productionCompanies')}</h4>
                 <p className="text-muted-foreground">
                   {tvShow.production_companies.map(company => company.name).join(', ')}
                 </p>
@@ -299,9 +301,9 @@ function TVDetailsTab({ tvShow, tvId }: { tvShow: TVShowDetailsData; tvId: strin
             )}
 
             <div>
-              <h4 className="font-semibold">In Production</h4>
+              <h4 className="font-semibold">{t('mediaDetails.inProduction')}</h4>
               <p className="text-muted-foreground">
-                {tvShow.in_production ? 'Yes' : 'No'}
+                {tvShow.in_production ? t('mediaDetails.yes') : t('mediaDetails.no')}
               </p>
             </div>
           </CardContent>
@@ -328,17 +330,18 @@ function EpisodesTab({
   seasonData?: SeasonDetails;
   isSeasonLoading: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-6">
       {tvShow?.seasons && tvShow.seasons.length > 0 && (
         <div className="flex items-center gap-4">
-          <label htmlFor="season-select" className="font-semibold">Season:</label>
+          <label htmlFor="season-select" className="font-semibold">{t('mediaDetails.seasonLabel')}</label>
           <Select
             value={selectedSeason.toString()}
             onValueChange={(value) => setSelectedSeason(parseInt(value))}
           >
             <SelectTrigger id="season-select" className="w-48">
-              <SelectValue placeholder="Select a season" />
+              <SelectValue placeholder={t('mediaDetails.selectSeason')} />
             </SelectTrigger>
             <SelectContent>
               {tvShow.seasons
@@ -356,7 +359,7 @@ function EpisodesTab({
       {isSeasonLoading ? (
         <Card>
           <CardContent className="p-6">
-            <p className="text-center text-muted-foreground">Loading episodes...</p>
+            <p className="text-center text-muted-foreground">{t('mediaDetails.loadingEpisodes')}</p>
           </CardContent>
         </Card>
       ) : seasonData?.episodes ? (
@@ -395,7 +398,7 @@ function EpisodesTab({
                     </div>
 
                     <p className="text-muted-foreground text-sm leading-relaxed">
-                      {episode.overview || "No description available."}
+                      {episode.overview || t('mediaDetails.noDescription')}
                     </p>
                   </div>
                 </div>
@@ -407,7 +410,7 @@ function EpisodesTab({
         <Card>
           <CardContent className="p-6">
             <p className="text-center text-muted-foreground">
-              No episodes found for this season.
+              {t('mediaDetails.noEpisodes')}
             </p>
           </CardContent>
         </Card>

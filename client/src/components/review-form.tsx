@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import type { InsertRating } from "@shared/schema";
+import { useTranslation } from "react-i18next";
 
 interface ReviewFormProps {
   tmdbId: number;
@@ -31,6 +32,7 @@ export function ReviewForm({
   existingRating,
   onSuccess
 }: ReviewFormProps) {
+  const { t } = useTranslation();
   const [rating, setRating] = useState(existingRating?.rating || 0);
   const [review, setReview] = useState(existingRating?.review || "");
   const [isDeleted, setIsDeleted] = useState(false);
@@ -241,14 +243,14 @@ export function ReviewForm({
       <Card>
         <CardHeader>
           <CardTitle>
-            {existingRating && !isDeleted ? "Update Your Review" : "Rate & Review"}
+            {existingRating && !isDeleted ? t('reviewForm.updateYourReview') : t('reviewForm.rateAndReview')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">
-                Your Rating
+                {t('reviewForm.yourRating')}
               </label>
               <RatingStars
                 rating={rating}
@@ -259,7 +261,7 @@ export function ReviewForm({
 
             <div>
               <label className="block text-sm font-medium mb-2">
-                Your Review (Optional)
+                {t('reviewForm.yourReviewOptional')}
               </label>
               <Textarea
                 id="review-content"
@@ -267,7 +269,7 @@ export function ReviewForm({
                 data-testid="review-textarea"
                 value={review}
                 onChange={(e) => setReview(e.target.value)}
-                placeholder="Share your thoughts about this movie/show..."
+                placeholder={t('reviewForm.reviewPlaceholder')}
                 rows={4}
                 className="resize-none"
                 autoComplete="off"
@@ -281,7 +283,7 @@ export function ReviewForm({
                   disabled={isLoading || rating === 0}
                   data-testid="submit-review-button"
                 >
-                  {isLoading ? "Saving..." : (existingRating && !isDeleted) ? "Update Review" : "Submit Review"}
+                  {isLoading ? t('reviewForm.saving') : (existingRating && !isDeleted) ? t('reviewForm.updateReview') : t('reviewForm.submitReview')}
                 </Button>
 
                 {existingRating && !isDeleted && (
@@ -292,7 +294,7 @@ export function ReviewForm({
                     disabled={isLoading}
                     data-testid="delete-review-button"
                   >
-                    {deleteMutation.isPending ? "Deleting..." : "Delete Review"}
+                    {deleteMutation.isPending ? t('reviewForm.deleting') : t('reviewForm.deleteReview')}
                   </Button>
                 )}
               </div>
@@ -304,19 +306,19 @@ export function ReviewForm({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent data-testid="delete-confirmation-dialog">
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete your review?</AlertDialogTitle>
+            <AlertDialogTitle>{t('reviewForm.deleteConfirmTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. Your rating and review will be permanently removed.
+              {t('reviewForm.deleteConfirmDesc')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="cancel-delete-button">Cancel</AlertDialogCancel>
+            <AlertDialogCancel data-testid="cancel-delete-button">{t('common.cancel', 'Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="confirm-delete-button"
             >
-              Delete
+              {t('common.delete', 'Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

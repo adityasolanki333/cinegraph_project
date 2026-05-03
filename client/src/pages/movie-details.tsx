@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Star, Sparkles, ArrowLeft } from "lucide-react";
@@ -171,41 +172,42 @@ export default function MovieDetailsPage() {
 }
 
 function MovieDetailsTab({ movie, movieId }: { movie: MovieDetailsData; movieId: string }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4 sm:space-y-6 md:space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Movie Information</CardTitle>
+            <CardTitle>{t('mediaDetails.movieInformation')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <h4 className="font-semibold">Status</h4>
+              <h4 className="font-semibold">{t('mediaDetails.status')}</h4>
               <p className="text-muted-foreground">{movie.status}</p>
             </div>
 
             <div>
-              <h4 className="font-semibold">Release Date</h4>
+              <h4 className="font-semibold">{t('mediaDetails.releaseDate')}</h4>
               <p className="text-muted-foreground">{movie.release_date}</p>
             </div>
 
             {movie.runtime && (
               <div>
-                <h4 className="font-semibold">Runtime</h4>
-                <p className="text-muted-foreground">{movie.runtime} minutes</p>
+                <h4 className="font-semibold">{t('mediaDetails.runtimeLabel')}</h4>
+                <p className="text-muted-foreground">{movie.runtime} {t('mediaDetails.minutes')}</p>
               </div>
             )}
 
             {movie.budget > 0 && (
               <div>
-                <h4 className="font-semibold">Budget</h4>
+                <h4 className="font-semibold">{t('mediaDetails.budget')}</h4>
                 <p className="text-muted-foreground">${movie.budget.toLocaleString()}</p>
               </div>
             )}
 
             {movie.revenue > 0 && (
               <div>
-                <h4 className="font-semibold">Revenue</h4>
+                <h4 className="font-semibold">{t('mediaDetails.revenue')}</h4>
                 <p className="text-muted-foreground">${movie.revenue.toLocaleString()}</p>
               </div>
             )}
@@ -214,12 +216,12 @@ function MovieDetailsTab({ movie, movieId }: { movie: MovieDetailsData; movieId:
 
         <Card>
           <CardHeader>
-            <CardTitle>Production</CardTitle>
+            <CardTitle>{t('mediaDetails.production')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {movie.production_companies.length > 0 && (
               <div>
-                <h4 className="font-semibold">Production Companies</h4>
+                <h4 className="font-semibold">{t('mediaDetails.productionCompanies')}</h4>
                 <p className="text-muted-foreground">
                   {movie.production_companies.map(company => company.name).join(', ')}
                 </p>
@@ -228,7 +230,7 @@ function MovieDetailsTab({ movie, movieId }: { movie: MovieDetailsData; movieId:
 
             {movie.production_countries.length > 0 && (
               <div>
-                <h4 className="font-semibold">Countries</h4>
+                <h4 className="font-semibold">{t('mediaDetails.countries')}</h4>
                 <p className="text-muted-foreground">
                   {movie.production_countries.map(country => country.name).join(', ')}
                 </p>
@@ -237,7 +239,7 @@ function MovieDetailsTab({ movie, movieId }: { movie: MovieDetailsData; movieId:
 
             {movie.spoken_languages.length > 0 && (
               <div>
-                <h4 className="font-semibold">Languages</h4>
+                <h4 className="font-semibold">{t('mediaDetails.languages')}</h4>
                 <p className="text-muted-foreground">
                   {movie.spoken_languages.map(lang => lang.name).join(', ')}
                 </p>

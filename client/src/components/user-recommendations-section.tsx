@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Share } from "lucide-react";
 import { Link } from "wouter";
@@ -21,6 +22,7 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
   const [reason, setReason] = useState("");
   const { toast } = useToast();
 
+  const { t } = useTranslation();
   const { data: recommendations, isLoading: recommendationsLoading } = useQuery({
     queryKey: ['/api/users/recommendations/for', forTmdbId, forMediaType],
     queryFn: async () => {
@@ -59,7 +61,7 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
       });
     },
     onSuccess: () => {
-      toast({ title: "Recommendation submitted!", description: "Thanks for sharing your suggestion." });
+      toast({ title: t('mediaDetails.recommendationSubmitted'), description: t('mediaDetails.thanksSuggestion') });
       setShowForm(false);
       setSelectedMedia(null);
       setSearchQuery("");
@@ -70,9 +72,9 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
       const errorMessage = error.message || "Failed to submit recommendation";
       const isAlreadyRecommended = errorMessage.includes("already recommended");
       toast({
-        title: isAlreadyRecommended ? "Already Recommended" : "Error",
+        title: isAlreadyRecommended ? t('mediaDetails.alreadyRecommended') : t('common.error'),
         description: isAlreadyRecommended
-          ? "You've already recommended this movie/show here"
+          ? t('mediaDetails.alreadyRecommendedDesc')
           : errorMessage,
         variant: isAlreadyRecommended ? undefined : "destructive"
       });
@@ -85,16 +87,16 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
       return apiRequest('DELETE', `/api/users/${currentUserId}/recommendations/${recommendationId}`);
     },
     onSuccess: () => {
-      toast({ title: "Recommendation deleted" });
+      toast({ title: t('mediaDetails.recommendationDeleted') });
       queryClient.invalidateQueries({ queryKey: ['/api/users/recommendations/for', forTmdbId, forMediaType] });
     },
     onError: (error: any) => {
       const errorMessage = error.message || "Failed to delete recommendation";
       const cannotDelete = errorMessage.includes("Cannot delete") || errorMessage.includes("likes");
       toast({
-        title: cannotDelete ? "Cannot Delete" : "Error",
+        title: cannotDelete ? t('mediaDetails.cannotDelete') : t('common.error'),
         description: cannotDelete
-          ? "This recommendation has likes from others and cannot be deleted"
+          ? t('mediaDetails.cannotDeleteDesc')
           : errorMessage,
         variant: "destructive"
       });
@@ -111,8 +113,8 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to vote",
+        title: t('common.error'),
+        description: error.message || t('mediaDetails.failedToVote'),
         variant: "destructive"
       });
     }
@@ -131,7 +133,8 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
     });
   };
 
-  const mediaLabel = forMediaType === 'movie' ? 'Movie' : 'Show';
+  const mediaLabel = forMediaType === 'movie' ? t('mediaDetails.Movie') : t('mediaDetails.Show');
+  const mediaLabelLower = forMediaType === 'movie' ? t('mediaDetails.movie') : t('mediaDetails.tvShow');
 
   return (
     <div className="space-y-6">
@@ -140,28 +143,28 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Share className="h-5 w-5" />
-              Recommend a {mediaLabel}
+              {t('mediaDetails.recommendAType', { type: mediaLabel })}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {!showForm ? (
               <Button onClick={() => setShowForm(true)} data-testid="button-add-recommendation">
                 <Share className="h-4 w-4 mr-2" />
-                Add Recommendation
+                {t('mediaDetails.addRecommendation')}
               </Button>
             ) : (
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Search for a show or movie to recommend:</label>
+                  <label className="text-sm font-medium mb-2 block">{t('mediaDetails.searchForContent')}</label>
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search for a show or movie..."
+                    placeholder={t('mediaDetails.searchContentPlaceholder')}
                     className="w-full px-3 py-2 border rounded-md bg-background text-foreground"
                     data-testid="input-search-recommendation"
                   />
-                  {searchLoading && <p className="text-sm text-muted-foreground mt-2">Searching...</p>}
+                  {searchLoading && <p className="text-sm text-muted-foreground mt-2">{t('mediaDetails.searching')}</p>}
                   {searchResults?.results && searchResults.results.length > 0 && !selectedMedia && (
                     <div className="mt-2 max-h-48 overflow-y-auto border rounded-md">
                       {searchResults.results.slice(0, 5).map((item: any) => (
@@ -185,7 +188,7 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
                           <div>
                             <p className="font-medium text-sm">{item.title || item.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {item.media_type === 'movie' ? 'Movie' : 'TV Show'} • {item.release_date || item.first_air_date}
+                              {item.media_type === 'movie' ? t('mediaDetails.Movie') : t('mediaDetails.tvShow')} • {item.release_date || item.first_air_date}
                             </p>
                           </div>
                         </div>
@@ -197,17 +200,17 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
                 {selectedMedia && (
                   <>
                     <div>
-                      <label className="text-sm font-medium mb-2 block">Why do you recommend this? (optional)</label>
+                      <label className="text-sm font-medium mb-2 block">{t('mediaDetails.whyRecommendThis')}</label>
                       <textarea
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
-                        placeholder={`Share why fans of this ${mediaLabel.toLowerCase()} would enjoy your recommendation...`}
+                        placeholder={t('mediaDetails.reasonPlaceholder', { type: mediaLabelLower })}
                         className="w-full px-3 py-2 border rounded-md min-h-[80px] bg-background text-foreground"
                         data-testid="input-recommendation-reason"
                         maxLength={500}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Help others discover great content by sharing what makes this recommendation special. {reason.length}/500 characters
+                        {t('mediaDetails.helpOthers')} {t('mediaDetails.charactersCount', { count: reason.length })}
                       </p>
                     </div>
 
@@ -217,7 +220,7 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
                         disabled={submitRecommendationMutation.isPending}
                         data-testid="button-submit-recommendation"
                       >
-                        {submitRecommendationMutation.isPending ? "Submitting..." : "Submit Recommendation"}
+                        {submitRecommendationMutation.isPending ? t('mediaDetails.submitting') : t('mediaDetails.submitRecommendation')}
                       </Button>
                       <Button
                         variant="outline"
@@ -229,7 +232,7 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
                         }}
                         data-testid="button-cancel-recommendation"
                       >
-                        Cancel
+                        {t('common.cancel')}
                       </Button>
                     </div>
                   </>
@@ -242,10 +245,10 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
         <Card>
           <CardContent className="py-8 text-center">
             <Share className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">Share Your Recommendations</h3>
-            <p className="text-muted-foreground mb-4">Sign in to recommend {forMediaType === 'movie' ? 'movies' : 'shows'} to other fans</p>
+            <h3 className="text-lg font-medium mb-2">{t('mediaDetails.shareYourRecs')}</h3>
+            <p className="text-muted-foreground mb-4">{t('mediaDetails.signInToRecommend', { type: forMediaType === 'movie' ? t('mediaDetails.movies') : t('mediaDetails.shows') })}</p>
             <Link href="/login">
-              <Button>Sign In</Button>
+              <Button>{t('mediaDetails.signIn')}</Button>
             </Link>
           </CardContent>
         </Card>
@@ -253,11 +256,11 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
 
       <Card>
         <CardHeader>
-          <CardTitle>User Recommendations</CardTitle>
+          <CardTitle>{t('mediaDetails.userRecommendations')}</CardTitle>
         </CardHeader>
         <CardContent>
           {recommendationsLoading ? (
-            <p className="text-center text-muted-foreground py-8">Loading recommendations...</p>
+            <p className="text-center text-muted-foreground py-8">{t('mediaDetails.loadingRecs')}</p>
           ) : recommendations && recommendations.length > 0 ? (
             <div className="space-y-4">
               {recommendations.map((rec: any) => (
@@ -285,9 +288,9 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
                             </Link>
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <span>👤</span>
-                              Recommended by {rec.userFirstName && rec.userLastName
+                              {t('mediaDetails.recommendedBy', { name: rec.userFirstName && rec.userLastName
                                 ? `${rec.userFirstName} ${rec.userLastName}`
-                                : rec.userEmail || 'Anonymous'}
+                                : rec.userEmail || 'Anonymous' })}
                             </p>
                           </div>
                           {currentUserId === rec.userId && (
@@ -297,16 +300,16 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
                               onClick={() => deleteRecommendationMutation.mutate(rec.id)}
                               disabled={deleteRecommendationMutation.isPending || (rec.likeCount && rec.likeCount > 0)}
                               data-testid={`button-delete-recommendation-${rec.id}`}
-                              title={rec.likeCount > 0 ? `Cannot delete - ${rec.likeCount} ${rec.likeCount === 1 ? 'person has' : 'people have'} liked this` : 'Delete recommendation'}
+                              title={rec.likeCount > 0 ? t('mediaDetails.cannotDeleteDesc') : t('mediaDetails.recommendationDeleted')}
                             >
-                              Delete
+                              {t('common.delete')}
                             </Button>
                           )}
                         </div>
                         <div className="flex items-center gap-4 mt-3">
                           <Badge variant="outline" className="flex items-center gap-1">
                             <span>{rec.recommendedMediaType === 'movie' ? '🎬' : '📺'}</span>
-                            {rec.recommendedMediaType === 'movie' ? 'Movie' : 'TV Show'}
+                            {rec.recommendedMediaType === 'movie' ? t('mediaDetails.Movie') : t('mediaDetails.tvShow')}
                           </Badge>
                           {rec.score !== undefined && (
                             <span className="text-sm font-medium flex items-center gap-1" data-testid={`recommendation-score-${rec.id}`}>
@@ -352,7 +355,7 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
                                   className="hover:scale-110 transition-transform duration-200 active:scale-95"
                                 >
                                   <span className={`text-base mr-1 ${showComments[rec.id] ? 'animate-pulse' : ''}`}>💬</span>
-                                  {rec.commentCount || 0} {rec.commentCount === 1 ? 'comment' : 'comments'}
+                                  {rec.commentCount || 0} {rec.commentCount === 1 ? t('mediaDetails.comment') : t('mediaDetails.comments')}
                                 </Button>
                               </>
                             ) : (
@@ -387,8 +390,8 @@ export function UserRecommendationsSection({ forTmdbId, forMediaType, currentUse
           ) : (
             <div className="text-center py-12 animate-in fade-in duration-500">
               <div className="text-6xl mb-4">💡</div>
-              <p className="text-muted-foreground text-lg font-medium mb-2">No recommendations yet</p>
-              <p className="text-muted-foreground text-sm">Be the first to suggest a {forMediaType === 'movie' ? 'movie' : 'show'}!</p>
+              <p className="text-muted-foreground text-lg font-medium mb-2">{t('mediaDetails.noRecommendationsYet')}</p>
+              <p className="text-muted-foreground text-sm">{t('mediaDetails.beFirstToSuggest', { type: forMediaType === 'movie' ? t('mediaDetails.movie') : t('mediaDetails.tvShow') })}</p>
             </div>
           )}
         </CardContent>

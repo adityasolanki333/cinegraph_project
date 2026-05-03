@@ -236,30 +236,27 @@ export default function Community() {
               <TabsList className="inline-flex w-max h-auto p-1 gap-0.5" data-testid="tabs-community">
                 <TabsTrigger value="feed" className="gap-1.5 px-3 py-2" data-testid="tab-activity-feed">
                   <Clock className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Activity Feed</span>
-                  <span className="sm:hidden">Feed</span>
+                  <span>{t('community.activityFeed')}</span>
                 </TabsTrigger>
                 <TabsTrigger value="reviews" className="gap-1.5 px-3 py-2" data-testid="tab-top-reviews">
                   <Star className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Top Reviews</span>
-                  <span className="sm:hidden">Reviews</span>
+                  <span>{t('community.topReviews')}</span>
                 </TabsTrigger>
                 <TabsTrigger value="trending" className="gap-1.5 px-3 py-2" data-testid="tab-trending">
                   <TrendingUp className="h-4 w-4 shrink-0" />
-                  <span>Trending</span>
+                  <span>{t('community.trending')}</span>
                 </TabsTrigger>
                 <TabsTrigger value="foryou" className="gap-1.5 px-3 py-2" data-testid="tab-for-you">
                   <Heart className="h-4 w-4 shrink-0" />
-                  <span>For You</span>
+                  <span>{t('community.forYou')}</span>
                 </TabsTrigger>
                 <TabsTrigger value="search" className="gap-1.5 px-3 py-2" data-testid="tab-search">
                   <Search className="h-4 w-4 shrink-0" />
-                  <span>Search</span>
+                  <span>{t('community.search')}</span>
                 </TabsTrigger>
                 <TabsTrigger value="leaderboards" className="gap-1.5 px-3 py-2" data-testid="tab-leaderboards">
                   <Trophy className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Leaderboards</span>
-                  <span className="sm:hidden">Leaders</span>
+                  <span>{t('community.leaderboard')}</span>
                 </TabsTrigger>
                 <Link
                   href="/community/clubs"
@@ -267,7 +264,7 @@ export default function Community() {
                   className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-2 text-sm font-medium gap-1.5 text-muted-foreground ring-offset-background transition-all hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <Clapperboard className="h-4 w-4 shrink-0" />
-                  <span>Clubs</span>
+                  <span>{t('community.clubs')}</span>
                 </Link>
                 <Link
                   href="/community/lists"
@@ -275,7 +272,7 @@ export default function Community() {
                   className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-2 text-sm font-medium gap-1.5 text-muted-foreground ring-offset-background transition-all hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <List className="h-4 w-4 shrink-0" />
-                  <span>Lists</span>
+                  <span>{t('community.lists')}</span>
                 </Link>
               </TabsList>
             </div>
@@ -285,9 +282,9 @@ export default function Community() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="daily" data-testid="filter-daily">Last 24 Hours</SelectItem>
-                <SelectItem value="weekly" data-testid="filter-weekly">This Week</SelectItem>
-                <SelectItem value="monthly" data-testid="filter-monthly">This Month</SelectItem>
+                <SelectItem value="daily" data-testid="filter-daily">{t('community.last24Hours')}</SelectItem>
+                <SelectItem value="weekly" data-testid="filter-weekly">{t('community.thisWeek')}</SelectItem>
+                <SelectItem value="monthly" data-testid="filter-monthly">{t('community.thisMonth')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -328,13 +325,13 @@ export default function Community() {
                               {(item as any).userName || (item.user?.firstName ? `${item.user.firstName} ${item.user.lastName ?? ''}`.trim() : 'User')}
                             </Link>
                             {item.type === 'review' ? (
-                              <Badge variant="secondary" className="text-xs">Reviewed</Badge>
+                              <Badge variant="secondary" className="text-xs">{t('community.reviewed')}</Badge>
                             ) : item.type === 'list' ? (
-                              <Badge variant="secondary" className="text-xs">Created List</Badge>
+                              <Badge variant="secondary" className="text-xs">{t('community.createdList')}</Badge>
                             ) : item.type === 'watchlist' ? (
-                              <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-600">Added to Watchlist</Badge>
+                              <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-600">{t('community.addedToWatchlist')}</Badge>
                             ) : (
-                              <Badge variant="secondary" className="text-xs bg-yellow-500/10 text-yellow-600">Gave Award</Badge>
+                              <Badge variant="secondary" className="text-xs bg-yellow-500/10 text-yellow-600">{t('community.gaveAward')}</Badge>
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground dark:text-muted-foreground">
@@ -469,9 +466,9 @@ export default function Community() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="awards" data-testid="sort-awards">Most Awards</SelectItem>
-                <SelectItem value="comments" data-testid="sort-comments">Most Comments</SelectItem>
-                <SelectItem value="helpful" data-testid="sort-helpful">Most Helpful</SelectItem>
+                <SelectItem value="awards" data-testid="sort-awards">{t('community.mostAwards')}</SelectItem>
+                <SelectItem value="comments" data-testid="sort-comments">{t('community.mostComments')}</SelectItem>
+                <SelectItem value="helpful" data-testid="sort-helpful">{t('community.mostHelpful')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -897,13 +894,13 @@ export default function Community() {
                                     {item.user?.firstName} {item.user?.lastName}
                                   </Link>
                                   {item.type === 'review' ? (
-                                    <Badge variant="secondary" className="text-xs">Reviewed</Badge>
+                                    <Badge variant="secondary" className="text-xs">{t('community.reviewed')}</Badge>
                                   ) : item.type === 'list' ? (
-                                    <Badge variant="secondary" className="text-xs">Created List</Badge>
+                                    <Badge variant="secondary" className="text-xs">{t('community.createdList')}</Badge>
                                   ) : item.type === 'watchlist' ? (
-                                    <Badge variant="secondary" className="text-xs">Added to Watchlist</Badge>
+                                    <Badge variant="secondary" className="text-xs">{t('community.addedToWatchlist')}</Badge>
                                   ) : item.type === 'award' ? (
-                                    <Badge variant="secondary" className="text-xs">Awarded Review</Badge>
+                                    <Badge variant="secondary" className="text-xs">{t('community.gaveAward')}</Badge>
                                   ) : null}
                                 </div>
                                 <p className="text-sm text-muted-foreground dark:text-muted-foreground">

@@ -12,9 +12,24 @@ import { MediaCard } from '@/components/media-card';
 import MediaCardSkeleton from '@/components/media-card-skeleton';
 import { ExplanationVisualizer, ExplanationData } from './explanation-visualizer';
 import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from 'react-i18next';
+
+const genreNameToKey: Record<string, string> = {
+  "Action": "action", "Adventure": "adventure", "Animation": "animation",
+  "Comedy": "comedy", "Crime": "crime", "Documentary": "documentary",
+  "Drama": "drama", "Family": "family", "Fantasy": "fantasy",
+  "History": "history", "Horror": "horror", "Music": "music",
+  "Mystery": "mystery", "Romance": "romance", "Science Fiction": "scienceFiction",
+  "TV Movie": "tvMovie", "Thriller": "thriller", "War": "war",
+  "Western": "western", "Action & Adventure": "actionAndAdventure",
+  "Sci-Fi & Fantasy": "sciFiAndFantasy", "Kids": "kids", "News": "news",
+  "Reality": "reality", "Soap": "soap", "Talk": "talk",
+  "War & Politics": "warAndPolitics", "Sci-Fi": "sciFi"
+};
 
 function ExplanationLoader({ movieId, mediaType, initialReason }: { movieId: number, mediaType: string, initialReason: string }) {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const userId = user?.id || 'demo_user';
 
   const { data: explanation, isLoading } = useQuery({
@@ -28,7 +43,7 @@ function ExplanationLoader({ movieId, mediaType, initialReason }: { movieId: num
     }
   });
 
-  if (isLoading) return <div className="text-xs text-muted-foreground animate-pulse">Analyzing AI insights...</div>;
+  if (isLoading) return <div className="text-xs text-muted-foreground animate-pulse">{t('advancedFinder.analyzingInsights')}</div>;
 
   if (!explanation) return <div className="text-xs text-muted-foreground">{initialReason}</div>;
 
@@ -125,6 +140,7 @@ interface SearchResponse {
 }
 
 export function AdvancedRecommendations() {
+  const { t } = useTranslation();
   const [showWizard, setShowWizard] = useState(false);
 
   const [preferences, setPreferences] = useState<UserPreferences | null>(() => {
@@ -290,7 +306,7 @@ export function AdvancedRecommendations() {
         <div className="flex items-center space-x-2 sm:space-x-3">
           <Brain className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
           <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Advanced Movie Finder</h1>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">{t('advancedFinder.title')}</h1>
           </div>
         </div>
         <Button
@@ -299,8 +315,8 @@ export function AdvancedRecommendations() {
           className="gap-2 w-full sm:w-auto"
         >
           <Sparkles className="h-4 w-4" />
-          <span className="hidden sm:inline">{preferences ? 'Update Preferences' : 'Set Preferences'}</span>
-          <span className="sm:hidden">Preferences</span>
+          <span className="hidden sm:inline">{preferences ? t('advancedFinder.updatePreferences') : t('advancedFinder.setPreferences')}</span>
+          <span className="sm:hidden">{t('advancedFinder.preferences')}</span>
         </Button>
       </div>
 
@@ -308,8 +324,8 @@ export function AdvancedRecommendations() {
         <CardHeader className="p-4 sm:p-6 pb-3">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Brain className="h-4 w-4 sm:h-5 sm:w-5" />
-            <span className="hidden sm:inline">Semantic Search - Describe the movie you're looking for in natural language</span>
-            <span className="sm:hidden">Semantic Search</span>
+            <span className="hidden sm:inline">{t('advancedFinder.semanticSearch')}</span>
+            <span className="sm:hidden">{t('advancedFinder.semanticSearchShort')}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6 pt-0">
@@ -318,7 +334,7 @@ export function AdvancedRecommendations() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="e.g., 'mind-bending thriller about dreams' or 'heartwarming family comedy'"
+              placeholder={t('advancedFinder.searchPlaceholder')}
               className="flex-1 text-sm sm:text-base"
               data-testid="input-advanced-search"
             />
@@ -329,15 +345,15 @@ export function AdvancedRecommendations() {
               data-testid="button-advanced-search"
             >
               <Search className="h-4 w-4" />
-              <span className="hidden sm:inline">Find Movies</span>
-              <span className="sm:hidden">Search</span>
+              <span className="hidden sm:inline">{t('advancedFinder.findMovies')}</span>
+              <span className="sm:hidden">{t('advancedFinder.searchBtn')}</span>
             </Button>
           </div>
 
           {!preferences && (
             <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                Optional: Set preferences to filter results by genre, year, rating, and language
+                {t('advancedFinder.optionalPreferences')}
               </p>
             </div>
           )}
@@ -347,28 +363,28 @@ export function AdvancedRecommendations() {
       {preferences && (
         <Card className="mb-4 sm:mb-8">
           <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="text-base sm:text-lg">Your Preferences</CardTitle>
+            <CardTitle className="text-base sm:text-lg">{t('advancedFinder.yourPreferences')}</CardTitle>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 text-sm">
               <div>
-                <span className="font-medium">Media Type:</span> {preferences.mediaType.join(', ')}
+                <span className="font-medium">{t('advancedFinder.mediaType')}:</span> {preferences.mediaType.join(', ')}
               </div>
               <div>
-                <span className="font-medium">Years:</span> {preferences.releaseYearRange[0]} - {preferences.releaseYearRange[1]}
+                <span className="font-medium">{t('advancedFinder.years')}:</span> {preferences.releaseYearRange[0]} - {preferences.releaseYearRange[1]}
               </div>
               <div>
-                <span className="font-medium">Rating:</span> {preferences.ratingRange[0]} - {preferences.ratingRange[1]}
+                <span className="font-medium">{t('advancedFinder.ratingLabel')}:</span> {preferences.ratingRange[0]} - {preferences.ratingRange[1]}
               </div>
               <div>
-                <span className="font-medium">Runtime:</span> {preferences.runtime}
+                <span className="font-medium">{t('advancedFinder.runtime')}:</span> {preferences.runtime}
               </div>
               <div className="sm:col-span-2 md:col-span-2">
-                <span className="font-medium">Languages:</span> {preferences.languages.join(', ')}
+                <span className="font-medium">{t('advancedFinder.languages')}:</span> {preferences.languages.join(', ')}
               </div>
               {preferences.genres.length > 0 && (
                 <div className="sm:col-span-2 md:col-span-3">
-                  <span className="font-medium">Genres:</span>
+                  <span className="font-medium">{t('advancedFinder.genres')}:</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {preferences.genres.map(genre => (
                       <Badge key={genre} variant="secondary" className="text-xs">
@@ -380,7 +396,7 @@ export function AdvancedRecommendations() {
               )}
               {preferences.moods.length > 0 && (
                 <div className="sm:col-span-2 md:col-span-3">
-                  <span className="font-medium">Moods:</span>
+                  <span className="font-medium">{t('advancedFinder.moods')}:</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {preferences.moods.map(mood => (
                       <Badge key={mood} variant="outline" className="text-xs">
@@ -399,7 +415,7 @@ export function AdvancedRecommendations() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-muted-foreground">
             <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm">Searching with AI semantic matching...</span>
+            <span className="text-sm">{t('advancedFinder.searchingAI')}</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
             {Array.from({ length: 10 }, (_, i) => (
@@ -416,8 +432,8 @@ export function AdvancedRecommendations() {
               <div className="text-red-600 dark:text-red-400">
                 <p className="font-semibold mb-2">
                   {error.message.includes('Too many requests') || error.message.includes('rate limit')
-                    ? 'Rate Limit Reached'
-                    : 'Error'}
+                    ? t('advancedFinder.rateLimitReached')
+                    : t('advancedFinder.error')}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {error.message}
@@ -425,7 +441,7 @@ export function AdvancedRecommendations() {
               </div>
               {(error.message.includes('Too many requests') || error.message.includes('rate limit')) && (
                 <p className="text-xs text-muted-foreground max-w-md">
-                  You're making searches too quickly. Please wait about a minute and try again.
+                  {t('advancedFinder.rateLimitDesc')}
                 </p>
               )}
             </div>
@@ -440,13 +456,13 @@ export function AdvancedRecommendations() {
               <div className="flex items-center gap-3">
                 <h2 className="text-lg sm:text-xl lg:text-2xl font-bold" data-testid="text-results-heading">
                   {preferences?.mediaType.includes('both') || (preferences?.mediaType.includes('movies') && preferences?.mediaType.includes('tv'))
-                    ? 'Recommended Movies & TV Shows'
+                    ? t('advancedFinder.recommendedMoviesTV')
                     : preferences?.mediaType.includes('tv')
-                      ? 'Recommended TV Shows'
-                      : 'Recommended Movies'}
+                      ? t('advancedFinder.recommendedTV')
+                      : t('advancedFinder.recommendedMovies')}
                 </h2>
                 <Badge variant="secondary" className="text-xs sm:text-sm" data-testid="badge-result-count">
-                  {recommendations.recommendations.length} results
+                  {recommendations.recommendations.length} {t('advancedFinder.results')}
                 </Badge>
               </div>
               <div className="flex items-center gap-2">
@@ -458,12 +474,12 @@ export function AdvancedRecommendations() {
                 <Select value={sortBy} onValueChange={(val) => { setSortBy(val); if (searchTrigger > 0) setSearchTrigger(prev => prev + 1); }}>
                   <SelectTrigger className="w-[160px] h-8 text-xs" data-testid="select-sort-by">
                     <ArrowUpDown className="h-3 w-3 mr-1" />
-                    <SelectValue placeholder="Sort by" />
+                    <SelectValue placeholder={t('advancedFinder.sortBy')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="relevance">Relevance</SelectItem>
-                    <SelectItem value="release_date">Release Date</SelectItem>
-                    <SelectItem value="rating">Rating</SelectItem>
+                    <SelectItem value="relevance">{t('advancedFinder.relevance')}</SelectItem>
+                    <SelectItem value="release_date">{t('advancedFinder.releaseDate')}</SelectItem>
+                    <SelectItem value="rating">{t('advancedFinder.ratingSort')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   Star, Calendar, Clock, Users, ArrowLeft,
   Play, Heart, Bookmark, MessageSquare, TrendingUp, CheckCircle, Sparkles,
@@ -73,6 +74,7 @@ export interface MediaDetailsConfig {
 }
 
 export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
+  const { t } = useTranslation();
   const {
     mediaType, id, title, date, overview, durationLabel,
     voteAverage, voteCount, posterPath, backdropPath, originalLanguage,
@@ -204,8 +206,8 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
   const handleWatchlistToggle = async () => {
     if (!isAuthenticated) {
       toast({
-        title: "Please log in",
-        description: "You need to be logged in to add items to your watchlist.",
+        title: t('mediaDetails.pleaseLogIn'),
+        description: t('mediaDetails.logInForWatchlist'),
         variant: "destructive",
       });
       return;
@@ -215,16 +217,16 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
       const success = await removeFromWatchlist(movieData.id);
       if (success) {
         toast({
-          title: "Removed from watchlist",
-          description: `${title} has been removed from your watchlist.`,
+          title: t('mediaDetails.removedFromWatchlist'),
+          description: t('mediaDetails.removedFromWatchlistDesc', { title }),
         });
       }
     } else {
       const success = await addToWatchlist(movieData);
       if (success) {
         toast({
-          title: "Added to watchlist",
-          description: `${title} has been added to your watchlist.`,
+          title: t('mediaDetails.addedToWatchlist'),
+          description: t('mediaDetails.addedToWatchlistDesc', { title }),
         });
       }
     }
@@ -235,8 +237,8 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
       favoritesMutation.mutate({ action: 'remove' }, {
         onSuccess: () => {
           toast({
-            title: "Removed from favorites",
-            description: `${title} has been removed from your favorites.`,
+            title: t('mediaDetails.removedFromFavorites'),
+            description: t('mediaDetails.removedFromFavoritesDesc', { title }),
           });
         }
       });
@@ -244,8 +246,8 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
       favoritesMutation.mutate({ action: 'add' }, {
         onSuccess: () => {
           toast({
-            title: "Added to favorites",
-            description: `${title} has been added to your favorites.`,
+            title: t('mediaDetails.addedToFavorites'),
+            description: t('mediaDetails.addedToFavoritesDesc', { title }),
           });
         }
       });
@@ -257,8 +259,8 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
       watchedMutation.mutate({ action: 'remove' }, {
         onSuccess: () => {
           toast({
-            title: "Removed from watched",
-            description: `${title} has been removed from your watched list.`,
+            title: t('mediaDetails.removedFromWatched'),
+            description: t('mediaDetails.removedFromWatchedDesc', { title }),
           });
         }
       });
@@ -266,14 +268,14 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
       watchedMutation.mutate({ action: 'add' }, {
         onSuccess: () => {
           toast({
-            title: "Marked as watched",
-            description: `${title} has been marked as watched.`,
+            title: t('mediaDetails.markedAsWatched'),
+            description: t('mediaDetails.markedAsWatchedDesc', { title }),
             action: (
               <ToastAction altText="Write a review" onClick={() => {
                 setActiveTab("reviews");
                 window.scrollTo({ top: 500, behavior: "smooth" });
               }}>
-                Write Review
+                {t('mediaDetails.writeReview')}
               </ToastAction>
             ),
           });
@@ -330,7 +332,7 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                 onClick={() => window.history.back()}
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
+                {t('mediaDetails.back')}
               </Button>
 
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">{title}</h1>
@@ -386,8 +388,8 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                       setIsTrailerOpen(true);
                     } else {
                       toast({
-                        title: "No trailer available",
-                        description: `Sorry, no trailer is available for this ${mediaLabel}.`,
+                        title: t('mediaDetails.noTrailer'),
+                        description: t('mediaDetails.noTrailerDesc', { type: t(`mediaDetails.${mediaType === 'movie' ? 'movie' : 'tvShow'}`) }),
                         variant: "default",
                       });
                     }
@@ -395,8 +397,8 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                   data-testid="button-watch-trailer"
                 >
                   <Play className="h-4 w-4 md:h-5 md:w-5 mr-2" />
-                  <span className="hidden sm:inline">Watch Trailer</span>
-                  <span className="sm:hidden">Trailer</span>
+                  <span className="hidden sm:inline">{t('mediaDetails.watchTrailer')}</span>
+                  <span className="sm:hidden">{t('mediaDetails.trailer')}</span>
                 </Button>
 
                 <div className="grid grid-cols-2 gap-2 sm:contents">
@@ -409,8 +411,8 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                     className={`w-full sm:w-auto ${isInFavorites ? 'bg-red-500 hover:bg-red-600 text-white border-red-500' : ''}`}
                   >
                     <Heart className={`h-4 w-4 md:h-5 md:w-5 mr-2 ${isInFavorites ? 'fill-current' : ''}`} />
-                    <span className="hidden md:inline">{isInFavorites ? 'Favorited' : 'Add to Favorites'}</span>
-                    <span className="md:hidden">{isInFavorites ? 'Favorited' : 'Favorite'}</span>
+                    <span className="hidden md:inline">{isInFavorites ? t('mediaDetails.favorited') : t('mediaDetails.addToFavorites')}</span>
+                    <span className="md:hidden">{isInFavorites ? t('mediaDetails.favorited') : t('mediaDetails.favorite')}</span>
                   </Button>
 
                   <Button
@@ -421,8 +423,8 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                     className={`w-full sm:w-auto ${isInUserWatchlist ? 'bg-blue-500 hover:bg-blue-600 text-white border-blue-500' : ''}`}
                   >
                     <Bookmark className={`h-4 w-4 md:h-5 md:w-5 mr-2 ${isInUserWatchlist ? 'fill-current' : ''}`} />
-                    <span className="hidden md:inline">{isInUserWatchlist ? 'In Watchlist' : 'Add to Watchlist'}</span>
-                    <span className="md:hidden">{isInUserWatchlist ? 'Listed' : 'Watchlist'}</span>
+                    <span className="hidden md:inline">{isInUserWatchlist ? t('mediaDetails.inWatchlist') : t('mediaDetails.addToWatchlist')}</span>
+                    <span className="md:hidden">{isInUserWatchlist ? t('mediaDetails.listed') : t('mediaDetails.watchlist')}</span>
                   </Button>
 
                   <Button
@@ -434,8 +436,8 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                     className={`w-full sm:w-auto ${isWatched ? 'bg-green-500 hover:bg-green-600 text-white border-green-500' : ''}`}
                   >
                     <CheckCircle className={`h-4 w-4 md:h-5 md:w-5 mr-2 ${isWatched ? 'fill-current' : ''}`} />
-                    <span className="hidden md:inline">{isWatched ? 'Watched' : 'Mark as Watched'}</span>
-                    <span className="md:hidden">{isWatched ? 'Watched' : 'Watch'}</span>
+                    <span className="hidden md:inline">{isWatched ? t('mediaDetails.watched') : t('mediaDetails.markAsWatched')}</span>
+                    <span className="md:hidden">{isWatched ? t('mediaDetails.watched') : t('mediaDetails.watch')}</span>
                   </Button>
 
                   <AddToListButton
@@ -457,14 +459,14 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 mb-4 sm:mb-6">
             <TabsList className={`inline-flex w-max sm:grid ${tabCount === 6 ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} sm:w-full gap-1 h-auto`} data-testid="tabs-navigation">
-              <TabsTrigger value="details" data-testid="tab-details" className="text-xs sm:text-sm px-3 py-2">Details</TabsTrigger>
-              <TabsTrigger value="cast" data-testid="tab-cast" className="text-xs sm:text-sm px-3 py-2">Cast</TabsTrigger>
+              <TabsTrigger value="details" data-testid="tab-details" className="text-xs sm:text-sm px-3 py-2">{t('mediaDetails.detailsTab')}</TabsTrigger>
+              <TabsTrigger value="cast" data-testid="tab-cast" className="text-xs sm:text-sm px-3 py-2">{t('mediaDetails.castTab')}</TabsTrigger>
               {episodesTab && (
-                <TabsTrigger value="episodes" data-testid="tab-episodes" className="text-xs sm:text-sm px-3 py-2">Episodes</TabsTrigger>
+                <TabsTrigger value="episodes" data-testid="tab-episodes" className="text-xs sm:text-sm px-3 py-2">{t('mediaDetails.episodesTab')}</TabsTrigger>
               )}
-              <TabsTrigger value="reviews" data-testid="tab-reviews" className="text-xs sm:text-sm px-3 py-2">Reviews</TabsTrigger>
-              <TabsTrigger value="recommendations" data-testid="tab-recommendations" className="text-xs sm:text-sm px-3 py-2">For You</TabsTrigger>
-              <TabsTrigger value="similar" data-testid="tab-similar" className="text-xs sm:text-sm px-3 py-2">Similar</TabsTrigger>
+              <TabsTrigger value="reviews" data-testid="tab-reviews" className="text-xs sm:text-sm px-3 py-2">{t('mediaDetails.reviewsTab')}</TabsTrigger>
+              <TabsTrigger value="recommendations" data-testid="tab-recommendations" className="text-xs sm:text-sm px-3 py-2">{t('mediaDetails.forYouTab')}</TabsTrigger>
+              <TabsTrigger value="similar" data-testid="tab-similar" className="text-xs sm:text-sm px-3 py-2">{t('mediaDetails.similarTab')}</TabsTrigger>
             </TabsList>
           </div>
 
@@ -510,11 +512,11 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="user-reviews" data-testid="tab-user-reviews">
                   <MessageSquare className="h-4 w-4 mr-2" />
-                  User Reviews
+                  {t('mediaDetails.userReviews')}
                 </TabsTrigger>
                 <TabsTrigger value="video-reviews" data-testid="tab-video-reviews">
                   <Play className="h-4 w-4 mr-2" />
-                  Video Reviews
+                  {t('mediaDetails.videoReviews')}
                 </TabsTrigger>
               </TabsList>
 
@@ -525,7 +527,7 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <Sparkles className="h-5 w-5 text-primary" />
-                          AI Review Summary
+                          {t('mediaDetails.aiReviewSummary')}
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
@@ -539,17 +541,17 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <TrendingUp className="h-5 w-5" />
-                          Audience Sentiment
+                          {t('mediaDetails.audienceSentiment')}
                           {(sentimentData as any).sources?.tmdb > 0 && (
                             <Badge variant="secondary" className="ml-auto text-xs">
-                              {(sentimentData as any).sources.tmdb} TMDB reviews
+                              {t('mediaDetails.tmdbReviews', { count: (sentimentData as any).sources.tmdb })}
                             </Badge>
                           )}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Overall Sentiment</span>
+                          <span className="text-sm font-medium">{t('mediaDetails.overallSentiment')}</span>
                           <span className="text-sm">{sentimentData.summary.avgScore.toFixed(2)}</span>
                         </div>
                         <Progress
@@ -562,19 +564,19 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                             <div className="text-green-600 font-medium text-2xl">
                               😊 {sentimentData.summary.distribution.positive}
                             </div>
-                            <div className="text-xs text-muted-foreground">Positive</div>
+                            <div className="text-xs text-muted-foreground">{t('mediaDetails.positive')}</div>
                           </div>
                           <div className="space-y-1">
                             <div className="text-gray-600 font-medium text-2xl">
                               😐 {sentimentData.summary.distribution.neutral}
                             </div>
-                            <div className="text-xs text-muted-foreground">Neutral</div>
+                            <div className="text-xs text-muted-foreground">{t('mediaDetails.neutral')}</div>
                           </div>
                           <div className="space-y-1">
                             <div className="text-red-600 font-medium text-2xl">
                               😞 {sentimentData.summary.distribution.negative}
                             </div>
-                            <div className="text-xs text-muted-foreground">Negative</div>
+                            <div className="text-xs text-muted-foreground">{t('mediaDetails.negative')}</div>
                           </div>
                         </div>
 
@@ -598,7 +600,7 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <MessageSquare className="h-5 w-5" />
-                        User Reviews
+                        {t('mediaDetails.userReviews')}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
@@ -615,15 +617,15 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                           } : undefined}
                           onSuccess={() => {
                             refetchReviews();
-                            toast({ title: "Review submitted!", description: "Thank you for your feedback." });
+                            toast({ title: t('mediaDetails.reviewSubmitted'), description: t('mediaDetails.thankYouFeedback') });
                           }}
                         />
                       ) : !isAuthenticated ? (
                         <div className="py-4 text-center space-y-3">
                           <MessageSquare className="h-10 w-10 mx-auto text-muted-foreground" />
-                          <p className="text-muted-foreground">Sign in to rate and review this {mediaLabel}</p>
+                          <p className="text-muted-foreground">{t('mediaDetails.signInToReview', { type: t(`mediaDetails.${mediaType === 'movie' ? 'movie' : 'tvShow'}`) })}</p>
                           <Link href="/login">
-                            <Button size="sm">Sign In</Button>
+                            <Button size="sm">{t('mediaDetails.signIn')}</Button>
                           </Link>
                         </div>
                       ) : null}
@@ -668,10 +670,10 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
             <Tabs defaultValue={mediaType === 'movie' ? 'tmdb' : 'shows'} className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value={mediaType === 'movie' ? 'tmdb' : 'shows'} data-testid={mediaType === 'movie' ? 'tab-tmdb-similar' : 'tab-similar-shows'}>
-                  {mediaType === 'movie' ? 'Similar Movies' : 'Similar Shows'}
+                  {mediaType === 'movie' ? t('mediaDetails.similarMovies') : t('mediaDetails.similarShows')}
                 </TabsTrigger>
-                <TabsTrigger value="lists" data-testid="tab-similar-lists">Lists</TabsTrigger>
-                <TabsTrigger value="ai-similar" data-testid="tab-ai-similar"><Sparkles className="h-4 w-4 mr-1 inline" />AI Similar</TabsTrigger>
+                <TabsTrigger value="lists" data-testid="tab-similar-lists">{t('mediaDetails.lists')}</TabsTrigger>
+                <TabsTrigger value="ai-similar" data-testid="tab-ai-similar"><Sparkles className="h-4 w-4 mr-1 inline" />{t('mediaDetails.aiSimilar')}</TabsTrigger>
               </TabsList>
 
               <TabsContent value={mediaType === 'movie' ? 'tmdb' : 'shows'} className="mt-6">
@@ -693,7 +695,7 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                   </div>
                 ) : (
                   <div className="text-center py-12" data-testid={mediaType === 'movie' ? 'empty-tmdb-similar' : 'empty-similar-shows'}>
-                    <div className="text-muted-foreground mb-4">No similar {mediaType === 'movie' ? 'movies' : 'shows'} found.</div>
+                    <div className="text-muted-foreground mb-4">{t('mediaDetails.noSimilar', { type: t(`mediaDetails.${mediaType === 'movie' ? 'movies' : 'shows'}`) })}</div>
                   </div>
                 )}
               </TabsContent>
@@ -702,7 +704,7 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                 <div className="flex items-center gap-2 mb-6">
                   <Layers className="h-5 w-5 text-primary" />
                   <h2 className="text-2xl font-bold" data-testid="heading-similar-lists">
-                    Lists Featuring This {mediaType === 'movie' ? 'Movie' : 'Show'}
+                    {t('mediaDetails.listsFeaturing', { type: t(`mediaDetails.${mediaType === 'movie' ? 'Movie' : 'Show'}`) })}
                   </h2>
                 </div>
                 {isLoadingLists ? (
@@ -720,7 +722,7 @@ export function MediaDetails({ config }: { config: MediaDetailsConfig }) {
                 ) : (
                   <div className="text-center py-12" data-testid="empty-similar-lists">
                     <div className="text-muted-foreground mb-4">
-                      This {mediaLabel} hasn't been added to any public lists yet.
+                      {t('mediaDetails.notInAnyList', { type: t(`mediaDetails.${mediaType === 'movie' ? 'movie' : 'tvShow'}`) })}
                     </div>
                   </div>
                 )}

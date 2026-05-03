@@ -34,6 +34,7 @@ const moodOptionsDef = [
 
 // Pipeline Recommendations Component with Pagination
 function PipelineRecommendations({ loading, recommendations }: { loading: boolean; recommendations: any }) {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
@@ -41,7 +42,7 @@ function PipelineRecommendations({ loading, recommendations }: { loading: boolea
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-accent" data-testid="loader-pipeline-recommendations" />
-        <span className="ml-2 text-muted-foreground">Processing multi-stage pipeline...</span>
+        <span className="ml-2 text-muted-foreground">{t('recommendations.processing')}</span>
       </div>
     );
   }
@@ -50,21 +51,21 @@ function PipelineRecommendations({ loading, recommendations }: { loading: boolea
     return (
       <div className="py-12 text-center">
         <Settings className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-        <h3 className="text-xl font-semibold mb-2">No Pipeline Recommendations</h3>
+        <h3 className="text-xl font-semibold mb-2">{t('recommendations.noPipelineRecs')}</h3>
         <p className="text-muted-foreground mb-6">
-          Rate some movies or add titles to your watchlist to get advanced pipeline recommendations
+          {t('recommendations.noPipelineDesc')}
         </p>
         <div className="flex gap-3 justify-center">
           <Link href="/movies">
             <Button data-testid="button-browse-movies-pipeline">
               <Film className="h-4 w-4 mr-2" />
-              Browse Movies
+              {t('recommendations.browseMovies')}
             </Button>
           </Link>
           <Link href="/tv-shows">
             <Button variant="outline" data-testid="button-browse-tv-pipeline">
               <Tv className="h-4 w-4 mr-2" />
-              Browse TV Shows
+              {t('recommendations.browseTVShows')}
             </Button>
           </Link>
         </div>
@@ -546,13 +547,11 @@ export default function Recommendations() {
           <TabsList className="grid w-full grid-cols-2 mb-2 sm:mb-3 gap-0.5 sm:gap-1">
             <TabsTrigger value="advanced" className="flex items-center gap-1 md:gap-2 text-xs sm:text-sm px-2 sm:px-3" data-testid="tab-advanced-finder">
               <Search className="h-3 w-3 md:h-4 md:w-4" />
-              <span className="hidden sm:inline">Advanced Finder</span>
-              <span className="sm:hidden">Finder</span>
+              <span>{t('recommendations.advancedFinder')}</span>
             </TabsTrigger>
             <TabsTrigger value="why" className="flex items-center gap-1 md:gap-2 text-xs sm:text-sm px-2 sm:px-3" data-testid="tab-why-recommend">
               <Brain className="h-3 w-3 md:h-4 md:w-4" />
-              <span className="hidden sm:inline">Why We Recommend</span>
-              <span className="sm:hidden">Why</span>
+              <span>{t('recommendations.whyWeRecommend')}</span>
             </TabsTrigger>
           </TabsList>
 
@@ -567,10 +566,10 @@ export default function Recommendations() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Settings className="h-5 w-5 text-primary" />
-                  Recommendation Style
+                  {t('recommendations.recommendationStyle')}
                 </CardTitle>
                 <CardDescription>
-                  Control how adventurous your recommendations are
+                  {t('recommendations.controlAdventurousness', 'Control how adventurous your recommendations are')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -586,24 +585,24 @@ export default function Recommendations() {
                     data-testid="slider-diversity"
                   />
                   <div className="flex justify-between text-xs sm:text-sm text-muted-foreground">
-                    <span className="text-left max-w-[30%]">More of what I love</span>
-                    <span className="text-center">Balanced</span>
-                    <span className="text-right max-w-[30%]">Surprise me!</span>
+                    <span className="text-left max-w-[30%]">{t('recommendations.moreOfWhatILove')}</span>
+                    <span className="text-center">{t('recommendations.balanced')}</span>
+                    <span className="text-right max-w-[30%]">{t('recommendations.surpriseMe')}</span>
                   </div>
                 </div>
 
                 {/* Current diversity level indicator */}
                 <div className="pt-4 border-t">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Current Level:</span>
+                    <span className="text-sm font-medium">{t('recommendations.currentLevel')}:</span>
                     <Badge variant={
                       diversityLevel >= 0.7 ? "default" :
                         diversityLevel >= 0.3 ? "secondary" :
                           "outline"
                     } data-testid="badge-diversity-level">
-                      {diversityLevel >= 0.7 ? "High Diversity" :
-                        diversityLevel >= 0.3 ? "Balanced" :
-                          "Focused"}
+                      {diversityLevel >= 0.7 ? t('recommendations.highDiversity') :
+                        diversityLevel >= 0.3 ? t('recommendations.balanced') :
+                          t('recommendations.focused')}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -624,7 +623,7 @@ export default function Recommendations() {
                   <div className="flex-1">
                     <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
                       <Brain className="h-5 w-5 text-accent" />
-                      <span>AI-Powered Recommendations</span>
+                      <span>{t('recommendations.aiPoweredRecs')}</span>
                     </CardTitle>
                   </div>
                   <Button
@@ -646,7 +645,7 @@ export default function Recommendations() {
                 {pipelineLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-accent" data-testid="loader-unified-recommendations" />
-                    <span className="ml-2 text-muted-foreground">Finding your perfect matches...</span>
+                    <span className="ml-2 text-muted-foreground">{t('recommendations.findingMatches')}</span>
                   </div>
                 ) : unifiedRecommendations.length > 0 ? (
                   <div className="space-y-8">

@@ -15,6 +15,7 @@ import { ExplanationDialog } from "@/components/explanation-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Movie } from "@shared/schema";
 import { ChevronUp, Brain } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const TMDB_GENRE_MAP: Record<number, string> = {
   28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
@@ -92,6 +93,7 @@ export function MediaCard({
   onDislike,
   children,
 }: MediaCardProps) {
+  const { t } = useTranslation();
   const item = propItem || propMovie;
 
   const type = mediaType || item?.type || item?.media_type || (item?.name ? 'tv' : 'movie');
@@ -161,8 +163,8 @@ export function MediaCard({
 
     if (!isAuthenticated) {
       toast({
-        title: "Please log in",
-        description: "You need to be logged in to add items to your watchlist.",
+        title: t('mediaCard.pleaseLogIn'),
+        description: t('mediaCard.logInForWatchlist'),
         variant: "destructive",
       });
       setTimeout(() => setLocation('/login'), 500);
@@ -177,8 +179,8 @@ export function MediaCard({
         const success = await removeFromWatchlist(movie.id);
         if (success) {
           toast({
-            title: "Removed from watchlist",
-            description: `${movie.title} has been removed from your watchlist.`,
+            title: t('mediaCard.removedFromWatchlist'),
+            description: t('mediaCard.removedFromWatchlistDesc', { title: movie.title }),
           });
         }
       }
@@ -190,8 +192,8 @@ export function MediaCard({
         const success = await addToWatchlist(movie);
         if (success) {
           toast({
-            title: "Added to watchlist",
-            description: `${movie.title} has been added to your watchlist.`,
+            title: t('mediaCard.addedToWatchlist'),
+            description: t('mediaCard.addedToWatchlistDesc', { title: movie.title }),
           });
         }
       }
@@ -226,13 +228,13 @@ export function MediaCard({
       if (isPositive) {
         onLike?.(movie.id, type, title);
         toast({
-          title: "Great choice!",
-          description: `Finding more like "${title}"…`,
+          title: t('mediaCard.greatChoice'),
+          description: t('mediaCard.findingMore', { title }),
         });
       } else {
         toast({
-          title: "Got it!",
-          description: "We'll stop showing this to you.",
+          title: t('mediaCard.gotIt'),
+          description: t('mediaCard.stoppedShowing'),
         });
         // Remove this item from the cached recommendations list immediately
         const tmdbId = typeof movie.id === 'string' ? parseInt(movie.id) : movie.id;
@@ -249,8 +251,8 @@ export function MediaCard({
     },
     onError: (error) => {
       toast({
-        title: "Error",
-        description: "Failed to submit feedback. Please try again.",
+        title: t('common.error'),
+        description: t('mediaCard.failedFeedback'),
         variant: "destructive",
       });
     }
@@ -261,8 +263,8 @@ export function MediaCard({
   const handleFeedback = (positive: boolean) => {
     if (!isAuthenticated) {
       toast({
-        title: "Sign in required",
-        description: "Please sign in to like or dislike recommendations.",
+        title: t('mediaCard.signInRequired'),
+        description: t('mediaCard.signInForFeedback'),
       });
       return;
     }
@@ -291,8 +293,8 @@ export function MediaCard({
         setShouldFetchTrailer(false);
       } else {
         toast({
-          title: "No trailer available",
-          description: `Sorry, no trailer is available for ${movie.title}.`,
+          title: t('mediaCard.noTrailer'),
+          description: t('mediaCard.noTrailerDesc', { title: movie.title }),
           variant: "destructive",
         });
         setShouldFetchTrailer(false);
@@ -352,7 +354,7 @@ export function MediaCard({
                     data-testid="button-play-trailer"
                   >
                     <Play className="h-4 w-4 mr-1" />
-                    Play
+                    {t('mediaCard.play')}
                   </Button>
                   <Button
                     size="sm"
@@ -400,7 +402,7 @@ export function MediaCard({
 
             {/* Type badge */}
             <Badge variant="secondary" className="absolute top-1 left-1 sm:top-2 sm:left-2 text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5">
-              {movie.type === "tv" ? (movie.seasons ? `${movie.seasons} Season${movie.seasons !== 1 ? 's' : ''}` : "TV Series") : "Movie"}
+              {movie.type === "tv" ? (movie.seasons ? `${movie.seasons} ${movie.seasons !== 1 ? t('mediaCard.seasons') : t('mediaCard.season')}` : t('mediaCard.tvSeries')) : t('nav.movie')}
             </Badge>
 
 
@@ -440,7 +442,7 @@ export function MediaCard({
                         </Badge>
                       </TooltipTrigger>
                       <TooltipContent side="right" className="max-w-[200px] text-xs">
-                        <p className="font-semibold mb-1">Why Recommended?</p>
+                        <p className="font-semibold mb-1">{t('mediaCard.whyRecommended')}</p>
                         <p>{recommendationReason}</p>
                       </TooltipContent>
                     </Tooltip>
@@ -471,7 +473,7 @@ export function MediaCard({
             {/* User rating */}
             {onRate && (
               <div className="flex items-center space-x-1 mt-1 sm:mt-2">
-                <span className="text-[10px] sm:text-xs text-muted-foreground">Your rating:</span>
+                <span className="text-[10px] sm:text-xs text-muted-foreground">{t('mediaCard.yourRating')}</span>
                 <div className="flex items-center space-x-0.5 sm:space-x-1">
                   {renderStars(hoveredRating || userRating || 0, true)}
                 </div>
@@ -505,7 +507,7 @@ export function MediaCard({
                   onClick={() => setIsExplanationOpen(true)}
                 >
                   <Brain className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span className="truncate">AI Analysis</span>
+                  <span className="truncate">{t('mediaCard.aiAnalysis')}</span>
                   <ChevronUp className="h-3.5 w-3.5 ml-auto flex-shrink-0 opacity-50 rotate-90" />
                 </Button>
               </div>
@@ -516,7 +518,7 @@ export function MediaCard({
               <div className="mt-2" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                 {feedbackGiven ? (
                   <p className="text-[10px] sm:text-xs text-green-600 dark:text-green-400 text-center py-1.5" data-testid="text-feedback-thanks">
-                    ✓ Thanks for the feedback!
+                    ✓ {t('mediaCard.thanksFeedback')}
                   </p>
                 ) : (
                   <div className="flex gap-1.5">
@@ -533,7 +535,7 @@ export function MediaCard({
                       data-testid="button-feedback-like"
                     >
                       <ThumbsUp className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate text-xs font-medium">Like</span>
+                      <span className="truncate text-xs font-medium">{t('mediaCard.like')}</span>
                     </Button>
                     <Button
                       variant="outline"
@@ -548,7 +550,7 @@ export function MediaCard({
                       data-testid="button-feedback-dislike"
                     >
                       <ThumbsDown className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate text-xs font-medium">Nope</span>
+                      <span className="truncate text-xs font-medium">{t('mediaCard.nope')}</span>
                     </Button>
                   </div>
                 )}

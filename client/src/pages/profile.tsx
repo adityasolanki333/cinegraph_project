@@ -451,9 +451,9 @@ export default function Profile() {
               <div className="flex items-center text-sm text-muted-foreground mb-4">
                 <Calendar className="h-4 w-4 mr-2" />
                 <span>
-                  Joined {displayUser?.createdAt
+                  {t('profile.joined')} {displayUser?.createdAt
                     ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-                    : 'Recently'}
+                    : t('profile.recently')}
                 </span>
               </div>
 
@@ -461,11 +461,11 @@ export default function Profile() {
               <div className="flex items-center gap-6 mb-6 text-sm">
                 <div className="flex items-center gap-1">
                   <span className="font-semibold" data-testid="stat-followers">{userStats?.totalFollowers ?? 0}</span>
-                  <span className="text-muted-foreground">Followers</span>
+                  <span className="text-muted-foreground">{t('profile.followers')}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="font-semibold" data-testid="stat-following">{userStats?.totalFollowing ?? 0}</span>
-                  <span className="text-muted-foreground">Following</span>
+                  <span className="text-muted-foreground">{t('profile.following')}</span>
                 </div>
               </div>
 
@@ -473,8 +473,8 @@ export default function Profile() {
                 <div className="flex gap-2 w-full max-w-sm">
                   <Button size="sm" className="flex-1" data-testid="button-edit-profile" onClick={handleOpenEditDialog}>
                     <Edit3 className="h-4 w-4 mr-2" />
-                    <span className="hidden sm:inline">Edit Profile</span>
-                    <span className="sm:hidden">Edit</span>
+                    <span className="hidden sm:inline">{t('profile.editProfile')}</span>
+                    <span className="sm:hidden">{t('profile.edit')}</span>
                   </Button>
                   <Button
                     size="sm"
@@ -501,7 +501,7 @@ export default function Profile() {
                   ) : (
                     <UserPlus className="h-4 w-4 mr-2" />
                   )}
-                  {followStatus?.isFollowing ? 'Unfollow' : 'Follow'}
+                  {followStatus?.isFollowing ? t('profile.unfollow') : t('profile.follow')}
                 </Button>
               )}
             </div>
@@ -518,7 +518,7 @@ export default function Profile() {
                   <div className="text-xl sm:text-2xl font-bold" data-testid="stat-watchlist">
                     {watchlistLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.watchlistCount}
                   </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Watchlist</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('profile.watchlist')}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -527,7 +527,7 @@ export default function Profile() {
                   <div className="text-xl sm:text-2xl font-bold" data-testid="stat-watched">
                     {watchedLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.totalWatched}
                   </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Watched</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('profile.watched')}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -536,7 +536,7 @@ export default function Profile() {
                   <div className="text-xl sm:text-2xl font-bold" data-testid="stat-favorites-count">
                     {favoritesLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.favoritesCount}
                   </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Favorites</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('profile.favorites')}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -545,7 +545,7 @@ export default function Profile() {
                   <div className="text-xl sm:text-2xl font-bold" data-testid="stat-total-rated">
                     {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : (userRatings?.length || 0)}
                   </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Rated</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('profile.rated')}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -554,7 +554,7 @@ export default function Profile() {
                   <div className="text-xl sm:text-2xl font-bold" data-testid="stat-avg-rating">
                     {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.avgRating.toFixed(1)}
                   </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Avg Rating</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('profile.avgRating')}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -563,7 +563,7 @@ export default function Profile() {
                   <div className="text-xl sm:text-2xl font-bold" data-testid="stat-reviews">
                     {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.reviewsCount}
                   </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Reviews</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('profile.reviews')}</div>
                 </CardContent>
               </Card>
             </>
@@ -575,7 +575,7 @@ export default function Profile() {
                   <div className="text-xl sm:text-2xl font-bold" data-testid="stat-total-rated">
                     {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : (userRatings?.length || 0)}
                   </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Rated</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('profile.rated')}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -584,7 +584,7 @@ export default function Profile() {
                   <div className="text-xl sm:text-2xl font-bold" data-testid="stat-avg-rating">
                     {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.avgRating.toFixed(1)}
                   </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Avg Rating</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('profile.avgRating')}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -593,7 +593,7 @@ export default function Profile() {
                   <div className="text-xl sm:text-2xl font-bold" data-testid="stat-reviews">
                     {ratingsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : viewingStats.reviewsCount}
                   </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Reviews</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('profile.reviews')}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -602,7 +602,7 @@ export default function Profile() {
                   <div className="text-xl sm:text-2xl font-bold" data-testid="stat-lists">
                     {statsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : (userStats?.totalLists ?? 0)}
                   </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Lists</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('profile.lists')}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -611,7 +611,7 @@ export default function Profile() {
                   <div className="text-xl sm:text-2xl font-bold" data-testid="stat-followers-grid">
                     {statsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : (userStats?.totalFollowers ?? 0)}
                   </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Followers</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('profile.followers')}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -620,7 +620,7 @@ export default function Profile() {
                   <div className="text-xl sm:text-2xl font-bold" data-testid="stat-awards">
                     {statsLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : (userStats?.totalAwardsReceived ?? 0)}
                   </div>
-                  <div className="text-xs sm:text-sm text-muted-foreground">Awards</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('profile.awardsReceived')}</div>
                 </CardContent>
               </Card>
             </>
@@ -641,42 +641,40 @@ export default function Profile() {
           <TabsList className="inline-flex w-max gap-0.5" data-testid="tabs-profile">
             <TabsTrigger value="rated" data-testid="tab-rated-items">
               <Star className="h-4 w-4 mr-1.5" />
-              Rated
+              {t('profile.rated')}
             </TabsTrigger>
             {isOwnProfile && (
               <TabsTrigger value="watchlist" data-testid="tab-watchlist">
                 <Bookmark className="h-4 w-4 mr-1.5" />
-                Watchlist
+                {t('profile.watchlist')}
               </TabsTrigger>
             )}
             {isOwnProfile && (
               <TabsTrigger value="favorites" data-testid="tab-favorites">
                 <Heart className="h-4 w-4 mr-1.5" />
-                Favorites
+                {t('profile.favorites')}
               </TabsTrigger>
             )}
             {isOwnProfile && (
               <TabsTrigger value="watched" data-testid="tab-watched">
                 <Eye className="h-4 w-4 mr-1.5" />
-                Watched
+                {t('profile.watched')}
               </TabsTrigger>
             )}
             <TabsTrigger value="lists" data-testid="tab-my-lists">
               <ListIcon className="h-4 w-4 mr-1.5" />
-              Lists
+              {t('profile.lists')}
             </TabsTrigger>
             {isOwnProfile && (
               <TabsTrigger value="patterns" data-testid="tab-patterns">
                 <TrendingUp className="h-4 w-4 mr-1.5" />
-                <span className="hidden sm:inline">Patterns</span>
-                <span className="sm:hidden">Stats</span>
+                <span>{t('profile.patterns')}</span>
               </TabsTrigger>
             )}
             {isOwnProfile && (
               <TabsTrigger value="impact" data-testid="tab-my-impact">
                 <Sparkles className="h-4 w-4 mr-1.5" />
-                <span className="hidden sm:inline">My Impact</span>
-                <span className="sm:hidden">Impact</span>
+                <span>{t('profile.myImpact')}</span>
               </TabsTrigger>
             )}
           </TabsList>
@@ -689,7 +687,7 @@ export default function Profile() {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <ListIcon className="h-5 w-5" />
-                  {isOwnProfile ? 'My Lists' : `${displayUser?.firstName}'s Lists`}
+                  {isOwnProfile ? t('profile.myLists') : `${displayUser?.firstName}'s Lists`}
                 </CardTitle>
                 {isOwnProfile && <CreateListDialog />}
               </div>
@@ -731,7 +729,7 @@ export default function Profile() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Star className="h-5 w-5" />
-                Rated Items ({userRatings?.length || 0})
+                {t('profile.ratedItems')} ({userRatings?.length || 0})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -812,7 +810,7 @@ export default function Profile() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bookmark className="h-5 w-5" />
-                Watchlist ({viewingStats.watchlistCount})
+                {t('profile.watchlist')} ({viewingStats.watchlistCount})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -855,7 +853,7 @@ export default function Profile() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Heart className="h-5 w-5" />
-                Favorites ({viewingStats.favoritesCount})
+                {t('profile.favorites')} ({viewingStats.favoritesCount})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -898,7 +896,7 @@ export default function Profile() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Eye className="h-5 w-5" />
-                Watched ({viewingStats.totalWatched})
+                {t('profile.watched')} ({viewingStats.totalWatched})
               </CardTitle>
             </CardHeader>
             <CardContent>

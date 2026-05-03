@@ -387,13 +387,13 @@ export default function Movies() {
               <div className="flex gap-3 sm:gap-4">
                 <Select value={selectedGenre} onValueChange={setSelectedGenre}>
                   <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="🎬 All Genres" />
+                    <SelectValue placeholder={`🎬 ${t('movies.allGenres')}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">🎬 All Genres</SelectItem>
+                    <SelectItem value="all">🎬 {t('movies.allGenres')}</SelectItem>
                     {genres.map((genre: any) => (
                       <SelectItem key={genre.id} value={genre.name}>
-                        {genreEmojis[genre.name] ? `${genreEmojis[genre.name]} ${genre.name}` : genre.name}
+                        {genreEmojis[genre.name] ? `${genreEmojis[genre.name]} ` : ''}{t(`genres.${{'Action':'action','Adventure':'adventure','Animation':'animation','Comedy':'comedy','Crime':'crime','Documentary':'documentary','Drama':'drama','Family':'family','Fantasy':'fantasy','History':'history','Horror':'horror','Music':'music','Mystery':'mystery','Romance':'romance','Science Fiction':'scienceFiction','TV Movie':'tvMovie','Thriller':'thriller','War':'war','Western':'western'}[genre.name] || genre.name.toLowerCase()}`, genre.name)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -401,10 +401,10 @@ export default function Movies() {
 
                 <Select value={selectedYear} onValueChange={setSelectedYear}>
                   <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="📅 All Years" />
+                    <SelectValue placeholder={`📅 ${t('movies.allYears')}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">📅 All Years</SelectItem>
+                    <SelectItem value="all">📅 {t('movies.allYears')}</SelectItem>
                     {years.map((year) => (
                       <SelectItem key={year} value={year}>
                         {year}
@@ -489,7 +489,7 @@ export default function Movies() {
               </>
             ) : (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">No trending movies available</p>
+                <p className="text-muted-foreground">{t('movies.noTrending')}</p>
               </div>
             )}
           </TabsContent>
@@ -527,7 +527,7 @@ export default function Movies() {
               </>
             ) : (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">No top rated movies available</p>
+                <p className="text-muted-foreground">{t('movies.noTopRated')}</p>
               </div>
             )}
           </TabsContent>
@@ -565,7 +565,7 @@ export default function Movies() {
               </>
             ) : (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">No current releases available</p>
+                <p className="text-muted-foreground">{t('movies.noNowPlaying')}</p>
               </div>
             )}
           </TabsContent>
@@ -603,7 +603,7 @@ export default function Movies() {
               </>
             ) : (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">No upcoming releases available</p>
+                <p className="text-muted-foreground">{t('movies.noUpcoming')}</p>
               </div>
             )}
           </TabsContent>
@@ -614,7 +614,7 @@ export default function Movies() {
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search Indian movies..."
+                  placeholder={t('movies.searchIndian')}
                   className="pl-10"
                   value={indianSearchQuery}
                   onChange={(e) => setIndianSearchQuery(e.target.value)}
@@ -625,36 +625,36 @@ export default function Movies() {
               <div className="grid grid-cols-2 sm:flex gap-3 sm:gap-4">
                 <Select value={indianRegion} onValueChange={setIndianRegion}>
                   <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-indian-region">
-                    <SelectValue placeholder="🌍 All Regions" />
+                    <SelectValue placeholder={`🌍 ${t('movies.allRegions')}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">🌍 All Indian Movies</SelectItem>
-                    <SelectItem value="bollywood">🎬 Bollywood (Hindi)</SelectItem>
-                    <SelectItem value="south">🎭 South Indian</SelectItem>
+                    <SelectItem value="all">{t('movies.allRegionsLabel')}</SelectItem>
+                    <SelectItem value="bollywood">{t('movies.bollywoodLabel')}</SelectItem>
+                    <SelectItem value="south">{t('movies.southIndianLabel')}</SelectItem>
                   </SelectContent>
                 </Select>
 
                 <Select value={indianSortBy} onValueChange={setIndianSortBy}>
                   <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-indian-sort">
-                    <SelectValue placeholder="📊 Sort By" />
+                    <SelectValue placeholder={`📊 ${t('movies.topRated')}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="popular">🔥 Popular</SelectItem>
-                    <SelectItem value="trending">📈 Trending</SelectItem>
-                    <SelectItem value="top_rated">⭐ Top Rated</SelectItem>
-                    <SelectItem value="now_playing">▶️ Now Playing</SelectItem>
+                    <SelectItem value="popular">{t('movies.popularLabel')}</SelectItem>
+                    <SelectItem value="trending">{t('movies.trendingLabel')}</SelectItem>
+                    <SelectItem value="top_rated">{t('movies.topRatedLabel')}</SelectItem>
+                    <SelectItem value="now_playing">{t('movies.nowPlayingLabel')}</SelectItem>
                   </SelectContent>
                 </Select>
 
                 <Select value={indianGenre} onValueChange={setIndianGenre}>
                   <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-indian-genre">
-                    <SelectValue placeholder="🎬 All Genres" />
+                    <SelectValue placeholder={`🎬 ${t('movies.allGenres')}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">🎬 All Genres</SelectItem>
+                    <SelectItem value="all">🎬 {t('movies.allGenres')}</SelectItem>
                     {genres.map((genre: any) => (
                       <SelectItem key={genre.id} value={genre.name}>
-                        {genreEmojis[genre.name] ? `${genreEmojis[genre.name]} ${genre.name}` : genre.name}
+                        {genreEmojis[genre.name] ? `${genreEmojis[genre.name]} ` : ''}{t(`genres.${{'Action':'action','Adventure':'adventure','Animation':'animation','Comedy':'comedy','Crime':'crime','Documentary':'documentary','Drama':'drama','Family':'family','Fantasy':'fantasy','History':'history','Horror':'horror','Music':'music','Mystery':'mystery','Romance':'romance','Science Fiction':'scienceFiction','TV Movie':'tvMovie','Thriller':'thriller','War':'war','Western':'western'}[genre.name] || genre.name.toLowerCase()}`, genre.name)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -662,10 +662,10 @@ export default function Movies() {
 
                 <Select value={indianYear} onValueChange={setIndianYear}>
                   <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-indian-year">
-                    <SelectValue placeholder="📅 All Years" />
+                    <SelectValue placeholder={`📅 ${t('movies.allYears')}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">📅 All Years</SelectItem>
+                    <SelectItem value="all">📅 {t('movies.allYears')}</SelectItem>
                     {years.map((year) => (
                       <SelectItem key={year} value={year}>
                         {year}
@@ -708,7 +708,7 @@ export default function Movies() {
             ) : (
               <div className="text-center py-12">
                 <p className="text-muted-foreground">
-                  {indianSearchQuery ? `No Indian movies found for "${indianSearchQuery}"` : "No Indian movies available"}
+                  {indianSearchQuery ? t('movies.noIndianMoviesSearch', { query: indianSearchQuery }) : t('movies.noIndianMovies')}
                 </p>
               </div>
             )}

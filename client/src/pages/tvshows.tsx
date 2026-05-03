@@ -400,7 +400,7 @@ export default function TVShowsPage() {
               <div className="flex-1 relative">
                 <Filter className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search TV shows..."
+                  placeholder={t('tvshows.searchTVShows')}
                   className="pl-10"
                   value={searchQuery}
                   onChange={(e) => {
@@ -414,13 +414,13 @@ export default function TVShowsPage() {
               <div className="flex gap-3 sm:gap-4">
                 <Select value={selectedGenre} onValueChange={setSelectedGenre}>
                   <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="🎭 All Genres" />
+                    <SelectValue placeholder={`🎭 ${t('tvshows.allGenres')}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">🎭 All Genres</SelectItem>
+                    <SelectItem value="all">🎭 {t('tvshows.allGenres')}</SelectItem>
                     {genresData.map((genre: any) => (
                       <SelectItem key={genre.id} value={genre.name}>
-                        {genreEmojiMap[genre.name] || "📺"} {genre.name}
+                        {genreEmojiMap[genre.name] || "📺"} {t(`genres.${{'Action & Adventure':'actionAndAdventure','Animation':'animation','Comedy':'comedy','Crime':'crime','Documentary':'documentary','Drama':'drama','Family':'family','Kids':'kids','Mystery':'mystery','News':'news','Reality':'reality','Sci-Fi & Fantasy':'sciFiAndFantasy','Soap':'soap','Talk':'talk','War & Politics':'warAndPolitics','Western':'western','Action':'action','Adventure':'adventure','Fantasy':'fantasy','History':'history','Horror':'horror','Music':'music','Romance':'romance','Science Fiction':'scienceFiction','Thriller':'thriller'}[genre.name] || genre.name.toLowerCase().replace(/\s+/g,'')}`, genre.name)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -428,10 +428,10 @@ export default function TVShowsPage() {
 
                 <Select value={selectedYear} onValueChange={setSelectedYear}>
                   <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="📅 All Years" />
+                    <SelectValue placeholder={`📅 ${t('tvshows.allYears')}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">📅 All Years</SelectItem>
+                    <SelectItem value="all">📅 {t('tvshows.allYears')}</SelectItem>
                     {years.map((year) => (
                       <SelectItem key={year} value={year}>
                         {year}
@@ -451,7 +451,7 @@ export default function TVShowsPage() {
             ) : popularData.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground">
-                  {searchQuery ? `No TV shows found for "${searchQuery}"` : "No TV shows found"}
+                  {searchQuery ? t('tvshows.noTVShowsSearch', { query: searchQuery }) : t('tvshows.noTVShows')}
                 </p>
               </div>
             ) : (
@@ -512,7 +512,7 @@ export default function TVShowsPage() {
               </>
             ) : (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">No trending data available</p>
+                <p className="text-muted-foreground">{t('tvshows.noTrending')}</p>
               </div>
             )}
           </TabsContent>
@@ -550,7 +550,7 @@ export default function TVShowsPage() {
               </>
             ) : (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">No top rated shows available</p>
+                <p className="text-muted-foreground">{t('tvshows.noTopRated')}</p>
               </div>
             )}
           </TabsContent>
@@ -588,7 +588,7 @@ export default function TVShowsPage() {
               </>
             ) : (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">No shows airing today</p>
+                <p className="text-muted-foreground">{t('tvshows.noAiringToday')}</p>
               </div>
             )}
           </TabsContent>
@@ -626,7 +626,7 @@ export default function TVShowsPage() {
               </>
             ) : (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">No shows currently on the air</p>
+                <p className="text-muted-foreground">{t('tvshows.noOnTheAir')}</p>
               </div>
             )}
           </TabsContent>
