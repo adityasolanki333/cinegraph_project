@@ -27,6 +27,7 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     'cinegraph-project-3wgq.onrender.com',
     '.onrender.com',
+    '.fly.dev',
 ]
 
 INSTALLED_APPS = [
@@ -126,6 +127,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:5000',
     'https://cinegraph-platform.netlify.app',
     'https://cinegraph-project-3wgq.onrender.com',
+    'https://.fly.dev',
 ]
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
@@ -138,6 +140,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5000',
     'https://cinegraph-platform.netlify.app',
     'https://cinegraph-project-3wgq.onrender.com',
+    'https://.fly.dev',
 ]
 CORS_ALLOWED_ORIGIN_REGEXES = []
 CORS_ALLOW_ALL_ORIGINS = False
