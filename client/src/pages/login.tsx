@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { login, register } from "@/hooks/useAuth";
+import { login, register, useAuth } from "@/hooks/useAuth";
 import { LogIn, UserPlus, CheckCircle2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,12 +30,20 @@ export default function Login() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const search = useSearch();
+  const { isAuthenticated } = useAuth();
+  const loginAttempted = useRef(false);
 
   const redirectTo = (() => {
     const params = new URLSearchParams(search);
     const r = params.get('redirect');
-    return r && r.startsWith('/') ? r : '/';
+    return r && r.startsWith('/') && r !== '/login' ? r : '/';
   })();
+
+  useEffect(() => {
+    if (isAuthenticated && loginAttempted.current) {
+      setLocation(redirectTo);
+    }
+  }, [isAuthenticated, redirectTo]);
 
 
 
@@ -48,16 +56,13 @@ export default function Login() {
         const result = await register(email, password, firstName, lastName);
 
         if (result.success) {
+          loginAttempted.current = true;
           setShowSuccess(true);
 
           toast({
             title: t("login.accountCreated"),
             description: t("login.welcomePlatform"),
           });
-
-          setTimeout(() => {
-            setLocation(redirectTo);
-          }, 1500);
         } else {
           throw new Error(result.error || 'Registration failed');
         }
@@ -65,16 +70,13 @@ export default function Login() {
         const result = await login(email, password);
 
         if (result.success) {
+          loginAttempted.current = true;
           setShowSuccess(true);
 
           toast({
             title: t("login.welcomeBackMsg"),
             description: t("login.loginSuccessMsg"),
           });
-
-          setTimeout(() => {
-            setLocation(redirectTo);
-          }, 1500);
         } else {
           throw new Error(result.error || 'Login failed');
         }
