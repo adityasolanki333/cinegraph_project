@@ -435,46 +435,55 @@ def _build_movie_card(item: dict) -> dict:
 
 
 def fetch_trending_by_genre(genre_ids: list, limit: int = 4):
-    """Pull from TMDB weekly trending filtered by genre, supplement with discover if needed."""
-    # ── Step 1: Try actual trending/week endpoint, filter by genre ─────────
+    """
+    Return movies matching the given genres.
+    Priority: trending/week (genre-filtered) → discover/popular (genre-filtered).
+    Results are shuffled so repeated requests for the same mood vary.
+    """
     pool = []
-    try:
-        page = random.randint(1, 3)
-        trending_data = tmdb_request("/trending/movie/week", {"page": page})
-        for item in trending_data.get('results', []):
-            if not item.get('poster_path'):
-                continue
-            item_genres = item.get('genre_ids', [])
-            if any(g in item_genres for g in genre_ids):
-                pool.append(_build_movie_card(item))
-    except Exception as e:
-        logger.warning(f"Trending fetch failed: {e}")
+    seen_ids: set = set()
+    genre_str = ','.join(str(g) for g in genre_ids[:2])
+
+    # ── Step 1: Scan first 2 pages of trending/week, keep genre matches ────
+    for t_page in [1, 2]:
+        try:
+            t_data = tmdb_request("/trending/movie/week", {"page": t_page})
+            for item in t_data.get('results', []):
+                iid = item.get('id')
+                if not item.get('poster_path') or iid in seen_ids:
+                    continue
+                if any(g in item.get('genre_ids', []) for g in genre_ids):
+                    pool.append(_build_movie_card(item))
+                    seen_ids.add(iid)
+        except Exception as e:
+            logger.warning(f"Trending page {t_page} failed: {e}")
+
+    logger.info(f"fetch_trending_by_genre genres={genre_ids}: {len(pool)} from trending")
+
+    # ── Step 2: Always supplement with discover so we always get `limit` ───
+    # Use two random pages from the first 3 to add variety across calls
+    disc_pages = random.sample(range(1, 4), k=2)
+    for d_page in disc_pages:
+        if len(pool) >= limit * 2:   # have enough variety already
+            break
+        try:
+            d_data = tmdb_request("/discover/movie", {
+                "with_genres": genre_str,
+                "sort_by": "popularity.desc",
+                "vote_count.gte": 50,
+                "page": d_page,
+            })
+            for item in d_data.get('results', []):
+                iid = item.get('id')
+                if item.get('poster_path') and iid not in seen_ids:
+                    pool.append(_build_movie_card(item))
+                    seen_ids.add(iid)
+        except Exception as e:
+            logger.warning(f"Discover page {d_page} failed: {e}")
+
+    logger.info(f"fetch_trending_by_genre genres={genre_ids}: {len(pool)} total after discover")
 
     random.shuffle(pool)
-    if len(pool) >= limit:
-        return pool[:limit]
-
-    # ── Step 2: Supplement with discover/popular in the same genre ─────────
-    try:
-        genre_str = ','.join(str(g) for g in genre_ids[:2])
-        disc_page = random.randint(1, 5)
-        disc_data = tmdb_request("/discover/movie", {
-            "with_genres": genre_str,
-            "sort_by": "popularity.desc",
-            "vote_count.gte": 100,
-            "page": disc_page,
-        })
-        seen_ids = {m['id'] for m in pool}
-        extras = [
-            _build_movie_card(item)
-            for item in disc_data.get('results', [])
-            if item.get('poster_path') and item.get('id') not in seen_ids
-        ]
-        random.shuffle(extras)
-        pool += extras
-    except Exception as e:
-        logger.warning(f"Discover supplement failed: {e}")
-
     return pool[:limit]
 
 
